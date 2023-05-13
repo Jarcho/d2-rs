@@ -1,0 +1,7 @@
+[build]
+target = "i686-pc-windows-msvc"
+
+[target.i686-pc-windows-msvc]
+rustflags = [
+    "-Clink-arg=/DEF:d2fps/Win32.def",
+]

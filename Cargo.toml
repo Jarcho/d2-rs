@@ -1,0 +1,11 @@
+[workspace]
+members = ["d2fps", "d2interface"]
+resolver = "2"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+debug = true
+panic = "abort"
+lto = "thin"
