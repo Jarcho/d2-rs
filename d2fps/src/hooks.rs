@@ -1,6 +1,7 @@
 use crate::{patch::Patch, tracker::UnitId, util::Module, D2Fps, D2FPS, GAME_RATE};
 use arrayvec::ArrayVec;
 use core::{
+  fmt,
   mem::{size_of, transmute},
   ptr::{null_mut, NonNull},
 };
@@ -54,8 +55,13 @@ macro_rules! apply_patches {
     $(($offset:literal, $($args:tt)*)),* $(,)?
   })*) => {{$($(
     $patch_vec.push(
-      create_patch!($base + $offset, ($pref_base as usize).wrapping_sub($base), $($args)*)
-        .unwrap_or_else(|_| panic!("{:#x} +{:#x}", $pref_base, $offset))
+      match create_patch!($base + $offset, ($pref_base as usize).wrapping_sub($base), $($args)*) {
+        Ok(p) => p,
+        Err(e) => {
+          log!("Error applying patch at: {:#x} +{:#x}", $pref_base, $offset);
+          return Err(e);
+        }
+      }
     );
   )*)*}}
 }
@@ -104,8 +110,38 @@ enum GameVersion {
   V114c,
   V114d,
 }
+impl fmt::Display for GameVersion {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(match *self {
+      Self::V102 => "1.02",
+      Self::V103 => "1.03",
+      Self::V104b => "1.04b",
+      Self::V104c => "1.04c",
+      Self::V105 => "1.05",
+      Self::V105b => "1.05b",
+      Self::V107 => "1.07",
+      Self::V108 => "1.08",
+      Self::V109 => "1.09",
+      Self::V109b => "1.09b",
+      Self::V109d => "1.09d",
+      Self::V110b => "1.10b",
+      Self::V110s => "1.10s",
+      Self::V110 => "1.10",
+      Self::V111 => "1.11",
+      Self::V111b => "1.11b",
+      Self::V112 => "1.12",
+      Self::V113a => "1.13a",
+      Self::V113c => "1.13c",
+      Self::V113d => "1.13d",
+      Self::V114a => "1.14a",
+      Self::V114b => "1.14b",
+      Self::V114c => "1.14c",
+      Self::V114d => "1.14d",
+    })
+  }
+}
 impl GameVersion {
-  fn from_file() -> Result<GameVersion, ()> {
+  fn from_file() -> Result<Option<GameVersion>, ()> {
     unsafe {
       let len = GetFileVersionInfoSizeW(GAME_EXE, null_mut());
       let mut buf = Vec::<u8>::with_capacity(len as usize);
@@ -132,33 +168,33 @@ impl GameVersion {
       match (info.dwFileVersionMS, info.dwFileVersionLS) {
         // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v100),
         // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v101),
-        (0x0001_0000, 0x0002_0000) => Ok(GameVersion::V102),
-        (0x0001_0000, 0x0003_0000) => Ok(GameVersion::V103),
-        (0x0001_0000, 0x0004_0001) => Ok(GameVersion::V104b),
-        (0x0001_0000, 0x0004_0002) => Ok(GameVersion::V104c),
-        (0x0001_0000, 0x0005_0000) => Ok(GameVersion::V105),
-        (0x0001_0000, 0x0005_0001) => Ok(GameVersion::V105b),
+        (0x0001_0000, 0x0002_0000) => Ok(Some(GameVersion::V102)),
+        (0x0001_0000, 0x0003_0000) => Ok(Some(GameVersion::V103)),
+        (0x0001_0000, 0x0004_0001) => Ok(Some(GameVersion::V104b)),
+        (0x0001_0000, 0x0004_0002) => Ok(Some(GameVersion::V104c)),
+        (0x0001_0000, 0x0005_0000) => Ok(Some(GameVersion::V105)),
+        (0x0001_0000, 0x0005_0001) => Ok(Some(GameVersion::V105b)),
         // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106),
         // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106b),
-        (0x0001_0000, 0x0007_0000) => Ok(GameVersion::V107),
-        (0x0001_0000, 0x0008_001c) => Ok(GameVersion::V108),
-        (0x0001_0000, 0x0009_0013) => Ok(GameVersion::V109),
-        (0x0001_0000, 0x0009_0014) => Ok(GameVersion::V109b),
-        (0x0001_0000, 0x0009_0016) => Ok(GameVersion::V109d),
-        (0x0001_0000, 0x000a_0009) => Ok(GameVersion::V110b),
-        (0x0001_0000, 0x000a_000a) => Ok(GameVersion::V110s),
-        (0x0001_0000, 0x000a_0027) => Ok(GameVersion::V110),
-        (0x0001_0000, 0x000b_002d) => Ok(GameVersion::V111),
-        (0x0001_0000, 0x000b_002e) => Ok(GameVersion::V111b),
-        (0x0001_0000, 0x000c_0031) => Ok(GameVersion::V112),
-        (0x0001_0000, 0x000d_0037) => Ok(GameVersion::V113a),
-        (0x0001_0000, 0x000d_003c) => Ok(GameVersion::V113c),
-        (0x0001_0000, 0x000d_0040) => Ok(GameVersion::V113d),
-        (0x0001_000e, 0x0000_0040) => Ok(GameVersion::V114a),
-        (0x0001_000e, 0x0001_0044) => Ok(GameVersion::V114b),
-        (0x0001_000e, 0x0002_0046) => Ok(GameVersion::V114c),
-        (0x0001_000e, 0x0003_0047) => Ok(GameVersion::V114d),
-        _ => Err(()),
+        (0x0001_0000, 0x0007_0000) => Ok(Some(GameVersion::V107)),
+        (0x0001_0000, 0x0008_001c) => Ok(Some(GameVersion::V108)),
+        (0x0001_0000, 0x0009_0013) => Ok(Some(GameVersion::V109)),
+        (0x0001_0000, 0x0009_0014) => Ok(Some(GameVersion::V109b)),
+        (0x0001_0000, 0x0009_0016) => Ok(Some(GameVersion::V109d)),
+        (0x0001_0000, 0x000a_0009) => Ok(Some(GameVersion::V110b)),
+        (0x0001_0000, 0x000a_000a) => Ok(Some(GameVersion::V110s)),
+        (0x0001_0000, 0x000a_0027) => Ok(Some(GameVersion::V110)),
+        (0x0001_0000, 0x000b_002d) => Ok(Some(GameVersion::V111)),
+        (0x0001_0000, 0x000b_002e) => Ok(Some(GameVersion::V111b)),
+        (0x0001_0000, 0x000c_0031) => Ok(Some(GameVersion::V112)),
+        (0x0001_0000, 0x000d_0037) => Ok(Some(GameVersion::V113a)),
+        (0x0001_0000, 0x000d_003c) => Ok(Some(GameVersion::V113c)),
+        (0x0001_0000, 0x000d_0040) => Ok(Some(GameVersion::V113d)),
+        (0x0001_000e, 0x0000_0040) => Ok(Some(GameVersion::V114a)),
+        (0x0001_000e, 0x0001_0044) => Ok(Some(GameVersion::V114b)),
+        (0x0001_000e, 0x0002_0046) => Ok(Some(GameVersion::V114c)),
+        (0x0001_000e, 0x0003_0047) => Ok(Some(GameVersion::V114d)),
+        _ => Ok(None),
       }
     }
   }
@@ -307,8 +343,21 @@ impl HookManager {
 
   pub fn init(&mut self) -> Result<(), ()> {
     assert!(self.version.is_none());
-    self.version = Some(GameVersion::from_file()?);
-    Ok(())
+    match GameVersion::from_file() {
+      Ok(Some(version)) => {
+        self.version = Some(version);
+        log!("Detected game version: v{version}");
+        Ok(())
+      }
+      Ok(None) => {
+        log!("Unknown game version");
+        Err(())
+      }
+      Err(_) => {
+        log!("Error detecting game version");
+        Err(())
+      }
+    }
   }
 
   pub fn attach(&mut self) -> Result<(), ()> {

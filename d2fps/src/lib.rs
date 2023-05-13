@@ -1,7 +1,6 @@
 use crate::{
   hooks::HookManager,
   limiter::{MenuAniRateLimiter, VariableRateLimiter},
-  lock::Mutex,
   util::{PerfFreq, Ratio},
 };
 use config::Config;
@@ -11,6 +10,7 @@ use core::{
   sync::atomic::{AtomicUsize, Ordering::Relaxed},
 };
 use d2interface::{FixedI16, IsoPos};
+use parking_lot::Mutex;
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt, panic::set_hook};
 use tracker::EntityTracker;
 use util::monitor_refresh_rate;
@@ -25,10 +25,19 @@ use windows_sys::{
   },
 };
 
+macro_rules! log {
+  ($($args:tt)*) => {
+    crate::logger::log(|x| {
+      use std::fmt::Write;
+      let _ = write!(x, $($args)*);
+    })
+  }
+}
+
 mod config;
 mod hooks;
 mod limiter;
-mod lock;
+mod logger;
 mod patch;
 mod tracker;
 mod util;
@@ -128,6 +137,7 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
           timeEndPeriod(1);
         }
       }
+      crate::logger::flush();
     }
     _ => {}
   }

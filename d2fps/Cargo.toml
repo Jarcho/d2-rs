@@ -6,11 +6,18 @@ license = "GPL-3.0"
 
 [lib]
 name = "d2fps"
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 gcd = "2.3.0"
 arrayvec = "0.7.2"
+crossbeam-channel = "0.5.8"
+parking_lot = "0.12.1"
+
+[dependencies.once_cell]
+version = "1.17.1"
+default-features = false
+features = ["std", "parking_lot"]
 
 [dependencies.d2interface]
 path = "../d2interface"
