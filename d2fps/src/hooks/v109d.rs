@@ -213,7 +213,7 @@ impl super::HookManager {
       (
         "d2win.dll",
         d2win.0 as usize,
-        0x648a0000,
+        0x6f8a0000,
         &D2WIN_CALL_PATCHES
       ),
     )

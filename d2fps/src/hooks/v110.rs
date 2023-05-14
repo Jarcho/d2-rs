@@ -100,7 +100,7 @@ static D2CLIENT_CALL_PATCHES: [CallPatch; 3] = [
   // Game loop sleep patch
   call_patch!(0x2686, [0xff, 0x15, reloc 0x1c, 0xdf, 0xb6, 0x6f], game_loop_sleep_hook as unsafe extern "stdcall" fn(_)),
   // Draw paused game framerate
-  call_patch!(0x9478, [0xff, 0x15, reloc 0x54, 0x77, 0xba, 0x6f], draw_game_paused as unsafe extern "stdcall" fn()),
+  call_patch!(0x9b78, [0xff, 0x15, reloc 0x54, 0x77, 0xba, 0x6f], draw_game_paused as unsafe extern "stdcall" fn()),
   // Draw game framerate & entity sync
   call_patch!(0xa2c4, [
     0xa1, reloc 0xe0, 0x79, 0xba, 0x6f,
@@ -207,7 +207,7 @@ impl super::HookManager {
       (
         "d2win.dll",
         d2win.0 as usize,
-        0x648a0000,
+        0x6f8a0000,
         &D2WIN_CALL_PATCHES
       ),
     )
