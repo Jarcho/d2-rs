@@ -10,13 +10,11 @@ use std::{
 pub struct Logger {
   send: Sender<String>,
   recv: Receiver<String>,
-  recv_flush: Receiver<()>,
 }
 impl Logger {
   fn new() -> Self {
     let (send, recv) = unbounded::<String>();
     let (ret_send, ret_recv) = unbounded();
-    let (send_flush, recv_flush) = unbounded();
 
     ret_send.send(String::with_capacity(1024)).unwrap();
     ret_send.send(String::with_capacity(1024)).unwrap();
@@ -41,7 +39,7 @@ impl Logger {
                   break;
                 };
                 if msg.is_empty() {
-                  let _ = send_flush.send(());
+                  return;
                 } else {
                   let _ = writeln!(file, "{msg}");
                 }
@@ -50,8 +48,7 @@ impl Logger {
                 match recv.recv_timeout(Duration::from_secs(1)) {
                   Ok(msg) => {
                     if msg.is_empty() {
-                      let _ = file.flush();
-                      let _ = send_flush.send(());
+                      return;
                     } else {
                       let _ = writeln!(file, "{msg}");
                     }
@@ -68,7 +65,7 @@ impl Logger {
           Err(_) => {
             for msg in recv {
               if msg.is_empty() {
-                let _ = send_flush.send(());
+                return;
               }
               let _ = ret_send.send(msg);
             }
@@ -76,7 +73,7 @@ impl Logger {
         }
       });
 
-    Self { send, recv: ret_recv, recv_flush }
+    Self { send, recv: ret_recv }
   }
 
   fn log(&self, f: impl FnOnce(&mut String)) {
@@ -101,9 +98,10 @@ pub fn log(f: impl FnOnce(&mut String)) {
   logger().log(f);
 }
 
-pub fn flush() {
+pub fn shutdown() {
   if let Some(log) = LOGGER.get() {
-    log.log(|_| {});
-    let _ = log.recv_flush.recv();
+    log.send.send(String::new()).unwrap();
+    // Just hope this is long enough...
+    thread::sleep(Duration::from_millis(100));
   }
 }

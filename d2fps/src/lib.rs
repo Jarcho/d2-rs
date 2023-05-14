@@ -137,7 +137,7 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
           timeEndPeriod(1);
         }
       }
-      crate::logger::flush();
+      crate::logger::shutdown();
     }
     _ => {}
   }
