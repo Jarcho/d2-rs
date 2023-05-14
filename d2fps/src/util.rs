@@ -5,6 +5,7 @@ use core::{
   str::FromStr,
 };
 use gcd::Gcd;
+use std::{ffi::OsStr, os::windows::prelude::OsStrExt};
 use windows_sys::Win32::{
   Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
@@ -17,6 +18,7 @@ use windows_sys::Win32::{
     LibraryLoader::{FreeLibrary, LoadLibraryW},
     Performance::QueryPerformanceFrequency,
   },
+  UI::WindowsAndMessaging::MessageBoxW,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -193,4 +195,12 @@ pub unsafe fn monitor_refresh_rate(mon: HMONITOR) -> Option<Ratio> {
         Some(Ratio::new(p.targetInfo.refreshRate.Denominator, num))
       }
     })
+}
+
+pub unsafe fn message_box(title: *const u16, msg: &str, style: u32) {
+  let mut msg: Vec<u16> = OsStr::new(&msg).encode_wide().collect();
+  msg.push(0);
+  unsafe {
+    MessageBoxW(0, msg.as_ptr(), title, style);
+  }
 }

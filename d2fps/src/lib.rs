@@ -11,9 +11,9 @@ use core::{
 };
 use d2interface::{FixedI16, IsoPos};
 use parking_lot::Mutex;
-use std::{ffi::OsStr, os::windows::ffi::OsStrExt, panic::set_hook};
+use std::panic::set_hook;
 use tracker::EntityTracker;
-use util::monitor_refresh_rate;
+use util::{message_box, monitor_refresh_rate};
 use windows_sys::{
   w,
   Win32::{
@@ -21,7 +21,7 @@ use windows_sys::{
     Graphics::Gdi::{MonitorFromWindow, HMONITOR, MONITOR_DEFAULTTONEAREST},
     Media::{timeBeginPeriod, timeEndPeriod},
     System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
-    UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR},
+    UI::WindowsAndMessaging::MB_ICONERROR,
   },
 };
 
@@ -118,10 +118,8 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
         } else {
           msg.into()
         };
-        let mut msg: Vec<u16> = OsStr::new(&msg).encode_wide().collect();
-        msg.push(0);
         unsafe {
-          MessageBoxW(0, msg.as_ptr(), w!("D2fps Error"), MB_ICONERROR);
+          message_box(w!("D2fps Error"), &msg, MB_ICONERROR);
         }
       }));
 
