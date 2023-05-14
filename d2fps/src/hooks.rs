@@ -1,4 +1,9 @@
-use crate::{patch::Patch, tracker::UnitId, util::Module, D2Fps, D2FPS, GAME_RATE};
+use crate::{
+  patch::{AppliedPatch, Patch},
+  tracker::UnitId,
+  util::Module,
+  D2Fps, D2FPS, GAME_RATE,
+};
 use arrayvec::ArrayVec;
 use core::{
   fmt,
@@ -26,6 +31,14 @@ use windows_sys::{
   },
 };
 
+macro_rules! call_target_patch {
+  ($offset:literal, $value:literal, $target:expr) => {
+    crate::patch::CallTargetPatch::new($offset, &$value, unsafe {
+      core::mem::transmute($target as extern "stdcall" fn(_) -> _)
+    })
+  };
+}
+
 macro_rules! reloc_byte {
   ($lit:literal) => {
     false
@@ -35,35 +48,14 @@ macro_rules! reloc_byte {
   };
 }
 
-macro_rules! create_patch {
-  ($address:expr, $reloc_offset:expr, $original:literal, $($target:tt)+) => {
-    crate::patch::Patch::patch_call_location($address, &$original, $($target)+ as usize)
-  };
-  ($address:expr, $reloc_offset:expr, [$($($relocs:ident)? $bytes:literal),* $(,)?], $($target:tt)+) => {
-    crate::patch::Patch::call_patch(
-      $address,
-      &[$($bytes),*],
-      &[$(reloc_byte!($($relocs)? $bytes)),*],
-      $reloc_offset,
-      $($target)+ as usize
-    )
-  }
-}
-
-macro_rules! apply_patches {
-  ($patch_vec:expr, $(($base:expr, $pref_base:literal) => {
-    $(($offset:literal, $($args:tt)*)),* $(,)?
-  })*) => {{$($(
-    $patch_vec.push(
-      match create_patch!($base + $offset, ($pref_base as usize).wrapping_sub($base), $($args)*) {
-        Ok(p) => p,
-        Err(e) => {
-          log!("Error applying patch at: {:#x} +{:#x}", $pref_base, $offset);
-          return Err(e);
-        }
-      }
-    );
-  )*)*}}
+macro_rules! call_patch {
+  ($offset:literal, [$($($relocs:ident)? $bytes:literal),* $(,)?], $target:expr) => {{
+    let original = &[$($bytes),*];
+    let relocs = &[$(reloc_byte!($($relocs)? $bytes)),*];
+    crate::patch::CallPatch::new($offset, original, relocs, unsafe {
+      core::mem::transmute($target)
+    })
+  }};
 }
 
 mod v109d;
@@ -322,7 +314,7 @@ pub struct HookManager {
   version: Option<GameVersion>,
   modules: ArrayVec<Module, 4>,
   accessor: GameAccessor,
-  patches: ArrayVec<Patch, 58>,
+  patches: ArrayVec<AppliedPatch, 58>,
   window_hook: WindowHook,
 }
 impl Drop for HookManager {
@@ -384,6 +376,31 @@ impl HookManager {
     }
     self.patches.clear();
     self.modules.clear();
+  }
+
+  unsafe fn apply_patches(
+    &mut self,
+    name: &str,
+    base: usize,
+    preferred_base: usize,
+    patches: &[impl Patch],
+  ) -> Result<(), ()> {
+    let mut success = true;
+    let reloc_dist = base.wrapping_sub(preferred_base);
+    for patch in patches {
+      match patch.apply(base, reloc_dist) {
+        Ok(patch) => self.patches.push(patch),
+        Err(_) => {
+          success = false;
+          log!("Failed to apply patch at: {}+{:#x}", name, patch.offset())
+        }
+      }
+    }
+    if success {
+      Ok(())
+    } else {
+      Err(())
+    }
   }
 }
 
@@ -522,7 +539,7 @@ extern "stdcall" fn dypos_linear_whole_ypos<P: DyPos>(pos: &P) -> u32 {
   D2FPS.lock().dypos_linear_pos(pos).y.truncate()
 }
 
-unsafe extern "C" fn draw_game<T: Entity>() {
+unsafe extern "stdcall" fn draw_game<T: Entity>() {
   let mut instance_lock = D2FPS.lock();
   let instance = &mut *instance_lock;
 
@@ -568,7 +585,7 @@ unsafe extern "C" fn draw_game<T: Entity>() {
   }
 }
 
-unsafe extern "fastcall" fn draw_game_paused() {
+unsafe extern "stdcall" fn draw_game_paused() {
   let mut instance_lock = crate::D2FPS.lock();
   let instance = &mut *instance_lock;
 

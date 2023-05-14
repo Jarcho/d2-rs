@@ -26,38 +26,67 @@ impl Drop for MemUnlock {
   }
 }
 
-pub struct Patch {
-  address: usize,
-  original: Cow<'static, [u8]>,
+pub trait Patch {
+  fn offset(&self) -> usize;
+  unsafe fn apply(&self, base: usize, reloc_dist: usize) -> Result<AppliedPatch, ()>;
 }
-impl Patch {
-  pub unsafe fn patch_call_location(
-    address: usize,
-    original: &'static u32,
-    target: usize,
-  ) -> Result<Self, ()> {
+
+pub struct CallTargetPatch {
+  pub offset: usize,
+  pub original: &'static u32,
+  pub target: unsafe fn(),
+}
+impl CallTargetPatch {
+  pub const fn new(offset: usize, original: &'static u32, target: unsafe fn()) -> Self {
+    Self { offset, original, target }
+  }
+}
+impl Patch for CallTargetPatch {
+  fn offset(&self) -> usize {
+    self.offset
+  }
+
+  unsafe fn apply(&self, base: usize, _: usize) -> Result<AppliedPatch, ()> {
+    let address = base + self.offset;
     let _mem = MemUnlock::new(address, 4)?;
 
     let p = address as *mut u32;
-    if p.read_unaligned() != *original {
+    if p.read_unaligned() != *self.original {
       return Err(());
     }
-    p.write_unaligned((target - (address + 4)) as u32);
-    Ok(Self {
+    p.write_unaligned(((self.target as usize).wrapping_sub(address + 4)) as u32);
+    Ok(AppliedPatch {
       address,
-      original: Borrowed(slice::from_raw_parts((original as *const u32).cast(), 4)),
+      original: Borrowed(slice::from_raw_parts(
+        (self.original as *const u32).cast(),
+        4,
+      )),
     })
   }
+}
 
-  pub unsafe fn call_patch(
-    address: usize,
+pub struct CallPatch {
+  pub offset: usize,
+  pub original: &'static [u8],
+  pub relocs: &'static [bool],
+  pub target: unsafe fn(),
+}
+impl CallPatch {
+  pub const fn new(
+    offset: usize,
     original: &'static [u8],
     relocs: &'static [bool],
-    reloc_distance: usize,
-    target: usize,
-  ) -> Result<Self, ()> {
-    assert_eq!(original.len(), relocs.len());
+    target: unsafe fn(),
+  ) -> Self {
+    Self { offset, original, relocs, target }
+  }
+}
+impl Patch for CallPatch {
+  fn offset(&self) -> usize {
+    self.offset
+  }
 
+  unsafe fn apply(&self, base: usize, reloc_dist: usize) -> Result<AppliedPatch, ()> {
     static NOP_SEQUENCE: [u32; 10] = [
       0x00841f0f, 0x00000000, 0x00841f0f, 0x00000000, 0x00841f0f, 0x00000000, 0x00841f0f,
       0x00000000, 0x00841f0f, 0x00000000,
@@ -73,11 +102,26 @@ impl Patch {
       &[0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00],
     ];
 
-    assert!(original.len() > 5);
-    let _mem = MemUnlock::new(address, original.len())?;
+    assert_eq!(self.original.len(), self.relocs.len());
+    assert!(self.original.len() > 5);
+
+    let address = base.wrapping_add(self.offset);
+    let _mem = MemUnlock::new(address, self.original.len())?;
+
+    // Apply relocation if needed
+    let original = if reloc_dist == 0 {
+      Borrowed(self.original)
+    } else {
+      let mut relocated = self.original.to_owned();
+      for i in self.relocs.iter().enumerate().filter_map(|(i, x)| x.then_some(i)) {
+        let loc = (&mut relocated[i]) as *mut u8 as *mut usize;
+        loc.write_unaligned(loc.read_unaligned().wrapping_add(reloc_dist));
+      }
+      Owned(relocated)
+    };
 
     let slice = slice::from_raw_parts_mut(address as *mut u8, original.len());
-    if slice != original {
+    if slice != &*original {
       return Err(());
     }
     slice[0] = 0xe8;
@@ -85,10 +129,11 @@ impl Patch {
       .as_mut_ptr()
       .offset(1)
       .cast::<u32>()
-      .write_unaligned((target - (address + 5)) as u32);
+      .write_unaligned(((self.target as usize).wrapping_sub(address + 5)) as u32);
     let slice = &mut slice[5..];
 
     if slice.len() > 40 {
+      // Write either a short or a long jump depending on the length.
       if slice.len() > 129 {
         slice[0] = 0xe9;
         slice[1..]
@@ -102,28 +147,26 @@ impl Patch {
         slice[2..].fill(0x90);
       }
     } else {
+      // Write eight byte NOP sequences
       let mut dst = slice.as_mut_ptr().cast::<u32>();
       for &x in &NOP_SEQUENCE[..slice.len() / 8 * 2] {
         dst.write_unaligned(x);
         dst = dst.offset(1);
       }
+      // Write final 1-7 byte NOP
       let src = NOP_BY_SIZE[slice.len() % 8];
       dst.cast::<u8>().copy_from_nonoverlapping(src.as_ptr(), src.len());
     }
 
-    if reloc_distance == 0 {
-      Ok(Self { address, original: Borrowed(original) })
-    } else {
-      let mut relocated = original.to_owned();
-      for i in relocs.iter().enumerate().filter_map(|(i, x)| x.then_some(i)) {
-        let loc = (&mut relocated[i]) as *mut u8 as *mut usize;
-        loc.write_unaligned(loc.read_unaligned().wrapping_add(reloc_distance));
-      }
-      Ok(Self { address, original: Owned(relocated) })
-    }
+    Ok(AppliedPatch { address, original })
   }
 }
-impl Drop for Patch {
+
+pub struct AppliedPatch {
+  address: usize,
+  original: Cow<'static, [u8]>,
+}
+impl Drop for AppliedPatch {
   fn drop(&mut self) {
     unsafe {
       if let Ok(_mem) = MemUnlock::new(self.address, self.original.len()) {
