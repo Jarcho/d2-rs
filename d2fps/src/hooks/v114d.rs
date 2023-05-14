@@ -168,10 +168,16 @@ impl super::HookManager {
     self.accessor.render_in_perspective = game.render_in_perspective();
     self.accessor.server_update_time = game.server_update_time();
 
-    self.apply_patches("game", module as usize, 0x00400000, &GAME_TARGET_PATCHES)?;
-    self.apply_patches("game", module as usize, 0x00400000, &GAME_CALL_PATCHES)?;
-
-    Ok(())
+    apply_patches!(
+      self,
+      (
+        "game.exe",
+        module as usize,
+        0x00400000,
+        &GAME_TARGET_PATCHES
+      ),
+      ("game.exe", module as usize, 0x00400000, &GAME_CALL_PATCHES),
+    )
   }
 }
 

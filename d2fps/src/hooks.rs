@@ -58,6 +58,22 @@ macro_rules! call_patch {
   }};
 }
 
+macro_rules! apply_patches {
+  ($self_:ident, $(($module:literal, $base:expr, $pref_base:literal, $patches:expr),)*) => {{
+    let mut success = true;
+    $(
+      if $self_.apply_patches($module, $base, $pref_base, $patches).is_err() {
+        success = false;
+      }
+    )*
+    if success {
+      return Ok(())
+    } else {
+      Err(())
+    }
+  }};
+}
+
 mod v109d;
 mod v110;
 mod v112;

@@ -189,21 +189,27 @@ impl super::HookManager {
     self.accessor.render_in_perspective = d2gfx.render_in_perspective();
     self.accessor.server_update_time = d2game.server_update_time();
 
-    self.apply_patches(
-      "d2client",
-      d2client.0 as usize,
-      0x6fab0000,
-      &D2CLIENT_TARGET_PATCHES,
-    )?;
-    self.apply_patches(
-      "d2client",
-      d2client.0 as usize,
-      0x6fab0000,
-      &D2CLIENT_CALL_PATCHES,
-    )?;
-    self.apply_patches("d2win", d2win.0 as usize, 0x648e0000, &D2WIN_CALL_PATCHES)?;
-
-    Ok(())
+    apply_patches!(
+      self,
+      (
+        "d2client.dll",
+        d2client.0 as usize,
+        0x6fab0000,
+        &D2CLIENT_TARGET_PATCHES
+      ),
+      (
+        "d2client.dll",
+        d2client.0 as usize,
+        0x6fab0000,
+        &D2CLIENT_CALL_PATCHES
+      ),
+      (
+        "d2win.dll",
+        d2win.0 as usize,
+        0x648e0000,
+        &D2WIN_CALL_PATCHES
+      ),
+    )
   }
 }
 
