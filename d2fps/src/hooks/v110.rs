@@ -11,6 +11,7 @@ use d2interface::{
   v110::{D2ClientAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity},
   FixedU16, IsoPos, LinearPos,
 };
+use std::ptr::NonNull;
 
 #[rustfmt::skip]
 static D2CLIENT_TARGET_PATCHES: [CallTargetPatch; 53] = [
@@ -211,6 +212,16 @@ impl super::HookManager {
         &D2WIN_CALL_PATCHES
       ),
     )
+  }
+}
+
+impl super::DyPos for DyPos {
+  type Entity = Entity;
+  fn entity(&self) -> NonNull<Self::Entity> {
+    self.entity
+  }
+  fn linear_pos(&self) -> LinearPos<FixedU16> {
+    self.linear_pos
   }
 }
 

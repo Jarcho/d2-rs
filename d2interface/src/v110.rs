@@ -1,11 +1,11 @@
 use crate::{
   all_versions::{self, EntityKind, GameType, InRoom, LinkedList},
-  FixedU8, IsoPos, LinearPos, Size,
+  FixedU16, FixedU8, IsoPos, LinearPos, Size,
 };
 use core::ptr::NonNull;
 use windows_sys::Win32::Foundation::{HMODULE, HWND};
 
-pub use crate::v109d::{DyPos, EnvArray, EnvImage};
+pub use crate::v109d::{EnvArray, EnvImage};
 
 pub type EntityTables = all_versions::EntityTables<Entity>;
 pub type EntityTable = all_versions::EntityTable<Entity>;
@@ -68,6 +68,16 @@ pub struct StaticPos {
   pub iso_pos: IsoPos<i32>,
   pub linear_pos: LinearPos<u32>,
   pub _padding1: [u32; 3],
+}
+
+#[repr(C)]
+pub struct DyPos {
+  pub linear_pos: LinearPos<FixedU16>,
+  pub iso_pos: IsoPos<i32>,
+  pub target_pos: [LinearPos<u16>; 3],
+  pub room: Option<NonNull<Room>>,
+  pub _padding1: [u32; 4],
+  pub entity: NonNull<Entity>,
 }
 
 #[repr(C)]
