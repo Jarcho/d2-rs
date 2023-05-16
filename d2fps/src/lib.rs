@@ -89,7 +89,7 @@ static D2FPS: Mutex<D2Fps> = Mutex::new(D2Fps {
   player_pos: IsoPos::new(0, 0),
   unit_offset: FixedI16::from_repr(0),
   menu_timer_updated: false,
-  is_window_hidden: true,
+  is_window_hidden: false,
   current_monitor: 0,
 });
 static ATTACH_COUNT: AtomicUsize = AtomicUsize::new(0);
