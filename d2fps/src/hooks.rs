@@ -701,20 +701,22 @@ unsafe extern "fastcall" fn draw_menu_with_sleep(
   Sleep(draw_menu(callback, call_count));
 }
 
-unsafe extern "stdcall" fn game_loop_sleep_hook(_: u32) {
+unsafe extern "stdcall" fn game_loop_sleep_hook() {
   let instance = D2FPS.lock();
-  let len = if instance.is_window_hidden {
-    10
+  let mut time = 0;
+  QueryPerformanceCounter(&mut time);
+  let len = (instance
+    .perf_freq
+    .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64))
+    as u32)
+    .saturating_sub(1);
+  let len = if instance.is_window_hidden { 10 } else { len };
+  let limit = if instance.hooks.accessor.game_type.as_ref().is_host() {
+    2
   } else {
-    let mut time = 0;
-    QueryPerformanceCounter(&mut time);
-    (instance
-      .perf_freq
-      .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64)) as u32)
-      .saturating_sub(1)
-      .min(10)
+    10
   };
-  Sleep(len);
+  Sleep(len.min(limit));
 }
 
 unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -> u32 {

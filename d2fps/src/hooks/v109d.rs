@@ -100,7 +100,13 @@ static D2CLIENT_TARGET_PATCHES: [CallTargetPatch; 53] = [
 #[rustfmt::skip]
 static D2CLIENT_CALL_PATCHES: [CallPatch; 3] = [
   // Game loop sleep patch
-  call_patch!(0x2637, [0xff, 0x15, reloc 0x9c, 0xbf, 0xb6, 0x6f], game_loop_sleep_hook as unsafe extern "stdcall" fn(_)),
+  call_patch!(0x262c, [
+    0xa1, reloc 0x38, 0x47, 0xb7, 0x6f,
+    0x85, 0xc0,
+    0x75, 0x08,
+    0x6a, 0x00,
+    0xff, 0x15, reloc 0x9c, 0xbf, 0xb6, 0x6f,
+  ], game_loop_sleep_hook as unsafe extern "stdcall" fn()),
   // Draw paused game framerate
   call_patch!(0x9438, [0xff, 0x15, reloc 0xb4, 0x09, 0xbb, 0x6f], draw_game_paused as unsafe extern "stdcall" fn()),
   // Draw game framerate & entity sync
