@@ -65,6 +65,7 @@ impl D2Fps {
       if mon != self.current_monitor {
         self.current_monitor = mon;
         if let Some(rate) = monitor_refresh_rate(mon) {
+          log!("Detected monitor fps: {rate}");
           self.frame_rate = rate;
           self.render_timer.switch_rate(&self.perf_freq, rate);
         }

@@ -1,4 +1,5 @@
 use core::{
+  fmt,
   mem::{size_of, zeroed},
   num::{NonZeroU32, NonZeroU64},
   ptr::null_mut,
@@ -58,6 +59,15 @@ impl FromStr for Ratio {
         num: s.parse().map_err(|_| ())?,
         den: NonZeroU32::new(1).ok_or(())?,
       }),
+    }
+  }
+}
+impl fmt::Display for Ratio {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.num == 0 || self.den.get() == 1 {
+      self.num.fmt(f)
+    } else {
+      write!(f, "{}/{}", self.num, self.den)
     }
   }
 }
