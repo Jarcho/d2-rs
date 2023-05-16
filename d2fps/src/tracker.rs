@@ -27,7 +27,6 @@ impl UnitId {
 pub struct Position {
   pub real: LinearPos<FixedU16>,
   pub delta: LinearPos<FixedI16>,
-  pub last_rendered: LinearPos<FixedU16>,
 }
 impl Position {
   pub fn for_time(&mut self, fract: FixedI16) -> LinearPos<FixedU16> {
@@ -35,9 +34,7 @@ impl Position {
     let y = ((self.delta.y.repr() as i64 * fract.repr() as i64) >> 16) as u32;
     let x = self.real.x.repr().wrapping_add(x);
     let y = self.real.y.repr().wrapping_add(y);
-    let pos = LinearPos::new(FixedU16::from_repr(x), FixedU16::from_repr(y));
-    self.last_rendered = pos;
-    pos
+    LinearPos::new(FixedU16::from_repr(x), FixedU16::from_repr(y))
   }
 
   fn update_pos(&mut self, pos: LinearPos<FixedU16>, target: LinearPos<u16>) {
@@ -57,7 +54,6 @@ impl Position {
   fn new(pos: LinearPos<FixedU16>) -> Self {
     Self {
       real: pos,
-      last_rendered: pos,
       delta: LinearPos::new(FixedI16::default(), FixedI16::default()),
     }
   }
@@ -87,7 +83,6 @@ impl EntityTracker {
       positions: [Position {
         real: LinearPos::new(FixedU16::from_repr(0), FixedU16::from_repr(0)),
         delta: LinearPos::new(FixedI16::from_repr(0), FixedI16::from_repr(0)),
-        last_rendered: LinearPos::new(FixedU16::from_repr(0), FixedU16::from_repr(0)),
       }; UNIT_COUNT],
     }
   }

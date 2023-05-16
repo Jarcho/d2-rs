@@ -5,20 +5,28 @@ use core::{
   str::FromStr,
 };
 use gcd::Gcd;
-use std::{ffi::OsStr, os::windows::prelude::OsStrExt};
-use windows_sys::Win32::{
-  Devices::Display::{
-    DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
-    DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
-    QDC_ONLY_ACTIVE_PATHS,
+use std::{
+  ffi::{OsStr, OsString},
+  os::windows::prelude::{OsStrExt, OsStringExt},
+};
+use windows_sys::{
+  w,
+  Win32::{
+    Devices::Display::{
+      DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
+      DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
+      QDC_ONLY_ACTIVE_PATHS,
+    },
+    Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HMODULE},
+    Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFOEXW},
+    System::{
+      LibraryLoader::{FreeLibrary, LoadLibraryW},
+      Performance::QueryPerformanceFrequency,
+      ProcessStatus::{EnumProcessModules, GetModuleFileNameExW},
+      Threading::GetCurrentProcess,
+    },
+    UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR},
   },
-  Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HMODULE},
-  Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFOEXW},
-  System::{
-    LibraryLoader::{FreeLibrary, LoadLibraryW},
-    Performance::QueryPerformanceFrequency,
-  },
-  UI::WindowsAndMessaging::MessageBoxW,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -197,10 +205,43 @@ pub unsafe fn monitor_refresh_rate(mon: HMONITOR) -> Option<Ratio> {
     })
 }
 
-pub unsafe fn message_box(title: *const u16, msg: &str, style: u32) {
+pub fn message_box_error(msg: &str) {
   let mut msg: Vec<u16> = OsStr::new(&msg).encode_wide().collect();
   msg.push(0);
   unsafe {
-    MessageBoxW(0, msg.as_ptr(), title, style);
+    MessageBoxW(0, msg.as_ptr(), w!("D2fps Error"), MB_ICONERROR);
+  }
+}
+
+pub fn log_loaded_modules() {
+  let process = unsafe { GetCurrentProcess() };
+  let mut modules = [0; 256];
+  let mut size = 0;
+  if unsafe {
+    EnumProcessModules(
+      process,
+      modules.as_mut_ptr(),
+      (modules.len() * size_of::<HMODULE>()) as u32,
+      &mut size,
+    )
+  } == 0
+  {
+    return;
+  }
+
+  log!("Loaded modules:");
+  let mut name = [0; 260];
+  for &module in &modules[..size as usize / size_of::<HMODULE>()] {
+    let len = unsafe { GetModuleFileNameExW(process, module, name.as_mut_ptr(), 260) };
+    if len != 0 {
+      if let Some(name) = OsString::from_wide(&name[..len as usize]).to_str() {
+        if !name
+          .get(.."C:\\Windows\\".len())
+          .map_or(false, |s| s.eq_ignore_ascii_case("C:\\Windows\\"))
+        {
+          log!("  {name}");
+        }
+      }
+    }
   }
 }

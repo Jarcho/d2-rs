@@ -1,7 +1,7 @@
 use crate::{
   hooks::HookManager,
   limiter::{MenuAniRateLimiter, VariableRateLimiter},
-  util::{PerfFreq, Ratio},
+  util::{log_loaded_modules, PerfFreq, Ratio},
 };
 use config::Config;
 use core::{
@@ -13,16 +13,12 @@ use d2interface::{FixedI16, IsoPos};
 use parking_lot::Mutex;
 use std::panic::set_hook;
 use tracker::EntityTracker;
-use util::{message_box, monitor_refresh_rate};
-use windows_sys::{
-  w,
-  Win32::{
-    Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
-    Graphics::Gdi::{MonitorFromWindow, HMONITOR, MONITOR_DEFAULTTONEAREST},
-    Media::{timeBeginPeriod, timeEndPeriod},
-    System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
-    UI::WindowsAndMessaging::MB_ICONERROR,
-  },
+use util::{message_box_error, monitor_refresh_rate};
+use windows_sys::Win32::{
+  Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
+  Graphics::Gdi::{MonitorFromWindow, HMONITOR, MONITOR_DEFAULTTONEAREST},
+  Media::{timeBeginPeriod, timeEndPeriod},
+  System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
 };
 
 macro_rules! log {
@@ -118,9 +114,7 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
         } else {
           msg.into()
         };
-        unsafe {
-          message_box(w!("D2fps Error"), &msg, MB_ICONERROR);
-        }
+        message_box_error(&msg);
       }));
 
       let mut instance = D2FPS.lock();
@@ -158,9 +152,13 @@ pub extern "C" fn attach_hooks() -> bool {
         continue;
       }
 
+      log!("Attaching D2fps");
       if instance.hooks.attach().is_err() {
+        log!("Failed to attach");
         return false;
       }
+
+      log_loaded_modules();
 
       unsafe {
         timeBeginPeriod(1);
@@ -199,6 +197,7 @@ pub extern "C" fn detach_hooks() {
   }
 
   if expected == 1 {
+    log!("Detaching D2fps");
     let mut instance = D2FPS.lock();
     instance.hooks.detach();
     unsafe {
