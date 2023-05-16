@@ -29,6 +29,12 @@ decl_accessor! { D2ClientAccessor {
   client_frame_count: NonNull<u32> = 0x1032ac,
 }}
 
+decl_accessor! { D2CommonAccessor {
+  /// Applies a position change to a `DyPos`.
+  /// Signature: `__stdcall(DyPos* @ esi, FixedU16, FixedU16, Room*)`
+  apply_pos_change: usize = 0x4af00,
+}}
+
 decl_accessor! { D2GfxAccessor {
   /// Whether the game is being rendered in perspective mode.
   render_in_perspective: unsafe extern "stdcall" fn() -> u32 = 0x8de0,

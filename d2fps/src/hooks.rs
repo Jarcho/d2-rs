@@ -34,7 +34,15 @@ use windows_sys::{
 macro_rules! call_target_patch {
   ($offset:literal, $value:literal, $target:expr) => {
     crate::patch::CallTargetPatch::new($offset, &$value, unsafe {
-      core::mem::transmute($target as extern "stdcall" fn(_) -> _)
+      core::mem::transmute($target as unsafe extern "stdcall" fn(_) -> _)
+    })
+  };
+}
+
+macro_rules! call_target_patchc {
+  ($offset:literal, $value:literal, $target:expr) => {
+    crate::patch::CallTargetPatch::new($offset, &$value, unsafe {
+      core::mem::transmute($target as unsafe extern "C" fn() -> _)
     })
   };
 }
@@ -83,9 +91,16 @@ mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
 const D2CLIENT_DLL: *const u16 = w!("D2Client.dll");
+const D2COMMON_DLL: *const u16 = w!("D2Common.dll");
 const D2GAME_DLL: *const u16 = w!("D2Game.dll");
 const D2GFX_DLL: *const u16 = w!("D2gfx.dll");
 const D2WIN_DLL: *const u16 = w!("D2Win.dll");
+
+const D2CLIENT_IDX: usize = 0;
+const D2COMMON_IDX: usize = 1;
+const D2GAME_IDX: usize = 2;
+const D2GFX_IDX: usize = 3;
+const D2WIN_IDX: usize = 4;
 
 #[derive(Debug, Clone, Copy)]
 enum GameVersion {
@@ -222,6 +237,7 @@ pub struct GameAccessor {
   pub client_fps_frame_count: NonNull<u32>,
   pub client_total_frame_count: NonNull<u32>,
   pub draw_menu: unsafe extern "stdcall" fn(),
+  pub apply_pos_change: usize,
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
@@ -250,6 +266,7 @@ impl GameAccessor {
         }
         f
       },
+      apply_pos_change: 0,
     }
   }
 
@@ -328,9 +345,9 @@ impl WindowHook {
 
 pub struct HookManager {
   version: Option<GameVersion>,
-  modules: ArrayVec<Module, 4>,
+  modules: ArrayVec<Module, 5>,
   accessor: GameAccessor,
-  patches: ArrayVec<AppliedPatch, 58>,
+  patches: ArrayVec<AppliedPatch, 59>,
   window_hook: WindowHook,
 }
 impl Drop for HookManager {
@@ -417,6 +434,18 @@ impl HookManager {
     } else {
       Err(())
     }
+  }
+
+  unsafe fn load_dlls(&mut self) -> Result<&[Module; 5], ()> {
+    assert!(self.modules.is_empty());
+    self.modules.extend([
+      Module::new(D2CLIENT_DLL)?,
+      Module::new(D2COMMON_DLL)?,
+      Module::new(D2GAME_DLL)?,
+      Module::new(D2GFX_DLL)?,
+      Module::new(D2WIN_DLL)?,
+    ]);
+    Ok(&*self.modules.as_ptr().cast())
   }
 }
 
@@ -693,4 +722,17 @@ unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -
     *frame += rate;
   }
   *frame
+}
+
+unsafe extern "fastcall" fn intercept_teleport<E: Entity>(
+  entity: &E,
+  x: FixedU16,
+  y: FixedU16,
+) -> usize {
+  let mut instance = D2FPS.lock();
+  if let Some(pos) = instance.entity_tracker.get(entity.unit_id()) {
+    pos.real = LinearPos::new(x, y);
+    pos.delta = LinearPos::default();
+  }
+  instance.hooks.accessor.apply_pos_change
 }

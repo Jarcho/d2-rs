@@ -7,7 +7,7 @@ use d2interface::v114d::{DyPos, Entity, GameAccessor};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
 #[rustfmt::skip]
-static GAME_TARGET_PATCHES: [CallTargetPatch; 53] = [
+static GAME_TARGET_PATCHES: [CallTargetPatch; 54] = [
   // Viewport position
   call_target_patch!(0x4c9cf, 0x001d3c7d, super::entity_iso_xpos::<Entity>),
   call_target_patch!(0x4c9e7, 0x001d3cc5, super::entity_iso_ypos::<Entity>),
@@ -88,6 +88,8 @@ static GAME_TARGET_PATCHES: [CallTargetPatch; 53] = [
   // Entity culling
   call_target_patch!(0xdda43, 0x00142c09, super::entity_iso_xpos::<Entity>),
   call_target_patch!(0xdda4c, 0x00142c60, super::entity_iso_ypos::<Entity>),
+  // Intercept teleport call
+  call_target_patchc!(0x250a3f, 0xfffff14d, intercept_teleport_114d_asm_stub),
 ];
 #[rustfmt::skip]
 static GAME_CALL_PATCHES: [CallPatch; 5] = [
@@ -167,6 +169,7 @@ impl super::HookManager {
     self.accessor.player = game.player().cast();
     self.accessor.render_in_perspective = game.render_in_perspective();
     self.accessor.server_update_time = game.server_update_time();
+    self.accessor.apply_pos_change = game.apply_pos_change();
 
     apply_patches!(
       self,
@@ -206,4 +209,22 @@ global_asm! {
 }
 extern "C" {
   pub fn update_menu_char_frame_114d_asm_stub();
+}
+
+global_asm! {
+  ".global _intercept_teleport_114d_asm_stub",
+  "_intercept_teleport_114d_asm_stub:",
+  "push eax",
+  "mov ecx, [eax+0x30]",
+  "mov edx, [esp+0xc]",
+  "push edx",
+  "mov edx, [esp+0xc]",
+  "call {}",
+  "mov ecx, eax",
+  "pop eax",
+  "jmp ecx",
+  sym super::intercept_teleport::<Entity>,
+}
+extern "C" {
+  pub fn intercept_teleport_114d_asm_stub();
 }

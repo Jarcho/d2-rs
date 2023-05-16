@@ -103,7 +103,7 @@ impl Patch for CallPatch {
     ];
 
     assert_eq!(self.original.len(), self.relocs.len());
-    assert!(self.original.len() > 5);
+    assert!(self.original.len() >= 5);
 
     let address = base.wrapping_add(self.offset);
     let _mem = MemUnlock::new(address, self.original.len())?;

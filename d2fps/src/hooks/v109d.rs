@@ -1,14 +1,16 @@
 use crate::{
   hooks::{
-    draw_game, draw_game_paused, game_loop_sleep_hook, Module, D2CLIENT_DLL, D2GAME_DLL, D2GFX_DLL,
-    D2WIN_DLL,
+    draw_game, draw_game_paused, game_loop_sleep_hook, D2CLIENT_IDX, D2COMMON_IDX, D2GAME_IDX,
+    D2GFX_IDX, D2WIN_IDX,
   },
   patch::{CallPatch, CallTargetPatch},
   tracker::UnitId,
 };
 use core::{arch::global_asm, ptr::NonNull};
 use d2interface::{
-  v109d::{D2ClientAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity},
+  v109d::{
+    D2ClientAccessor, D2CommonAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity,
+  },
   FixedU16, IsoPos, LinearPos,
 };
 
@@ -169,18 +171,23 @@ static D2WIN_CALL_PATCHES: [CallPatch; 2] = [
     0x03, 0xc1,
   ], update_menu_char_frame_109d_asm_stub as unsafe extern "C" fn()),
 ];
+#[rustfmt::skip]
+static D2COMMON_CALL_PATCHES: [CallPatch; 1] = [
+  call_patch!(0x5f9f7, [
+    0x89, 0x3e,
+    0x8d, 0x44, 0x24, 0x14,
+    0x89, 0x6e, 0x04,
+  ], intercept_teleport_109d_asm_stub as unsafe extern "C" fn()),
+];
 
 impl super::HookManager {
   pub unsafe fn hook_v109d(&mut self) -> Result<(), ()> {
-    self.modules.push(Module::new(D2CLIENT_DLL)?);
-    self.modules.push(Module::new(D2GAME_DLL)?);
-    self.modules.push(Module::new(D2GFX_DLL)?);
-    self.modules.push(Module::new(D2WIN_DLL)?);
-
-    let d2client = D2ClientAccessor(self.modules[0].0);
-    let d2game = D2GameAccessor(self.modules[1].0);
-    let d2gfx = D2GfxAccessor(self.modules[2].0);
-    let d2win = D2WinAccessor(self.modules[3].0);
+    let modules = self.load_dlls()?;
+    let d2client = D2ClientAccessor(modules[D2CLIENT_IDX].0);
+    let d2common = D2CommonAccessor(modules[D2COMMON_IDX].0);
+    let d2game = D2GameAccessor(modules[D2GAME_IDX].0);
+    let d2gfx = D2GfxAccessor(modules[D2GFX_IDX].0);
+    let d2win = D2WinAccessor(modules[D2WIN_IDX].0);
 
     self.accessor.active_entity_tables = d2client.active_entity_tables().cast();
     self.accessor.client_fps_frame_count = d2client.client_fps_frame_count();
@@ -215,6 +222,12 @@ impl super::HookManager {
         d2win.0 as usize,
         0x6f8a0000,
         &D2WIN_CALL_PATCHES
+      ),
+      (
+        "d2common.dll",
+        d2common.0 as usize,
+        0x6fd40000,
+        &D2COMMON_CALL_PATCHES
       ),
     )
   }
@@ -289,4 +302,21 @@ global_asm! {
 }
 extern "C" {
   pub fn update_menu_char_frame_109d_asm_stub();
+}
+
+global_asm! {
+  ".global _intercept_teleport_109d_asm_stub",
+  "_intercept_teleport_109d_asm_stub:",
+  "mov [esi], edi",
+  "mov [esi+0x4], ebp",
+  "mov ecx, [esi+0x30]",
+  "mov edx, edi",
+  "push ebp",
+  "call {}",
+  "lea eax, [esp+0x18]",
+  "ret",
+  sym super::intercept_teleport::<Entity>,
+}
+extern "C" {
+  pub fn intercept_teleport_109d_asm_stub();
 }

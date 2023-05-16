@@ -35,4 +35,7 @@ decl_accessor! { GameAccessor {
   server_update_time: NonNull<u32> = 0x483d58,
   /// Draw the game's current menu.
   draw_menu: unsafe extern "stdcall" fn() = 0xf98e0,
+  /// Applies a position change to a `DyPos`.
+  /// Signature: `__stdcall(DyPos* @ eax, FixedU16, FixedU16, Room*)`
+  apply_pos_change: usize = 0x24fb90,
 }}

@@ -1,13 +1,13 @@
 use crate::{
   hooks::{
-    draw_game, draw_game_paused, game_loop_sleep_hook, Module, D2CLIENT_DLL, D2GAME_DLL, D2GFX_DLL,
-    D2WIN_DLL,
+    draw_game, draw_game_paused, game_loop_sleep_hook, D2CLIENT_IDX, D2COMMON_IDX, D2GAME_IDX,
+    D2GFX_IDX, D2WIN_IDX,
   },
   patch::{CallPatch, CallTargetPatch},
 };
 use core::arch::global_asm;
 use d2interface::v112::{
-  D2ClientAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity,
+  D2ClientAccessor, D2CommonAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity,
 };
 
 #[rustfmt::skip]
@@ -162,18 +162,19 @@ static D2WIN_CALL_PATCHES: [CallPatch; 2] = [
     0x8b, 0xc6,
   ], update_menu_char_frame_112_asm_stub as unsafe extern "C" fn()),
 ];
+#[rustfmt::skip]
+static D2COMMON_TARGET_PATCHES: [CallTargetPatch; 1] = [
+  call_target_patchc!(0x4b468, 0xfffffa94, intercept_teleport_112_asm_stub),
+];
 
 impl super::HookManager {
   pub unsafe fn hook_v112(&mut self) -> Result<(), ()> {
-    self.modules.push(Module::new(D2CLIENT_DLL)?);
-    self.modules.push(Module::new(D2GAME_DLL)?);
-    self.modules.push(Module::new(D2GFX_DLL)?);
-    self.modules.push(Module::new(D2WIN_DLL)?);
-
-    let d2client = D2ClientAccessor(self.modules[0].0);
-    let d2game = D2GameAccessor(self.modules[1].0);
-    let d2gfx = D2GfxAccessor(self.modules[2].0);
-    let d2win = D2WinAccessor(self.modules[3].0);
+    let modules = self.load_dlls()?;
+    let d2client = D2ClientAccessor(modules[D2CLIENT_IDX].0);
+    let d2common = D2CommonAccessor(modules[D2COMMON_IDX].0);
+    let d2game = D2GameAccessor(modules[D2GAME_IDX].0);
+    let d2gfx = D2GfxAccessor(modules[D2GFX_IDX].0);
+    let d2win = D2WinAccessor(modules[D2WIN_IDX].0);
 
     self.accessor.active_entity_tables = d2client.active_entity_tables().cast();
     self.accessor.client_fps_frame_count = d2client.client_fps_frame_count();
@@ -188,6 +189,7 @@ impl super::HookManager {
     self.accessor.player = d2client.player().cast();
     self.accessor.render_in_perspective = d2gfx.render_in_perspective();
     self.accessor.server_update_time = d2game.server_update_time();
+    self.accessor.apply_pos_change = d2common.apply_pos_change();
 
     apply_patches!(
       self,
@@ -209,6 +211,12 @@ impl super::HookManager {
         0x6f8e0000,
         &D2WIN_CALL_PATCHES
       ),
+      (
+        "d2common.dll",
+        d2common.0 as usize,
+        0x6fd50000,
+        &D2COMMON_TARGET_PATCHES
+      ),
     )
   }
 }
@@ -226,4 +234,19 @@ global_asm! {
 }
 extern "C" {
   pub fn update_menu_char_frame_112_asm_stub();
+}
+
+global_asm! {
+  ".global _intercept_teleport_112_asm_stub",
+  "_intercept_teleport_112_asm_stub:",
+  "mov ecx, [esi+0x30]",
+  "mov edx, [esp+0x8]",
+  "push edx",
+  "mov edx, [esp+0x8]",
+  "call {}",
+  "jmp eax",
+  sym super::intercept_teleport::<Entity>,
+}
+extern "C" {
+  pub fn intercept_teleport_112_asm_stub();
 }
