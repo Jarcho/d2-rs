@@ -38,7 +38,7 @@ mod patch;
 mod tracker;
 mod util;
 
-const GAME_RATE: Ratio = Ratio::new(1, unsafe { NonZeroU32::new_unchecked(25) });
+const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
 
 struct D2Fps {
   hooks: HookManager,
@@ -80,8 +80,8 @@ static D2FPS: Mutex<D2Fps> = Mutex::new(D2Fps {
   render_timer: VariableRateLimiter::new(),
   menu_timer: MenuAniRateLimiter::new(),
   perf_freq: PerfFreq::uninit(),
-  frame_rate: GAME_RATE,
-  bg_frame_rate: GAME_RATE,
+  frame_rate: GAME_FPS,
+  bg_frame_rate: GAME_FPS,
   game_update_time_ms: 0,
   game_update_time: 0,
   game_update_count: 0,
@@ -164,8 +164,8 @@ pub extern "C" fn attach_hooks() -> bool {
         timeBeginPeriod(1);
       }
 
-      instance.frame_rate = instance.config.fps.map_or(GAME_RATE, |r| r.inv());
-      instance.bg_frame_rate = instance.config.bg_fps.map_or(GAME_RATE, |r| r.inv());
+      instance.frame_rate = instance.config.fps.unwrap_or(GAME_FPS);
+      instance.bg_frame_rate = instance.config.bg_fps.unwrap_or(GAME_FPS);
       instance
         .render_timer
         .switch_rate(&instance.perf_freq, instance.frame_rate);

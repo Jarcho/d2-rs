@@ -2,7 +2,7 @@ use crate::{
   patch::{AppliedPatch, Patch},
   tracker::UnitId,
   util::Module,
-  D2Fps, D2FPS, GAME_RATE,
+  D2Fps, D2FPS, GAME_FPS,
 };
 use arrayvec::ArrayVec;
 use core::{
@@ -606,7 +606,7 @@ unsafe extern "stdcall" fn draw_game<T: Entity>() {
     let prev_update_count = instance.game_update_count;
     instance.game_update_count = *instance.hooks.accessor.client_update_count.as_ptr();
 
-    if instance.frame_rate != GAME_RATE {
+    if instance.frame_rate != GAME_FPS {
       instance.update_unit_offset();
 
       let prev_player_pos = instance.player_pos;

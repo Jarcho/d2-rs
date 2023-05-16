@@ -1,4 +1,4 @@
-use crate::{PerfFreq, Ratio, GAME_RATE};
+use crate::{PerfFreq, Ratio, GAME_FPS};
 
 pub(crate) struct MenuAniRateLimiter {
   next_update: u64,
@@ -16,10 +16,9 @@ impl MenuAniRateLimiter {
     }
 
     if time >= self.next_update {
-      let count =
-        time * u64::from(GAME_RATE.den.get()) / freq.s_to_sample(u64::from(GAME_RATE.num));
+      let count = time * u64::from(GAME_FPS.num) / freq.s_to_sample(u64::from(GAME_FPS.den.get()));
       self.next_update =
-        freq.s_to_sample(u64::from(GAME_RATE.num)) * (count + 1) / u64::from(GAME_RATE.den.get());
+        freq.s_to_sample(u64::from(GAME_FPS.den.get())) * (count + 1) / u64::from(GAME_FPS.num);
       true
     } else {
       false
@@ -28,23 +27,22 @@ impl MenuAniRateLimiter {
 }
 
 pub(crate) struct VariableRateLimiter {
-  rate: Ratio,
+  fps: Ratio,
   next_update: u64,
   last_update: u64,
 }
 impl VariableRateLimiter {
   pub const fn new() -> Self {
-    Self { rate: GAME_RATE, next_update: 0, last_update: 0 }
+    Self { fps: GAME_FPS, next_update: 0, last_update: 0 }
   }
 
   pub fn update_time(&mut self, time: u64, freq: &PerfFreq) -> bool {
     if time >= self.next_update {
-      let count =
-        time * u64::from(self.rate.den.get()) / freq.s_to_sample(u64::from(self.rate.num));
+      let count = time * u64::from(self.fps.num) / freq.s_to_sample(u64::from(self.fps.den.get()));
       self.last_update =
-        freq.s_to_sample(u64::from(self.rate.num)) * count / u64::from(self.rate.den.get());
+        freq.s_to_sample(u64::from(self.fps.den.get())) * count / u64::from(self.fps.num);
       self.next_update =
-        freq.s_to_sample(u64::from(self.rate.num)) * (count + 1) / u64::from(self.rate.den.get());
+        freq.s_to_sample(u64::from(self.fps.den.get())) * (count + 1) / u64::from(self.fps.num);
       true
     } else {
       false
@@ -52,15 +50,15 @@ impl VariableRateLimiter {
   }
 
   pub fn switch_rate(&mut self, freq: &PerfFreq, rate: Ratio) {
-    if self.rate == rate {
+    if self.fps == rate {
       return;
     }
 
-    self.rate = rate;
-    let count = self.last_update * u64::from(self.rate.den.get())
-      / freq.s_to_sample(u64::from(self.rate.num));
+    self.fps = rate;
+    let count =
+      self.last_update * u64::from(self.fps.num) / freq.s_to_sample(u64::from(self.fps.den.get()));
     self.next_update =
-      freq.s_to_sample(u64::from(self.rate.num)) * (count + 1) / u64::from(self.rate.den.get());
+      freq.s_to_sample(u64::from(self.fps.den.get())) * (count + 1) / u64::from(self.fps.num);
   }
 
   pub fn next_update(&self) -> u64 {

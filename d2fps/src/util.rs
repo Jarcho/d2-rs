@@ -39,13 +39,6 @@ impl Ratio {
     Self { num, den }
   }
 
-  pub fn inv(self) -> Self {
-    Self {
-      num: self.den.get(),
-      den: NonZeroU32::new(self.num).unwrap(),
-    }
-  }
-
   pub fn reduced(self) -> Self {
     let d = self.num.gcd_binary(self.den.get());
     NonZeroU32::new(self.den.get() / d).map_or(self, |den| Self { num: self.num / d, den })
@@ -196,11 +189,11 @@ pub unsafe fn monitor_refresh_rate(mon: HMONITOR) -> Option<Ratio> {
         && wcs_iter(info.szDevice.as_ptr()).eq(wcs_iter(name.viewGdiDeviceName.as_ptr()))
     })
     .and_then(|p| {
-      let num = NonZeroU32::new(p.targetInfo.refreshRate.Numerator)?;
-      if p.targetInfo.refreshRate.Denominator == 0 {
+      let den = NonZeroU32::new(p.targetInfo.refreshRate.Denominator)?;
+      if p.targetInfo.refreshRate.Numerator == 0 {
         None
       } else {
-        Some(Ratio::new(p.targetInfo.refreshRate.Denominator, num))
+        Some(Ratio::new(p.targetInfo.refreshRate.Numerator, den))
       }
     })
 }
