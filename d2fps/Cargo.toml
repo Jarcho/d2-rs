@@ -14,6 +14,9 @@ arrayvec = "0.7.2"
 crossbeam-channel = "0.5.8"
 parking_lot = "0.12.1"
 
+[dependencies.bin_patch]
+path = "../bin_patch"
+
 [dependencies.once_cell]
 version = "1.17.1"
 default-features = false

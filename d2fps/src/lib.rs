@@ -34,7 +34,6 @@ mod config;
 mod hooks;
 mod limiter;
 mod logger;
-mod patch;
 mod tracker;
 mod util;
 
@@ -153,8 +152,8 @@ pub extern "C" fn attach_hooks() -> bool {
         continue;
       }
 
-      log!("Attaching D2fps");
-      if instance.hooks.attach().is_err() {
+      log!("Attaching D2fps...");
+      if instance.hooks.attach(&mut instance.config).is_err() {
         log!("Failed to attach");
         return false;
       }

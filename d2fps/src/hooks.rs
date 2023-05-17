@@ -1,86 +1,35 @@
-use crate::{
-  patch::{AppliedPatch, Patch},
-  tracker::UnitId,
-  util::Module,
-  D2Fps, D2FPS, GAME_FPS,
-};
+use crate::{config::Config, tracker::UnitId, util::Module, D2Fps, D2FPS, GAME_FPS};
 use arrayvec::ArrayVec;
+use bin_patch::{AppliedPatch, Patch};
 use core::{
   fmt,
   mem::{size_of, transmute},
   ptr::{null_mut, NonNull},
 };
 use d2interface::{
-  all_versions::{EntityKind, EntityTables, GameType, LinkedList},
-  v114d::{EnvArray, EnvImage},
+  all_versions::{
+    D2Client, D2Common, D2Game, D2Gfx, D2Win, EntityKind, EntityTables, EnvArray, EnvImage,
+    GameAddresses, GameType, LinkedList,
+  },
   FixedI16, FixedU16, IsoPos, LinearPos,
 };
 use windows_sys::{
   w,
   Win32::{
-    Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+    Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM},
     Media::timeGetTime,
     Storage::FileSystem::{
       GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
     },
-    System::{Performance::QueryPerformanceCounter, Threading::Sleep},
+    System::{
+      LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter, Threading::Sleep,
+    },
     UI::{
       Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
       WindowsAndMessaging::{SIZE_MINIMIZED, WM_ACTIVATE, WM_SIZE, WM_WINDOWPOSCHANGED},
     },
   },
 };
-
-macro_rules! call_target_patch {
-  ($offset:literal, $value:literal, $target:expr) => {
-    crate::patch::CallTargetPatch::new($offset, &$value, unsafe {
-      core::mem::transmute($target as unsafe extern "stdcall" fn(_) -> _)
-    })
-  };
-}
-
-macro_rules! call_target_patchc {
-  ($offset:literal, $value:literal, $target:expr) => {
-    crate::patch::CallTargetPatch::new($offset, &$value, unsafe {
-      core::mem::transmute($target as unsafe extern "C" fn() -> _)
-    })
-  };
-}
-
-macro_rules! reloc_byte {
-  ($lit:literal) => {
-    false
-  };
-  (reloc $lit1:literal) => {
-    true
-  };
-}
-
-macro_rules! call_patch {
-  ($offset:literal, [$($($relocs:ident)? $bytes:literal),* $(,)?], $target:expr) => {{
-    let original = &[$($bytes),*];
-    let relocs = &[$(reloc_byte!($($relocs)? $bytes)),*];
-    crate::patch::CallPatch::new($offset, original, relocs, unsafe {
-      core::mem::transmute($target)
-    })
-  }};
-}
-
-macro_rules! apply_patches {
-  ($self_:ident, $(($module:literal, $base:expr, $pref_base:literal, $patches:expr),)*) => {{
-    let mut success = true;
-    $(
-      if $self_.apply_patches($module, $base, $pref_base, $patches).is_err() {
-        success = false;
-      }
-    )*
-    if success {
-      return Ok(())
-    } else {
-      Err(())
-    }
-  }};
-}
 
 mod v109d;
 mod v110;
@@ -90,17 +39,142 @@ mod v113d;
 mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
-const D2CLIENT_DLL: *const u16 = w!("D2Client.dll");
-const D2COMMON_DLL: *const u16 = w!("D2Common.dll");
-const D2GAME_DLL: *const u16 = w!("D2Game.dll");
-const D2GFX_DLL: *const u16 = w!("D2gfx.dll");
-const D2WIN_DLL: *const u16 = w!("D2Win.dll");
 
-const D2CLIENT_IDX: usize = 0;
-const D2COMMON_IDX: usize = 1;
-const D2GAME_IDX: usize = 2;
-const D2GFX_IDX: usize = 3;
-const D2WIN_IDX: usize = 4;
+#[derive(Clone, Copy)]
+enum D2Module {
+  GameExe,
+  Client,
+  Common,
+  #[allow(dead_code)]
+  Game,
+  #[allow(dead_code)]
+  Gfx,
+  Win,
+}
+impl fmt::Display for D2Module {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str(match *self {
+      Self::GameExe => "game.exe",
+      Self::Client => "D2Client.dll",
+      Self::Common => "D2Common.dll",
+      Self::Game => "D2Game.dll",
+      Self::Gfx => "D2gfx.dll",
+      Self::Win => "D2Win.dll",
+    })
+  }
+}
+#[derive(Default)]
+struct D2Modules {
+  d2client: D2Client,
+  d2common: D2Common,
+  d2game: D2Game,
+  d2gfx: D2Gfx,
+  d2win: D2Win,
+}
+impl D2Modules {
+  fn get(&self, module: D2Module) -> HMODULE {
+    match module {
+      D2Module::GameExe => self.d2client.0,
+      D2Module::Client => self.d2client.0,
+      D2Module::Common => self.d2common.0,
+      D2Module::Game => self.d2game.0,
+      D2Module::Gfx => self.d2gfx.0,
+      D2Module::Win => self.d2win.0,
+    }
+  }
+
+  fn from_game_exe() -> Result<Self, ()> {
+    let module = unsafe { GetModuleHandleW(GAME_EXE) };
+    if module == 0 {
+      log!("Failed to find game.exe");
+      Err(())
+    } else {
+      Ok(Self {
+        d2client: D2Client(module),
+        d2common: D2Common(module),
+        d2game: D2Game(module),
+        d2gfx: D2Gfx(module),
+        d2win: D2Win(module),
+      })
+    }
+  }
+
+  fn from_loaded_modules(modules: &LoadedModules) -> Self {
+    Self {
+      d2client: D2Client(modules.d2client.0),
+      d2common: D2Common(modules.d2common.0),
+      d2game: D2Game(modules.d2game.0),
+      d2gfx: D2Gfx(modules.d2gfx.0),
+      d2win: D2Win(modules.d2win.0),
+    }
+  }
+}
+
+struct LoadedModules {
+  d2client: Module,
+  d2common: Module,
+  d2game: Module,
+  d2gfx: Module,
+  d2win: Module,
+}
+impl LoadedModules {
+  fn load() -> Result<Self, ()> {
+    Ok(Self {
+      d2client: match unsafe { Module::new(w!("D2Client.dll")) } {
+        Ok(m) => m,
+        Err(e) => {
+          log!("Failed to load `D2Client.dll`");
+          return Err(e);
+        }
+      },
+      d2common: match unsafe { Module::new(w!("D2Common.dll")) } {
+        Ok(m) => m,
+        Err(e) => {
+          log!("Failed to load `D2Common.dll`");
+          return Err(e);
+        }
+      },
+      d2game: match unsafe { Module::new(w!("D2Game.dll")) } {
+        Ok(m) => m,
+        Err(e) => {
+          log!("Failed to load `D2Game.dll`");
+          return Err(e);
+        }
+      },
+      d2gfx: match unsafe { Module::new(w!("D2gfx.dll")) } {
+        Ok(m) => m,
+        Err(e) => {
+          log!("Failed to load `D2gfx.dll`");
+          return Err(e);
+        }
+      },
+      d2win: match unsafe { Module::new(w!("D2Win.dll")) } {
+        Ok(m) => m,
+        Err(e) => {
+          log!("Failed to load `D2Win.dll`");
+          return Err(e);
+        }
+      },
+    })
+  }
+}
+
+struct ModulePatches {
+  module: D2Module,
+  pref_base: usize,
+  patches: &'static [Patch],
+}
+impl ModulePatches {
+  const fn new(module: D2Module, pref_base: usize, patches: &'static [Patch]) -> Self {
+    Self { module, pref_base, patches }
+  }
+}
+
+struct PatchSets {
+  menu_fps: &'static [ModulePatches],
+  game_fps: &'static [ModulePatches],
+  game_smoothing: &'static [ModulePatches],
+}
 
 #[derive(Debug, Clone, Copy)]
 enum GameVersion {
@@ -227,17 +301,17 @@ pub struct GameAccessor {
   pub player: NonNull<Option<NonNull<()>>>,
   pub env_splashes: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
   pub env_bubbles: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
-  pub render_in_perspective: unsafe extern "stdcall" fn() -> u32,
-  pub hwnd: NonNull<HWND>,
-  pub server_update_time: NonNull<u32>,
   pub client_update_count: NonNull<u32>,
   pub game_type: NonNull<GameType>,
   pub active_entity_tables: NonNull<()>,
   pub draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)>,
   pub client_fps_frame_count: NonNull<u32>,
   pub client_total_frame_count: NonNull<u32>,
-  pub draw_menu: unsafe extern "stdcall" fn(),
   pub apply_pos_change: usize,
+  pub server_update_time: NonNull<u32>,
+  pub render_in_perspective: unsafe extern "stdcall" fn() -> u32,
+  pub hwnd: NonNull<HWND>,
+  pub draw_menu: unsafe extern "stdcall" fn(),
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
@@ -246,6 +320,14 @@ impl GameAccessor {
       player: NonNull::dangling(),
       env_splashes: NonNull::dangling(),
       env_bubbles: NonNull::dangling(),
+      client_update_count: NonNull::dangling(),
+      game_type: NonNull::dangling(),
+      active_entity_tables: NonNull::dangling(),
+      draw_game_fn: NonNull::dangling(),
+      client_fps_frame_count: NonNull::dangling(),
+      client_total_frame_count: NonNull::dangling(),
+      apply_pos_change: 0,
+      server_update_time: NonNull::dangling(),
       render_in_perspective: {
         extern "stdcall" fn f() -> u32 {
           panic!()
@@ -253,21 +335,30 @@ impl GameAccessor {
         f
       },
       hwnd: NonNull::dangling(),
-      server_update_time: NonNull::dangling(),
-      client_update_count: NonNull::dangling(),
-      game_type: NonNull::dangling(),
-      active_entity_tables: NonNull::dangling(),
-      draw_game_fn: NonNull::dangling(),
-      client_fps_frame_count: NonNull::dangling(),
-      client_total_frame_count: NonNull::dangling(),
       draw_menu: {
         extern "stdcall" fn f() {
           panic!()
         }
         f
       },
-      apply_pos_change: 0,
     }
+  }
+
+  unsafe fn load(&mut self, modules: &D2Modules, addresses: &GameAddresses) {
+    self.player = addresses.player(modules.d2client);
+    self.env_splashes = addresses.env_splashes(modules.d2client);
+    self.env_bubbles = addresses.env_bubbles(modules.d2client);
+    self.client_update_count = addresses.client_update_count(modules.d2client);
+    self.game_type = addresses.game_type(modules.d2client);
+    self.active_entity_tables = addresses.active_entity_tables(modules.d2client);
+    self.draw_game_fn = addresses.draw_game_fn(modules.d2client);
+    self.client_fps_frame_count = addresses.client_fps_frame_count(modules.d2client);
+    self.client_total_frame_count = addresses.client_total_frame_count(modules.d2client);
+    self.apply_pos_change = addresses.apply_pos_change(modules.d2common);
+    self.server_update_time = addresses.server_update_time(modules.d2game);
+    self.render_in_perspective = addresses.render_in_perspective(modules.d2gfx);
+    self.hwnd = addresses.hwnd(modules.d2gfx);
+    self.draw_menu = addresses.draw_menu(modules.d2win);
   }
 
   pub unsafe fn player<T>(&self) -> Option<NonNull<T>> {
@@ -345,21 +436,16 @@ impl WindowHook {
 
 pub struct HookManager {
   version: Option<GameVersion>,
-  modules: ArrayVec<Module, 5>,
+  modules: Option<LoadedModules>,
   accessor: GameAccessor,
   patches: ArrayVec<AppliedPatch, 59>,
   window_hook: WindowHook,
-}
-impl Drop for HookManager {
-  fn drop(&mut self) {
-    self.detach();
-  }
 }
 impl HookManager {
   pub const fn new() -> Self {
     Self {
       version: None,
-      modules: ArrayVec::new_const(),
+      modules: None,
       accessor: GameAccessor::new(),
       patches: ArrayVec::new_const(),
       window_hook: WindowHook(false),
@@ -385,22 +471,63 @@ impl HookManager {
     }
   }
 
-  pub fn attach(&mut self) -> Result<(), ()> {
-    let res = match self.version {
-      Some(GameVersion::V109d) => unsafe { self.hook_v109d() },
-      Some(GameVersion::V110) => unsafe { self.hook_v110() },
-      Some(GameVersion::V112) => unsafe { self.hook_v112() },
-      Some(GameVersion::V113c) => unsafe { self.hook_v113c() },
-      Some(GameVersion::V113d) => unsafe { self.hook_v113d() },
-      Some(GameVersion::V114d) => unsafe { self.hook_v114d() },
-      _ => Ok(()),
+  pub(crate) fn attach(&mut self, config: &mut Config) -> Result<(), ()> {
+    let (sets, modules) = match self.version {
+      Some(GameVersion::V109d) => {
+        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
+        unsafe { self.accessor.load(&modules, &d2interface::v109d::ADDRESSES) };
+        (&v109d::PATCHES, modules)
+      }
+      Some(GameVersion::V110) => {
+        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
+        unsafe { self.accessor.load(&modules, &d2interface::v110::ADDRESSES) };
+        (&v110::PATCHES, modules)
+      }
+      Some(GameVersion::V112) => {
+        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
+        unsafe { self.accessor.load(&modules, &d2interface::v112::ADDRESSES) };
+        (&v112::PATCHES, modules)
+      }
+      Some(GameVersion::V113c) => {
+        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
+        unsafe { self.accessor.load(&modules, &d2interface::v113c::ADDRESSES) };
+        (&v113c::PATCHES, modules)
+      }
+      Some(GameVersion::V113d) => {
+        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
+        unsafe { self.accessor.load(&modules, &d2interface::v113d::ADDRESSES) };
+        (&v113d::PATCHES, modules)
+      }
+      Some(GameVersion::V114d) => {
+        let modules = D2Modules::from_game_exe()?;
+        unsafe { self.accessor.load(&modules, &d2interface::v114d::ADDRESSES) };
+        (&v114d::PATCHES, modules)
+      }
+      _ => return Err(()),
     };
 
-    if res.is_err() {
-      self.patches.clear();
-      self.modules.clear();
+    let mut count = 2;
+    if unsafe { self.apply_patch_set(&modules, sets.menu_fps).is_err() } {
+      log!("Failed to apply menu fps patches");
+      count -= 1;
     }
-    res
+    if unsafe { self.apply_patch_set(&modules, sets.game_fps).is_err() } {
+      log!("Failed to apply game fps patches");
+      count -= 2;
+      config.enable_smoothing = false;
+    } else if config.enable_smoothing
+      && unsafe { self.apply_patch_set(&modules, sets.game_smoothing).is_err() }
+    {
+      log!("Failed to apply game smoothing patches");
+      config.enable_smoothing = false;
+    }
+
+    if count == 0 {
+      self.modules = None;
+      Err(())
+    } else {
+      Ok(())
+    }
   }
 
   pub fn detach(&mut self) {
@@ -408,44 +535,47 @@ impl HookManager {
       self.window_hook.detach(&self.accessor);
     }
     self.patches.clear();
-    self.modules.clear();
+    self.modules = None;
   }
 
-  unsafe fn apply_patches(
+  unsafe fn apply_patch_set(
     &mut self,
-    name: &str,
-    base: usize,
-    preferred_base: usize,
-    patches: &[impl Patch],
+    modules: &D2Modules,
+    patches: &[ModulePatches],
   ) -> Result<(), ()> {
+    let start_idx = self.patches.len();
     let mut success = true;
-    let reloc_dist = base.wrapping_sub(preferred_base);
-    for patch in patches {
-      match patch.apply(base, reloc_dist) {
-        Ok(patch) => self.patches.push(patch),
-        Err(_) => {
-          success = false;
-          log!("Failed to apply patch at: {}+{:#x}", name, patch.offset())
+
+    for m in patches {
+      let d2mod = modules.get(m.module);
+      let reloc_dist = d2mod.wrapping_sub(m.pref_base as isize);
+      for patch in m.patches {
+        match patch.apply(d2mod, reloc_dist) {
+          Ok(p) => self.patches.push(p),
+          Err(_) => {
+            success = false;
+            log!("Failed to apply patch at: {}+{:#x}", m.module, patch.offset);
+          }
         }
       }
     }
+
     if success {
       Ok(())
     } else {
+      self.patches.truncate(start_idx);
       Err(())
     }
   }
 
-  unsafe fn load_dlls(&mut self) -> Result<&[Module; 5], ()> {
-    assert!(self.modules.is_empty());
-    self.modules.extend([
-      Module::new(D2CLIENT_DLL)?,
-      Module::new(D2COMMON_DLL)?,
-      Module::new(D2GAME_DLL)?,
-      Module::new(D2GFX_DLL)?,
-      Module::new(D2WIN_DLL)?,
-    ]);
-    Ok(&*self.modules.as_ptr().cast())
+  fn loaded_modules(&mut self) -> Result<&LoadedModules, ()> {
+    match &mut self.modules {
+      Some(modules) => Ok(modules),
+      modules @ None => {
+        *modules = Some(LoadedModules::load()?);
+        modules.as_ref().ok_or(())
+      }
+    }
   }
 }
 
@@ -584,7 +714,7 @@ extern "stdcall" fn dypos_linear_whole_ypos<P: DyPos>(pos: &P) -> u32 {
   D2FPS.lock().dypos_linear_pos(pos).y.truncate()
 }
 
-unsafe extern "stdcall" fn draw_game<T: Entity>() {
+unsafe extern "C" fn draw_game<T: Entity>() {
   let mut instance_lock = D2FPS.lock();
   let instance = &mut *instance_lock;
 
@@ -630,7 +760,7 @@ unsafe extern "stdcall" fn draw_game<T: Entity>() {
   }
 }
 
-unsafe extern "stdcall" fn draw_game_paused() {
+unsafe extern "C" fn draw_game_paused() {
   let mut instance_lock = crate::D2FPS.lock();
   let instance = &mut *instance_lock;
 
@@ -701,7 +831,7 @@ unsafe extern "fastcall" fn draw_menu_with_sleep(
   Sleep(draw_menu(callback, call_count));
 }
 
-unsafe extern "stdcall" fn game_loop_sleep_hook() {
+unsafe extern "C" fn game_loop_sleep_hook() {
   let instance = D2FPS.lock();
   let mut time = 0;
   QueryPerformanceCounter(&mut time);

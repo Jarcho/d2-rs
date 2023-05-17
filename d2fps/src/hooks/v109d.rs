@@ -1,243 +1,208 @@
 use crate::{
   hooks::{
-    draw_game, draw_game_paused, game_loop_sleep_hook, D2CLIENT_IDX, D2COMMON_IDX, D2GAME_IDX,
-    D2GFX_IDX, D2WIN_IDX,
+    draw_game, draw_game_paused, draw_menu_with_sleep, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
+    update_menu_char_frame, D2Module, ModulePatches, PatchSets,
   },
-  patch::{CallPatch, CallTargetPatch},
   tracker::UnitId,
 };
+use bin_patch::{patch_source, Patch};
 use core::{arch::global_asm, ptr::NonNull};
 use d2interface::{
-  v109d::{
-    D2ClientAccessor, D2CommonAccessor, D2GameAccessor, D2GfxAccessor, D2WinAccessor, DyPos, Entity,
-  },
+  v109d::{DyPos, Entity},
   FixedU16, IsoPos, LinearPos,
 };
 
-#[rustfmt::skip]
-static D2CLIENT_TARGET_PATCHES: [CallTargetPatch; 53] = [
-  // Create entity light
-  call_target_patch!(0x4306, 0x000ba1de, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x4315, 0x000ba1c9, super::entity_linear_ypos::<Entity>),
-  // Lighting position
-  call_target_patch!(0x4ac0, 0x000b99ee, super::entity_linear_whole_xpos::<Entity>),
-  call_target_patch!(0x4ac8, 0x000b99e0, super::entity_linear_whole_ypos::<Entity>),
-  // Apply entity light
-  call_target_patch!(0x4ba6, 0x000b993e, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x4bae, 0x000b9930, super::entity_linear_ypos::<Entity>),
-  // Viewport position
-  call_target_patch!(0x8f50, 0x000b5606, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x8f6d, 0x000b55e3, super::entity_iso_ypos::<Entity>),
-  // Entity shift
-  call_target_patch!(0x14c67, 0x000a98ef, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x14c6f, 0x000a98e1, super::entity_iso_ypos::<Entity>),
-  // Perspective viewport position
-  call_target_patch!(0x1619d, 0x000a8347, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x161a5, 0x000a8339, super::entity_linear_ypos::<Entity>),
-  // Summit background position
-  call_target_patch!(0x165c4, 0x000a7f92, super::entity_iso_xpos::<Entity>),
-  // Perspective whirlwind overlay pos
-  call_target_patch!(0x1e865, 0x0009fc7f, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x1e85e, 0x0009fc80, super::entity_linear_ypos::<Entity>),
-  // Whirlwind overlay pos
-  call_target_patch!(0x1e885, 0x0009fcd1, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x1e88f, 0x0009fcc1, super::entity_iso_ypos::<Entity>),
-  // Entity culling
-  call_target_patch!(0x17642, 0x000a6f14, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x1764c, 0x000a6f04, super::entity_iso_ypos::<Entity>),
-  // Charge overlay pos
-  call_target_patch!(0x2379f, 0x0009adb7, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x237a9, 0x0009ada7, super::entity_iso_ypos::<Entity>),
-  // Perspective charge overlay pos
-  call_target_patch!(0x23913, 0x0009abd1, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x2390c, 0x0009abd2, super::entity_linear_ypos::<Entity>),
-  // Entity minimap position
-  call_target_patch!(0x28301, 0x00096255, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x28309, 0x00096247, super::entity_iso_ypos::<Entity>),
-  // Perspective entity mouse-over text
-  call_target_patch!(0x8558a, 0x00038f5a, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0x85592, 0x00038f4c, super::entity_linear_ypos::<Entity>),
-  // Entity mouse-over text
-  call_target_patch!(0x85601, 0x00038f55, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x85616, 0x00038f3a, super::entity_iso_ypos::<Entity>),
-  // Course entity mouse detection
-  call_target_patch!(0x8d40d, 0x00031149, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x8d415, 0x0003113b, super::entity_iso_ypos::<Entity>),
-  // Animated entity mouse detection refinement
-  call_target_patch!(0x8d8b7, 0x00030c9f, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0x8d8de, 0x00030c72, super::entity_iso_ypos::<Entity>),
-  // Perspective entity draw pos
-  call_target_patch!(0xaba34, 0x00012ab0, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0xaba40, 0x00012a9e, super::entity_linear_ypos::<Entity>),
-  // Entity draw pos
-  call_target_patch!(0xabb57, 0x000129ff, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0xabb61, 0x000129ef, super::entity_iso_ypos::<Entity>),
-  // Perspective entity shadow pos
-  call_target_patch!(0xb728a, 0x0000725a, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0xb7294, 0x0000724a, super::entity_linear_ypos::<Entity>),
-  // Entity shadow pos
-  call_target_patch!(0xb72ff, 0x00007257, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0xb730b, 0x00007245, super::entity_iso_ypos::<Entity>),
-  // Perspective entity single color pos
-  call_target_patch!(0xb7ad7, 0x00006a0d, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0xb7ad0, 0x00006a0e, super::entity_linear_ypos::<Entity>),
-  // Entity single color pos
-  call_target_patch!(0xb7b34, 0x00006a22, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0xb7b4f, 0x00006a01, super::entity_iso_ypos::<Entity>),
-  // Entity spell overlay perspective
-  call_target_patch!(0xb815b, 0x00006389, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0xb8154, 0x0000638a, super::entity_linear_ypos::<Entity>),
-  // Entity spell overlay
-  call_target_patch!(0xb81a7, 0x000063af, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0xb81ba, 0x00006396, super::entity_iso_ypos::<Entity>),
-  // Npc mouse over perspective
-  call_target_patch!(0xbdad8, 0x00000a0c, super::entity_linear_xpos::<Entity>),
-  call_target_patch!(0xbdad1, 0x00000a0d, super::entity_linear_ypos::<Entity>),
-  // Npc mouse over
-  call_target_patch!(0xbdb25, 0x00000a31, super::entity_iso_xpos::<Entity>),
-  call_target_patch!(0xbdb38, 0x00000a18, super::entity_iso_ypos::<Entity>),
-];
-#[rustfmt::skip]
-static D2CLIENT_CALL_PATCHES: [CallPatch; 3] = [
-  // Game loop sleep patch
-  call_patch!(0x262c, [
-    0xa1, reloc 0x38, 0x47, 0xb7, 0x6f,
-    0x85, 0xc0,
-    0x75, 0x08,
-    0x6a, 0x00,
-    0xff, 0x15, reloc 0x9c, 0xbf, 0xb6, 0x6f,
-  ], game_loop_sleep_hook as unsafe extern "stdcall" fn()),
-  // Draw paused game framerate
-  call_patch!(0x9438, [0xff, 0x15, reloc 0xb4, 0x09, 0xbb, 0x6f], draw_game_paused as unsafe extern "stdcall" fn()),
-  // Draw game framerate & entity sync
-  call_patch!(0x9b5f, [
-    0x39, reloc 0x2d, 0x40, 0x0c, 0xbb, 0x6f,
-    0x75, 0x2b,
-    0xe8, 0xb4, 0x40, 0x08, 0x00,
-    0x85, 0xc0,
-    0x74, 0x2e,
-    0x33, 0xc9,
-    0xff, 0x15, reloc 0xb4, 0x09, 0xbb, 0x6f,
-    0x8b, 0x0d, reloc 0xc4, 0x09, 0xbb, 0x6f,
-    0xa1, reloc 0xdc, 0x09, 0xbb, 0x6f,
-    0x41,
-    0x40,
-    0x89, 0x0d, reloc 0xc4, 0x09, 0xbb, 0x6f,
-    0xa3, reloc 0xdc, 0x09, 0xbb, 0x6f,
-    0xeb, 0x0c,
-    0x39, 0x6c, 0x24, 0x14,
-    0x74, 0x06,
-    0xff, 0x05, reloc 0xe4, 0x09, 0xbb, 0x6f,
-  ], draw_game::<Entity> as unsafe extern "stdcall" fn()),
-];
-#[rustfmt::skip]
-static D2WIN_CALL_PATCHES: [CallPatch; 2] = [
-  // Draw menu framerate
-  call_patch!(0xebe4, [
-    0x8d, 0x4c, 0x24, 0x14,
-    0x51,
-    0xff, 0x15, reloc 0xc8, 0xd1, 0x8b, 0x6f,
-    0x8d, 0x54, 0x24, 0x1c,
-    0x52,
-    0xff, 0x15, reloc 0x80, 0xd1, 0x8b, 0x6f,
-    0x8b, 0x74, 0x24, 0x14,
-    0x8b, 0x7c, 0x24, 0x18,
-    0x8b, 0xc6,
-    0x8b, 0xcf,
-    0x2b, 0xc3,
-    0x6a, 0x00,
-    0x1b, 0xcd,
-    0x6a, 0x19,
-    0x51,
-    0x50,
-    0xe8, 0x4b, 0x61, 0x00, 0x00,
-    0x3b, 0x54, 0x24, 0x20,
-    0x7c, 0x27,
-    0x7f, 0x06,
-    0x3b, 0x44, 0x24, 0x1c,
-    0x76, 0x1f,
-    0x8b, 0x44, 0x24, 0x44,
-    0x8b, 0xde,
-    0x85, 0xc0,
-    0x8b, 0xef,
-    0x74, 0x0e,
-    0x8b, 0x54, 0x24, 0x10,
-    0x8b, 0xca,
-    0x42,
-    0x51,
-    0x89, 0x54, 0x24, 0x14,
-    0xff, 0xd0,
-    0xe8, 0x4e, 0x06, 0x00, 0x00,
-  ], draw_menu_109d_asm_stub as unsafe extern "C" fn()),
-  // Menu char frame rate
-  call_patch!(0x1b6a, [
-    0x8b, 0x4e, 0x10,
-    0x8b, 0x46, 0x08,
-    0x8b, 0x56, 0x0c,
-    0x03, 0xc1,
-  ], update_menu_char_frame_109d_asm_stub as unsafe extern "C" fn()),
-];
-#[rustfmt::skip]
-static D2COMMON_CALL_PATCHES: [CallPatch; 1] = [
-  call_patch!(0x5f9f7, [
-    0x89, 0x3e,
-    0x8d, 0x44, 0x24, 0x14,
-    0x89, 0x6e, 0x04,
-  ], intercept_teleport_109d_asm_stub as unsafe extern "C" fn()),
-];
+use super::{entity_linear_whole_xpos, entity_linear_whole_ypos};
 
-impl super::HookManager {
-  pub unsafe fn hook_v109d(&mut self) -> Result<(), ()> {
-    let modules = self.load_dlls()?;
-    let d2client = D2ClientAccessor(modules[D2CLIENT_IDX].0);
-    let d2common = D2CommonAccessor(modules[D2COMMON_IDX].0);
-    let d2game = D2GameAccessor(modules[D2GAME_IDX].0);
-    let d2gfx = D2GfxAccessor(modules[D2GFX_IDX].0);
-    let d2win = D2WinAccessor(modules[D2WIN_IDX].0);
-
-    self.accessor.active_entity_tables = d2client.active_entity_tables().cast();
-    self.accessor.client_fps_frame_count = d2client.client_fps_frame_count();
-    self.accessor.client_total_frame_count = d2client.client_frame_count();
-    self.accessor.client_update_count = d2client.client_update_count();
-    self.accessor.draw_game_fn = d2client.draw_game_fn();
-    self.accessor.draw_menu = d2win.draw_menu();
-    self.accessor.env_bubbles = d2client.env_bubbles();
-    self.accessor.env_splashes = d2client.env_splashes();
-    self.accessor.game_type = d2client.game_type();
-    self.accessor.hwnd = d2gfx.hwnd();
-    self.accessor.player = d2client.player().cast();
-    self.accessor.render_in_perspective = d2gfx.render_in_perspective();
-    self.accessor.server_update_time = d2game.server_update_time();
-
-    apply_patches!(
-      self,
-      (
-        "d2client.dll",
-        d2client.0 as usize,
-        0x6faa0000,
-        &D2CLIENT_TARGET_PATCHES
-      ),
-      (
-        "d2client.dll",
-        d2client.0 as usize,
-        0x6faa0000,
-        &D2CLIENT_CALL_PATCHES
-      ),
-      (
-        "d2win.dll",
-        d2win.0 as usize,
-        0x6f8a0000,
-        &D2WIN_CALL_PATCHES
-      ),
-      (
-        "d2common.dll",
-        d2common.0 as usize,
-        0x6fd40000,
-        &D2COMMON_CALL_PATCHES
-      ),
-    )
-  }
-}
+#[rustfmt::skip]
+pub(super) static PATCHES: PatchSets = PatchSets {
+  menu_fps: &[ModulePatches::new(
+    D2Module::Win,
+    0x6f8a0000,
+    &[
+      // Draw menu framerate
+      Patch::call_c(0xebe4, patch_source!("
+        8d 4c 24 14
+        51
+        ff 15 $c8d18b6f
+        8d 54 24 1c
+        52
+        ff 15 $80d18b6f
+        8b 74 24 14
+        8b 7c 24 18
+        8b c6
+        8b cf
+        2b c3
+        6a 00
+        1b cd
+        6a 19
+        51
+        50
+        e8 4b 61 00 00
+        3b 54 24 20
+        7c 27
+        7f 06
+        3b 44 24 1c
+        76 1f
+        8b 44 24 44
+        8b de
+        85 c0
+        8b ef
+        74 0e
+        8b 54 24 10
+        8b ca
+        42
+        51
+        89 54 24 14
+        ff d0
+        e8 4e 06 00 00
+      "), draw_menu_109d_asm_stub),
+      // Menu char frame rate
+      Patch::call_c(0x1b6a, patch_source!("
+        8b 4e 10
+        8b 46 08
+        8b 56 0c
+        03 c1
+      "), update_menu_char_frame_109d_asm_stub),
+    ],
+  )],
+  game_fps: &[ModulePatches::new(
+    D2Module::Client,
+    0x6faa0000,
+    &[
+      // Game loop sleep patch
+      Patch::call_c(0x262c, patch_source!("
+        a1 $3847b76f
+        85 c0
+        75 08
+        6a 00
+        ff 15 $9cbfb66f
+      "), game_loop_sleep_hook),
+      // Draw paused game framerate
+      Patch::call_c(0x9438, patch_source!("ff 15 $b409bb6f"), draw_game_paused),
+      // Draw game framerate & entity sync
+      Patch::call_c(0x9b5f, patch_source!("
+        39 2d $400cbb6f
+        75 2b
+        e8 b4 40 08 00
+        85 c0
+        74 2e
+        33 c9
+        ff 15 $b409bb6f
+        8b 0d $c409bb6f
+        a1 $dc09bb6f
+        41
+        40
+        89 0d $c409bb6f
+        a3 $dc09bb6f
+        eb 0c
+        39 6c 24 14
+        74 06
+        ff 05 $e409bb6f
+      "), draw_game::<Entity>),
+    ],
+  )],
+  game_smoothing: &[
+    ModulePatches::new(
+      D2Module::Client,
+      0x6faa0000,
+      &[
+        // Create entity light
+        Patch::call_std1(0x4305, patch_source!("e8 dea10b00"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x4314, patch_source!("e8 c9a10b00"), entity_linear_ypos::<Entity>),
+        // Lighting position
+        Patch::call_std1(0x4abf, patch_source!("e8 ee990b00"), entity_linear_whole_xpos::<Entity>),
+        Patch::call_std1(0x4ac7, patch_source!("e8 e0990b00"), entity_linear_whole_ypos::<Entity>),
+        // Apply entity light
+        Patch::call_std1(0x4ba5, patch_source!("e8 3e990b00"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x4bad, patch_source!("e8 30990b00"), entity_linear_ypos::<Entity>),
+        // Viewport position
+        Patch::call_std1(0x8f4f, patch_source!("e8 06560b00"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x8f6c, patch_source!("e8 e3550b00"), entity_iso_ypos::<Entity>),
+        // Entity shift
+        Patch::call_std1(0x14c66, patch_source!("e8 ef980a00"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x14c6e, patch_source!("e8 e1980a00"), entity_iso_ypos::<Entity>),
+        // Perspective viewport position
+        Patch::call_std1(0x1619c, patch_source!("e8 47830a00"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x161a4, patch_source!("e8 39830a00"), entity_linear_ypos::<Entity>),
+        // Summit background position
+        Patch::call_std1(0x165c3, patch_source!("e8 927f0a00"), entity_iso_xpos::<Entity>),
+        // Perspective whirlwind overlay pos
+        Patch::call_std1(0x1e864, patch_source!("e8 7ffc0900"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x1e85d, patch_source!("e8 80fc0900"), entity_linear_ypos::<Entity>),
+        // Whirlwind overlay pos
+        Patch::call_std1(0x1e884, patch_source!("e8 d1fc0900"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x1e88e, patch_source!("e8 c1fc0900"), entity_iso_ypos::<Entity>),
+        // Entity culling
+        Patch::call_std1(0x17641, patch_source!("e8 146f0a00"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x1764b, patch_source!("e8 046f0a00"), entity_iso_ypos::<Entity>),
+        // Charge overlay pos
+        Patch::call_std1(0x2379e, patch_source!("e8 b7ad0900"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x237a8, patch_source!("e8 a7ad0900"), entity_iso_ypos::<Entity>),
+        // Perspective charge overlay pos
+        Patch::call_std1(0x23912, patch_source!("e8 d1ab0900"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x2390b, patch_source!("e8 d2ab0900"), entity_linear_ypos::<Entity>),
+        // Entity minimap position
+        Patch::call_std1(0x28300, patch_source!("e8 55620900"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x28308, patch_source!("e8 47620900"), entity_iso_ypos::<Entity>),
+        // Perspective entity mouse-over text
+        Patch::call_std1(0x85589, patch_source!("e8 5a8f0300"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x85591, patch_source!("e8 4c8f0300"), entity_linear_ypos::<Entity>),
+        // Entity mouse-over text
+        Patch::call_std1(0x85600, patch_source!("e8 558f0300"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x85615, patch_source!("e8 3a8f0300"), entity_iso_ypos::<Entity>),
+        // Course entity mouse detection
+        Patch::call_std1(0x8d40c, patch_source!("e8 49110300"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x8d414, patch_source!("e8 3b110300"), entity_iso_ypos::<Entity>),
+        // Animated entity mouse detection refinement
+        Patch::call_std1(0x8d8b6, patch_source!("e8 9f0c0300"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x8d8dd, patch_source!("e8 720c0300"), entity_iso_ypos::<Entity>),
+        // Perspective entity draw pos
+        Patch::call_std1(0xaba33, patch_source!("e8 b02a0100"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xaba3f, patch_source!("e8 9e2a0100"), entity_linear_ypos::<Entity>),
+        // Entity draw pos
+        Patch::call_std1(0xabb56, patch_source!("e8 ff290100"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xabb60, patch_source!("e8 ef290100"), entity_iso_ypos::<Entity>),
+        // Perspective entity shadow pos
+        Patch::call_std1(0xb7289, patch_source!("e8 5a720000"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xb7293, patch_source!("e8 4a720000"), entity_linear_ypos::<Entity>),
+        // Entity shadow pos
+        Patch::call_std1(0xb72fe, patch_source!("e8 57720000"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xb730a, patch_source!("e8 45720000"), entity_iso_ypos::<Entity>),
+        // Perspective entity single color pos
+        Patch::call_std1(0xb7ad6, patch_source!("e8 0d6a0000"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xb7acf, patch_source!("e8 0e6a0000"), entity_linear_ypos::<Entity>),
+        // Entity single color pos
+        Patch::call_std1(0xb7b33, patch_source!("e8 226a0000"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xb7b4e, patch_source!("e8 016a0000"), entity_iso_ypos::<Entity>),
+        // Entity spell overlay perspective
+        Patch::call_std1(0xb815a, patch_source!("e8 89630000"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xb8153, patch_source!("e8 8a630000"), entity_linear_ypos::<Entity>),
+        // Entity spell overlay
+        Patch::call_std1(0xb81a6, patch_source!("e8 af630000"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xb81b9, patch_source!("e8 96630000"), entity_iso_ypos::<Entity>),
+        // Npc mouse over perspective
+        Patch::call_std1(0xbdad7, patch_source!("e8 0c0a0000"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xbdad0, patch_source!("e8 0d0a0000"), entity_linear_ypos::<Entity>),
+        // Npc mouse over
+        Patch::call_std1(0xbdb24, patch_source!("e8 310a0000"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xbdb37, patch_source!("e8 180a0000"), entity_iso_ypos::<Entity>),
+      ],
+    ),
+    ModulePatches::new(
+      D2Module::Common,
+      0x6fd40000,
+      &[
+        Patch::call_c(0x5f9f7, patch_source!("
+          89 3e
+          8d 44 24 14
+          89 6e 04
+        "), intercept_teleport_109d_asm_stub),
+      ],
+    ),
+  ],
+};
 
 impl super::Entity for Entity {
   fn unit_id(&self) -> UnitId {
@@ -290,7 +255,7 @@ global_asm! {
   "lea edx, [esp+0x18]",
   "call {}",
   "ret",
-  sym super::draw_menu_with_sleep,
+  sym draw_menu_with_sleep,
 }
 extern "C" {
   pub fn draw_menu_109d_asm_stub();
@@ -304,7 +269,7 @@ global_asm! {
   "call {}",
   "mov edx, [esi+0x0c]",
   "ret",
-  sym super::update_menu_char_frame,
+  sym update_menu_char_frame,
 }
 extern "C" {
   pub fn update_menu_char_frame_109d_asm_stub();
@@ -321,7 +286,7 @@ global_asm! {
   "call {}",
   "lea eax, [esp+0x18]",
   "ret",
-  sym super::intercept_teleport::<Entity>,
+  sym intercept_teleport::<Entity>,
 }
 extern "C" {
   pub fn intercept_teleport_109d_asm_stub();

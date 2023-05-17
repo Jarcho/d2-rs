@@ -1,69 +1,30 @@
-use core::{ptr::NonNull, slice};
-
-use windows_sys::Win32::Foundation::{HMODULE, HWND};
+use core::ptr::NonNull;
 
 use crate::{
-  all_versions::{self, EntityKind, GameType, LinkedList},
-  FixedU16, IsoPos, LinearPos, UnknownPos,
+  all_versions::{self, EntityKind, GameAddresses, LinkedList},
+  FixedU16, IsoPos, LinearPos,
 };
 
 pub type EntityTables = all_versions::EntityTables<Entity>;
 pub type EntityTable = all_versions::EntityTable<Entity>;
 
-decl_accessor! { D2ClientAccessor {
-  /// Pointer to the current player. May exist even when not in-game.
-  player: NonNull<Option<NonNull<Entity>>> = 0x1263f8,
-  /// The array containing the active splash effects (Acts 1&3 rain).
-  env_splashes: NonNull<Option<NonNull<EnvArray<EnvImage>>>> = 0x11095c,
-  /// The array containing the active bubble effects.
-  env_bubbles: NonNull<Option<NonNull<EnvArray<EnvImage>>>> = 0x110960,
-  /// The number of times the client has updated the game state.
-  client_update_count: NonNull<u32> = 0x1109c8,
-  /// The type of game the client is currently running. Only meaningful if a
-  /// game is running.
-  game_type: NonNull<GameType> = 0x110bc0,
-  /// The table of active game entities.
-  active_entity_tables: NonNull<EntityTables> = 0x124bf8,
-  /// The currently selected draw function.
-  draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)> = 0x1109b4,
-  /// Frame count used to calculate the client's current fps.
-  client_fps_frame_count: NonNull<u32> = 0x1109dc,
-  /// The total number of frames drawn by the client.
-  client_frame_count: NonNull<u32> = 0x1109c4,
-}}
-
-decl_accessor! { D2CommonAccessor {
-  /// Applies a position change to a `DyPos`.
-  apply_pos_change: unsafe extern "fastcall" fn(NonNull<DyPos>, NonNull<Room>, FixedU16, FixedU16) = 0x5f180,
-}}
-
-decl_accessor! { D2GfxAccessor {
-  /// Whether the game is being rendered in perspective mode.
-  render_in_perspective: unsafe extern "stdcall" fn() -> u32 = 0x3b60,
-  /// The game's window handle
-  hwnd: NonNull<HWND> = 0x1d214,
-}}
-
-decl_accessor! { D2GameAccessor {
-  /// The time the game server most recently updated the game state.
-  server_update_time: NonNull<u32> = 0xf4198,
-}}
-
-decl_accessor! { D2WinAccessor {
-  /// Draw the game's current menu.
-  draw_menu: unsafe extern "stdcall" fn() = 0xf290,
-}}
-
-pub mod d2gfx_offsets {
-  pub const PLAYER: u32 = 0x3a6a70;
-  pub const GFX_FNS: u32 = 0x3c8cc0;
-  pub const WINDOW_HANDLE: u32 = 0x3c8cbc;
-
-  pub const DRAW_IMAGE: u32 = 0xf6480;
-  pub const DRAW_IMAGE_SHIFTED: u32 = 0xf64b0;
-  pub const DRAW_IMAGE_VCROPPED: u32 = 0xf64e0;
-  pub const DRAW_IMAGE_CROPPED: u32 = 0xf6510;
-}
+pub static ADDRESSES: GameAddresses = GameAddresses {
+  player: 0x1263f8,
+  env_splashes: 0x11095c,
+  env_bubbles: 0x110960,
+  client_update_count: 0x1109c8,
+  game_type: 0x110bc0,
+  active_entity_tables: 0x124bf8,
+  draw_game_fn: 0x1109b4,
+  client_fps_frame_count: 0x1109dc,
+  client_total_frame_count: 0x1109c4,
+  // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
+  apply_pos_change: 0xf290,
+  render_in_perspective: 0x3b60,
+  hwnd: 0x1d214,
+  server_update_time: 0xf4198,
+  draw_menu: 0xf290,
+};
 
 #[repr(C)]
 pub struct Room {
@@ -147,41 +108,4 @@ impl Entity {
       .pos(|pos| pos.room.is_some(), |pos| pos.room.is_some())
       .unwrap_or(false)
   }
-}
-
-#[repr(C)]
-pub struct EnvArray<T> {
-  pub name: [u8; 0x100],
-  pub len: u32,
-  pub element_size: u32,
-  pub initialized: u32,
-  pub next_free_idx: u32,
-  pub last_active_idx: i32,
-  pub active_count: u32,
-  pub _padding: u16,
-  pub data: NonNull<T>,
-}
-impl<T> EnvArray<T> {
-  pub fn as_mut_slice(&mut self) -> &mut [T] {
-    unsafe {
-      slice::from_raw_parts_mut(
-        self.data.as_ptr(),
-        if self.initialized != 0 {
-          (self.last_active_idx + 1) as usize
-        } else {
-          0
-        },
-      )
-    }
-  }
-}
-
-#[repr(C)]
-pub struct EnvImage {
-  pub active: u16,
-  /// Linear space when rendering in perspective. Camera space when not.
-  pub pos: UnknownPos<u32>,
-  pub file_idx: u32,
-  pub frame: u32,
-  pub till_next_frame: u32,
 }

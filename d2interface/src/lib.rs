@@ -12,21 +12,6 @@ macro_rules! decl_enum {
   }
 }
 
-macro_rules! decl_accessor {
-  ($name:ident {
-    $($(#[$meta:meta])* $item:ident: $ty:ty = $offset:literal),* $(,)?
-  }) => {
-    pub struct $name(pub HMODULE);
-    impl $name {$(
-        #[allow(clippy::missing_safety_doc)]
-        $(#[$meta])*
-        pub unsafe fn $item(&self) -> $ty {
-          core::mem::transmute(self.0.wrapping_add($offset))
-        }
-    )*}
-  };
-}
-
 pub mod all_versions;
 mod util;
 pub mod v109d;

@@ -1,4 +1,69 @@
-use core::{iter, ops, ptr::NonNull};
+use crate::UnknownPos;
+use core::{iter, ops, ptr::NonNull, slice};
+use windows_sys::Win32::Foundation::{HMODULE, HWND};
+
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct D2Client(pub HMODULE);
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct D2Common(pub HMODULE);
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct D2Game(pub HMODULE);
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct D2Gfx(pub HMODULE);
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
+pub struct D2Win(pub HMODULE);
+
+macro_rules! decl_addresses {
+  ($($(#[$meta:meta])* $module:ident::$item:ident: $ty:ty),* $(,)?) => {
+    pub struct GameAddresses {$(
+      $(#[$meta])*
+      pub(crate) $item: usize
+    ),*}
+    impl GameAddresses {$(
+        #[allow(clippy::missing_safety_doc, clippy::useless_transmute)]
+        $(#[$meta])*
+        pub unsafe fn $item(&self, m: $module) -> $ty {
+          core::mem::transmute(self.$item.wrapping_add(m.0 as usize))
+        }
+    )*}
+  };
+}
+decl_addresses! {
+  /// Pointer to the current player. May exist even when not in-game.
+  D2Client::player: NonNull<Option<NonNull<()>>>,
+  /// The array containing the active splash effects (Acts 1&3 rain).
+  D2Client::env_splashes: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
+  /// The array containing the active bubble effects (Act 3 water).
+  D2Client::env_bubbles: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
+  /// The number of times the client has updated the game state.
+  D2Client::client_update_count: NonNull<u32>,
+  /// The type of game the client is currently running. Only meaningful if a
+  /// game is running.
+  D2Client::game_type: NonNull<GameType>,
+  /// The table of active game entities.
+  D2Client::active_entity_tables: NonNull<()>,
+  /// The currently selected draw function.
+  D2Client::draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)>,
+  /// Frame count used to calculate the client's current fps.
+  D2Client::client_fps_frame_count: NonNull<u32>,
+  /// The total number of frames drawn by the client.
+  D2Client::client_total_frame_count: NonNull<u32>,
+  /// Applies a position change to a `DyPos`. Signature depends on game version.
+  D2Common::apply_pos_change: usize,
+  /// Whether the game is rendered in perspective mode.
+  D2Gfx::render_in_perspective: unsafe extern "stdcall" fn() -> u32,
+  /// The game's window handle
+  D2Gfx::hwnd: NonNull<HWND>,
+  /// The time the game server most recently updated the game state.
+  D2Game::server_update_time: NonNull<u32>,
+  /// Draw the game's current menu.
+  D2Win::draw_menu: unsafe extern "stdcall" fn(),
+}
 
 decl_enum! { EntityKind(u32) {
   Pc = 0,
@@ -120,4 +185,41 @@ pub unsafe fn iter_mut_lists<T: LinkedList<U>, U>(
       })
     })
   })
+}
+
+#[repr(C)]
+pub struct EnvArray<T> {
+  pub name: [u8; 0x100],
+  pub len: u32,
+  pub element_size: u32,
+  pub initialized: u32,
+  pub next_free_idx: u32,
+  pub last_active_idx: i32,
+  pub active_count: u32,
+  pub _padding: u16,
+  pub data: NonNull<T>,
+}
+impl<T> EnvArray<T> {
+  pub fn as_mut_slice(&mut self) -> &mut [T] {
+    unsafe {
+      slice::from_raw_parts_mut(
+        self.data.as_ptr(),
+        if self.initialized != 0 {
+          (self.last_active_idx + 1) as usize
+        } else {
+          0
+        },
+      )
+    }
+  }
+}
+
+#[repr(C)]
+pub struct EnvImage {
+  pub active: u16,
+  /// Linear space when rendering in perspective. Camera space when not.
+  pub pos: UnknownPos<u32>,
+  pub file_idx: u32,
+  pub frame: u32,
+  pub till_next_frame: u32,
 }
