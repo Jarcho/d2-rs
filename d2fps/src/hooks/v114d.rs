@@ -46,6 +46,17 @@ pub(super) static PATCHES: PatchSets = PatchSets {
         01 47 08
         8b 47 08
       "), update_menu_char_frame_114d_asm_stub),
+      // Menu sleep patch
+      Patch::nop(0xfa65f, patch_source!("
+        8bc7
+        7605
+        b8 14000000
+        833d $44dc7200 00
+        7402
+        33c0
+        50
+        ff15 $58c26c00
+      ")),
     ],
   )],
   game_fps: &[ModulePatches::new(
@@ -181,7 +192,6 @@ global_asm! {
   "mov ecx, [ebp+0x8]",
   "lea edx, [ebp-0x4]",
   "call {}",
-  "mov edi, eax",
   "ret",
   sym draw_menu,
 }

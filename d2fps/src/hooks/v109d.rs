@@ -1,8 +1,8 @@
 use crate::{
   hooks::{
-    draw_game, draw_game_paused, draw_menu_with_sleep, entity_iso_xpos, entity_iso_ypos,
-    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
-    update_menu_char_frame, D2Module, ModulePatches, PatchSets,
+    draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame, D2Module,
+    ModulePatches, PatchSets,
   },
   tracker::UnitId,
 };
@@ -255,7 +255,7 @@ global_asm! {
   "lea edx, [esp+0x18]",
   "call {}",
   "ret",
-  sym draw_menu_with_sleep,
+  sym draw_menu,
 }
 extern "C" {
   pub fn draw_menu_109d_asm_stub();

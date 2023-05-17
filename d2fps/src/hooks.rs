@@ -438,7 +438,7 @@ pub struct HookManager {
   version: Option<GameVersion>,
   modules: Option<LoadedModules>,
   accessor: GameAccessor,
-  patches: ArrayVec<AppliedPatch, 59>,
+  patches: ArrayVec<AppliedPatch, 60>,
   window_hook: WindowHook,
 }
 impl HookManager {
@@ -780,7 +780,7 @@ unsafe extern "C" fn draw_game_paused() {
 unsafe extern "fastcall" fn draw_menu(
   callback: Option<extern "stdcall" fn(u32)>,
   call_count: &mut u32,
-) -> u32 {
+) {
   let mut instance_lock = D2FPS.lock();
   let instance = &mut *instance_lock;
   if instance.hooks.window_hook.attach(&instance.hooks.accessor) && instance.config.fps.is_none() {
@@ -813,22 +813,19 @@ unsafe extern "fastcall" fn draw_menu(
   }
 
   let instance = &mut *instance_lock;
-  if instance.is_window_hidden {
+  QueryPerformanceCounter(&mut time);
+  let sleep_len = (instance
+    .perf_freq
+    .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64))
+    as u32)
+    .saturating_sub(1)
+    .min(10);
+  let sleep_len = if instance.is_window_hidden {
     10
   } else {
-    QueryPerformanceCounter(&mut time);
-    (instance
-      .perf_freq
-      .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64)) as u32)
-      .saturating_sub(1)
-  }
-}
-
-unsafe extern "fastcall" fn draw_menu_with_sleep(
-  callback: Option<extern "stdcall" fn(u32)>,
-  call_count: &mut u32,
-) {
-  Sleep(draw_menu(callback, call_count));
+    sleep_len
+  };
+  Sleep(sleep_len);
 }
 
 unsafe extern "C" fn game_loop_sleep_hook() {

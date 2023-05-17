@@ -47,6 +47,18 @@ pub(super) static PATCHES: PatchSets = PatchSets {
         03 f0
         8b c6
       "), super::v112::update_menu_char_frame_112_asm_stub),
+      // Menu sleep patch
+      Patch::nop(0xed9e, patch_source!("
+        8bc7
+        7605
+        b8 14000000
+        8b0d $c0fb8f6f
+        85c9
+        7402
+        33c0
+        50
+        ff15 $b8b28f6f
+      ")),
     ],
   )],
   game_fps: &[ModulePatches::new(
