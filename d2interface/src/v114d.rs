@@ -1,6 +1,6 @@
 use crate::all_versions::GameAddresses;
 
-pub use crate::v114a::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
+pub use crate::v114c::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
 pub static ADDRESSES: GameAddresses = GameAddresses {
   player: 0x3a6a70,

@@ -36,6 +36,7 @@ mod v113c;
 mod v113d;
 mod v114a;
 mod v114b;
+mod v114c;
 mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
@@ -484,6 +485,11 @@ impl HookManager {
         let modules = D2Modules::from_game_exe()?;
         unsafe { self.accessor.load(&modules, &d2interface::v114b::ADDRESSES) };
         (&v114b::PATCHES, modules)
+      }
+      Some(GameVersion::V114c) => {
+        let modules = D2Modules::from_game_exe()?;
+        unsafe { self.accessor.load(&modules, &d2interface::v114c::ADDRESSES) };
+        (&v114c::PATCHES, modules)
       }
       Some(GameVersion::V114d) => {
         let modules = D2Modules::from_game_exe()?;
