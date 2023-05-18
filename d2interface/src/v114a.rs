@@ -8,7 +8,7 @@ pub static ADDRESSES: GameAddresses = GameAddresses {
   env_bubbles: 0x432964,
   client_update_count: 0x42e038,
   game_type: 0x42e1b0,
-  active_entity_tables: 0x3a5e70,
+  active_entity_tables: 0,
   draw_game_fn: 0x42e024,
   client_fps_frame_count: 0x42e04c,
   client_total_frame_count: 0x42e034,

@@ -1,6 +1,6 @@
 use crate::hooks::{
-  draw_game, draw_game_paused, dypos_linear_whole_xpos, dypos_linear_whole_ypos, entity_iso_xpos,
-  entity_iso_ypos, entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook,
+  draw_game, draw_game_paused, draw_menu, dypos_linear_whole_xpos, dypos_linear_whole_ypos,
+  entity_iso_xpos, entity_iso_ypos, entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook,
   intercept_teleport, D2Module, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
@@ -39,7 +39,7 @@ pub(super) static PATCHES: PatchSets = PatchSets {
         83 c6 01
         89 75 fc
         e8 90 f2 ff ff
-      "), super::v114a::draw_menu_114a_asm_stub),
+      "), draw_menu_114d_asm_stub),
       // Menu char frame rate
       Patch::call_c(0x103ddd, patch_source!("
         8b 47 10
@@ -185,6 +185,19 @@ pub(super) static PATCHES: PatchSets = PatchSets {
     ],
   )],
 };
+
+global_asm! {
+  ".global _draw_menu_114d_asm_stub",
+  "_draw_menu_114d_asm_stub:",
+  "mov ecx, [ebp+0x8]",
+  "lea edx, [ebp-0x4]",
+  "call {}",
+  "ret",
+  sym draw_menu,
+}
+extern "C" {
+  pub fn draw_menu_114d_asm_stub();
+}
 
 global_asm! {
   ".global _intercept_teleport_114d_asm_stub",
