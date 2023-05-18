@@ -20,6 +20,9 @@ use windows_sys::{
     },
     Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HMODULE},
     Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFOEXW},
+    Storage::FileSystem::{
+      GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+    },
     System::{
       LibraryLoader::{FreeLibrary, LoadLibraryW},
       Performance::QueryPerformanceFrequency,
@@ -233,18 +236,65 @@ pub fn log_loaded_modules() {
   }
 
   log!("Loaded modules:");
-  let mut name = [0; 260];
+  let mut buf = [0; 260];
   for &module in &modules[..size as usize / size_of::<HMODULE>()] {
-    let len = unsafe { GetModuleFileNameExW(process, module, name.as_mut_ptr(), 260) };
+    let len = unsafe { GetModuleFileNameExW(process, module, buf.as_mut_ptr(), 260) };
     if len != 0 {
-      if let Some(name) = OsString::from_wide(&name[..len as usize]).to_str() {
+      if let Some(name) = OsString::from_wide(&buf[..len as usize]).to_str() {
         if !name
           .get(.."C:\\Windows\\".len())
           .map_or(false, |s| s.eq_ignore_ascii_case("C:\\Windows\\"))
         {
-          log!("  {name}");
+          if let Ok(version) = unsafe { read_file_version(buf.as_ptr()) } {
+            log!("  {name} (v{version})");
+          } else {
+            log!("  {name}");
+          }
         }
       }
     }
   }
+}
+
+pub struct FileVersion {
+  pub ms: u32,
+  pub ls: u32,
+}
+impl fmt::Display for FileVersion {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "{}.{}.{}.{}",
+      self.ms >> 16,
+      self.ms & 0xFFFF,
+      self.ls >> 16,
+      self.ls & 0xFFFF
+    )
+  }
+}
+
+pub unsafe fn read_file_version(file: *const u16) -> Result<FileVersion, ()> {
+  let len = GetFileVersionInfoSizeW(file, null_mut());
+  let mut buf = Vec::<u8>::with_capacity(len as usize);
+
+  if GetFileVersionInfoW(file, 0, len, buf.as_mut_ptr().cast()) == 0 {
+    return Err(());
+  }
+  buf.set_len(len as usize);
+
+  let mut len = 0u32;
+  let mut out = null_mut::<u8>();
+  if VerQueryValueW(
+    buf.as_mut_ptr().cast(),
+    w!("\\"),
+    (&mut out as *mut *mut u8).cast(),
+    &mut len,
+  ) == 0
+    || (len as usize) < size_of::<VS_FIXEDFILEINFO>()
+  {
+    return Err(());
+  }
+
+  let info = &*out.cast::<VS_FIXEDFILEINFO>();
+  Ok(FileVersion { ls: info.dwFileVersionLS, ms: info.dwFileVersionMS })
 }

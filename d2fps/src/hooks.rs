@@ -1,11 +1,12 @@
-use crate::{config::Config, tracker::UnitId, util::Module, D2Fps, D2FPS, GAME_FPS};
+use crate::{
+  config::Config,
+  tracker::UnitId,
+  util::{read_file_version, Module},
+  D2Fps, D2FPS, GAME_FPS,
+};
 use arrayvec::ArrayVec;
 use bin_patch::{AppliedPatch, Patch};
-use core::{
-  fmt,
-  mem::{size_of, transmute},
-  ptr::{null_mut, NonNull},
-};
+use core::{fmt, mem::transmute, ptr::NonNull};
 use d2interface::{
   all_versions::{
     D2Client, D2Common, D2Game, D2Gfx, D2Win, EntityKind, EntityTables, EnvArray, EnvImage,
@@ -18,9 +19,6 @@ use windows_sys::{
   Win32::{
     Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM},
     Media::timeGetTime,
-    Storage::FileSystem::{
-      GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
-    },
     System::{
       LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter, Threading::Sleep,
     },
@@ -240,60 +238,37 @@ impl fmt::Display for GameVersion {
 }
 impl GameVersion {
   fn from_file() -> Result<Option<GameVersion>, ()> {
-    unsafe {
-      let len = GetFileVersionInfoSizeW(GAME_EXE, null_mut());
-      let mut buf = Vec::<u8>::with_capacity(len as usize);
-
-      if GetFileVersionInfoW(GAME_EXE, 0, len, buf.as_mut_ptr().cast()) == 0 {
-        return Err(());
-      }
-      buf.set_len(len as usize);
-
-      let mut len = 0u32;
-      let mut out = null_mut::<u8>();
-      if VerQueryValueW(
-        buf.as_mut_ptr().cast(),
-        w!("\\"),
-        (&mut out as *mut *mut u8).cast(),
-        &mut len,
-      ) == 0
-        || (len as usize) < size_of::<VS_FIXEDFILEINFO>()
-      {
-        return Err(());
-      }
-
-      let info = &*out.cast::<VS_FIXEDFILEINFO>();
-      match (info.dwFileVersionMS, info.dwFileVersionLS) {
-        // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v100),
-        // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v101),
-        (0x0001_0000, 0x0002_0000) => Ok(Some(GameVersion::V102)),
-        (0x0001_0000, 0x0003_0000) => Ok(Some(GameVersion::V103)),
-        (0x0001_0000, 0x0004_0001) => Ok(Some(GameVersion::V104b)),
-        (0x0001_0000, 0x0004_0002) => Ok(Some(GameVersion::V104c)),
-        (0x0001_0000, 0x0005_0000) => Ok(Some(GameVersion::V105)),
-        (0x0001_0000, 0x0005_0001) => Ok(Some(GameVersion::V105b)),
-        // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106),
-        // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106b),
-        (0x0001_0000, 0x0007_0000) => Ok(Some(GameVersion::V107)),
-        (0x0001_0000, 0x0008_001c) => Ok(Some(GameVersion::V108)),
-        (0x0001_0000, 0x0009_0013) => Ok(Some(GameVersion::V109)),
-        (0x0001_0000, 0x0009_0014) => Ok(Some(GameVersion::V109b)),
-        (0x0001_0000, 0x0009_0016) => Ok(Some(GameVersion::V109d)),
-        (0x0001_0000, 0x000a_0009) => Ok(Some(GameVersion::V110b)),
-        (0x0001_0000, 0x000a_000a) => Ok(Some(GameVersion::V110s)),
-        (0x0001_0000, 0x000a_0027) => Ok(Some(GameVersion::V110)),
-        (0x0001_0000, 0x000b_002d) => Ok(Some(GameVersion::V111)),
-        (0x0001_0000, 0x000b_002e) => Ok(Some(GameVersion::V111b)),
-        (0x0001_0000, 0x000c_0031) => Ok(Some(GameVersion::V112)),
-        (0x0001_0000, 0x000d_0037) => Ok(Some(GameVersion::V113a)),
-        (0x0001_0000, 0x000d_003c) => Ok(Some(GameVersion::V113c)),
-        (0x0001_0000, 0x000d_0040) => Ok(Some(GameVersion::V113d)),
-        (0x0001_000e, 0x0000_0040) => Ok(Some(GameVersion::V114a)),
-        (0x0001_000e, 0x0001_0044) => Ok(Some(GameVersion::V114b)),
-        (0x0001_000e, 0x0002_0046) => Ok(Some(GameVersion::V114c)),
-        (0x0001_000e, 0x0003_0047) => Ok(Some(GameVersion::V114d)),
-        _ => Ok(None),
-      }
+    let version = unsafe { read_file_version(GAME_EXE)? };
+    match (version.ms, version.ls) {
+      // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v100),
+      // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v101),
+      (0x0001_0000, 0x0002_0000) => Ok(Some(GameVersion::V102)),
+      (0x0001_0000, 0x0003_0000) => Ok(Some(GameVersion::V103)),
+      (0x0001_0000, 0x0004_0001) => Ok(Some(GameVersion::V104b)),
+      (0x0001_0000, 0x0004_0002) => Ok(Some(GameVersion::V104c)),
+      (0x0001_0000, 0x0005_0000) => Ok(Some(GameVersion::V105)),
+      (0x0001_0000, 0x0005_0001) => Ok(Some(GameVersion::V105b)),
+      // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106),
+      // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106b),
+      (0x0001_0000, 0x0007_0000) => Ok(Some(GameVersion::V107)),
+      (0x0001_0000, 0x0008_001c) => Ok(Some(GameVersion::V108)),
+      (0x0001_0000, 0x0009_0013) => Ok(Some(GameVersion::V109)),
+      (0x0001_0000, 0x0009_0014) => Ok(Some(GameVersion::V109b)),
+      (0x0001_0000, 0x0009_0016) => Ok(Some(GameVersion::V109d)),
+      (0x0001_0000, 0x000a_0009) => Ok(Some(GameVersion::V110b)),
+      (0x0001_0000, 0x000a_000a) => Ok(Some(GameVersion::V110s)),
+      (0x0001_0000, 0x000a_0027) => Ok(Some(GameVersion::V110)),
+      (0x0001_0000, 0x000b_002d) => Ok(Some(GameVersion::V111)),
+      (0x0001_0000, 0x000b_002e) => Ok(Some(GameVersion::V111b)),
+      (0x0001_0000, 0x000c_0031) => Ok(Some(GameVersion::V112)),
+      (0x0001_0000, 0x000d_0037) => Ok(Some(GameVersion::V113a)),
+      (0x0001_0000, 0x000d_003c) => Ok(Some(GameVersion::V113c)),
+      (0x0001_0000, 0x000d_0040) => Ok(Some(GameVersion::V113d)),
+      (0x0001_000e, 0x0000_0040) => Ok(Some(GameVersion::V114a)),
+      (0x0001_000e, 0x0001_0044) => Ok(Some(GameVersion::V114b)),
+      (0x0001_000e, 0x0002_0046) => Ok(Some(GameVersion::V114c)),
+      (0x0001_000e, 0x0003_0047) => Ok(Some(GameVersion::V114d)),
+      _ => Ok(None),
     }
   }
 }
