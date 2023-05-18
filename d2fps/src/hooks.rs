@@ -36,6 +36,7 @@ mod v110;
 mod v112;
 mod v113c;
 mod v113d;
+mod v114a;
 mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
@@ -498,13 +499,26 @@ impl HookManager {
         unsafe { self.accessor.load(&modules, &d2interface::v113d::ADDRESSES) };
         (&v113d::PATCHES, modules)
       }
+      Some(GameVersion::V114a) => {
+        let modules = D2Modules::from_game_exe()?;
+        unsafe { self.accessor.load(&modules, &d2interface::v114a::ADDRESSES) };
+        (&v114a::PATCHES, modules)
+      }
       Some(GameVersion::V114d) => {
         let modules = D2Modules::from_game_exe()?;
         unsafe { self.accessor.load(&modules, &d2interface::v114d::ADDRESSES) };
         (&v114d::PATCHES, modules)
       }
-      _ => return Err(()),
+      _ => {
+        log!("Unsupported game version");
+        return Err(());
+      }
     };
+
+    if sets.game_smoothing.is_empty() && config.enable_smoothing {
+      log!("Game version does not support motion smoothing");
+      config.enable_smoothing = false;
+    }
 
     let mut count = 2;
     if unsafe { self.apply_patch_set(&modules, sets.menu_fps).is_err() } {
