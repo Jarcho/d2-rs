@@ -515,12 +515,8 @@ trait Entity: LinkedList {
   fn has_room(&self) -> bool;
   fn linear_pos(&self) -> LinearPos<FixedU16>;
   fn iso_pos(&self) -> IsoPos<i32>;
+  fn set_pos(&mut self, pos: LinearPos<FixedU16>);
   unsafe fn tracker_pos(&self) -> (LinearPos<FixedU16>, LinearPos<u16>);
-}
-trait DyPos {
-  type Entity: Entity;
-  fn entity(&self) -> NonNull<Self::Entity>;
-  fn linear_pos(&self) -> LinearPos<FixedU16>;
 }
 
 impl D2Fps {
@@ -545,15 +541,8 @@ impl D2Fps {
     }
   }
 
-  fn dypos_linear_pos(&mut self, pos: &impl DyPos) -> LinearPos<FixedU16> {
-    self
-      .entity_adjusted_pos(unsafe { pos.entity().as_ref() })
-      .unwrap_or(pos.linear_pos())
-  }
-
   unsafe fn update_server_time(&mut self, time: i64) -> bool {
-    let game_type = *self.hooks.accessor.game_type.as_ptr();
-    if game_type.is_sp() && self.config.enable_smoothing {
+    if self.hooks.accessor.game_type.as_ref().is_sp() {
       let prev_update_time = self.game_update_time_ms;
       self.game_update_time_ms = *self.hooks.accessor.server_update_time.as_ptr();
 
@@ -575,7 +564,7 @@ impl D2Fps {
     false
   }
 
-  unsafe fn update_entites_from_server<T: Entity>(&mut self) {
+  unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
     let mut f = |e: &T| {
       let (pos, target_pos) = e.tracker_pos();
       self.entity_tracker.insert_or_update(e.unit_id(), pos, target_pos);
@@ -587,13 +576,34 @@ impl D2Fps {
     self.entity_tracker.clear_unused();
   }
 
-  fn update_unit_offset(&mut self) {
+  fn update_entity_positions<T: Entity>(&mut self) {
     let frame_len = self.perf_freq.ms_to_sample(40) as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
     let fract = (offset << 16) / frame_len;
     self.unit_offset = FixedI16::from_repr(fract as i32);
+
+    unsafe { self.hooks.accessor.active_entity_tables::<T>().as_mut() }.for_each_dy_mut(|e| {
+      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+        e.set_pos(pos.for_time(self.unit_offset));
+      }
+    });
+  }
+
+  fn reset_entity_positions<T: Entity>(&mut self) {
+    let frame_len = self.perf_freq.ms_to_sample(40) as i64;
+    let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
+    let since_update = since_update.min(frame_len);
+    let offset = since_update - frame_len;
+    let fract = (offset << 16) / frame_len;
+    self.unit_offset = FixedI16::from_repr(fract as i32);
+
+    unsafe { self.hooks.accessor.active_entity_tables::<T>().as_mut() }.for_each_dy_mut(|e| {
+      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+        e.set_pos(pos.real);
+      }
+    });
   }
 
   unsafe fn update_env_images(&mut self, prev_pos: IsoPos<i32>) {
@@ -631,25 +641,11 @@ extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> FixedU16 {
   D2FPS.lock().entity_linear_pos(e).y
 }
 
-extern "stdcall" fn entity_linear_whole_xpos<E: Entity>(e: &E) -> u32 {
-  D2FPS.lock().entity_linear_pos(e).x.truncate()
-}
-extern "stdcall" fn entity_linear_whole_ypos<E: Entity>(e: &E) -> u32 {
-  D2FPS.lock().entity_linear_pos(e).y.truncate()
-}
-
-extern "stdcall" fn dypos_linear_whole_xpos<P: DyPos>(pos: &P) -> u32 {
-  D2FPS.lock().dypos_linear_pos(pos).x.truncate()
-}
-extern "stdcall" fn dypos_linear_whole_ypos<P: DyPos>(pos: &P) -> u32 {
-  D2FPS.lock().dypos_linear_pos(pos).y.truncate()
-}
-
-unsafe extern "C" fn draw_game<T: Entity>() {
+unsafe extern "C" fn draw_game<E: Entity>() {
   let mut instance_lock = D2FPS.lock();
   let instance = &mut *instance_lock;
 
-  let Some(player) = instance.hooks.accessor.player::<T>() else {
+  let Some(player) = instance.hooks.accessor.player::<E>() else {
     return;
   };
   if !player.as_ref().has_room() {
@@ -658,17 +654,16 @@ unsafe extern "C" fn draw_game<T: Entity>() {
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);
-  if instance.update_server_time(time) {
-    instance.update_entites_from_server::<T>();
-  }
-
-  QueryPerformanceCounter(&mut time);
   if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
+    let enable_smoothing = instance.frame_rate != GAME_FPS && instance.config.enable_smoothing;
     let prev_update_count = instance.game_update_count;
     instance.game_update_count = *instance.hooks.accessor.client_update_count.as_ptr();
 
-    if instance.frame_rate != GAME_FPS {
-      instance.update_unit_offset();
+    if enable_smoothing {
+      if instance.update_server_time(time) {
+        instance.update_entites_from_tables::<E>();
+      }
+      instance.update_entity_positions::<E>();
 
       let prev_player_pos = instance.player_pos;
       instance.player_pos = instance.entity_iso_pos(player.as_ref());
@@ -678,16 +673,22 @@ unsafe extern "C" fn draw_game<T: Entity>() {
       }
     } else {
       instance.unit_offset = FixedI16::from_repr(0);
-      instance.player_pos = instance.entity_iso_pos(player.as_ref());
+      instance.player_pos = player.as_ref().iso_pos();
     }
 
     let draw = instance.hooks.accessor.draw_game_fn;
-    let frame_count = instance.hooks.accessor.client_fps_frame_count;
-    let total_frame_count = instance.hooks.accessor.client_total_frame_count;
     drop(instance_lock);
     (*draw.as_ptr())(0);
-    *frame_count.as_ptr() += 1;
-    *total_frame_count.as_ptr() += 1;
+
+    let mut instance_lock = D2FPS.lock();
+    let instance = &mut *instance_lock;
+
+    *instance.hooks.accessor.client_fps_frame_count.as_ptr() += 1;
+    *instance.hooks.accessor.client_total_frame_count.as_ptr() += 1;
+
+    if enable_smoothing {
+      instance.reset_entity_positions::<E>();
+    }
   }
 }
 
