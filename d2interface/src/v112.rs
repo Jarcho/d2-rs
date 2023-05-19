@@ -1,6 +1,6 @@
 use crate::all_versions::GameAddresses;
 
-pub use crate::v110::{DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos};
+pub use crate::v111b::{DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos};
 
 pub const ADDRESSES: GameAddresses = GameAddresses {
   player: 0x11c3d0,

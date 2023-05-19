@@ -1,7 +1,7 @@
 use crate::hooks::{
   draw_game, draw_game_paused, dypos_linear_whole_xpos, dypos_linear_whole_ypos, entity_iso_xpos,
   entity_iso_ypos, entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook,
-  intercept_teleport, update_menu_char_frame, D2Module, ModulePatches, PatchSets,
+  intercept_teleport, D2Module, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
@@ -47,7 +47,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         8b 4b 0c
         03 f0
         8b c6
-      "), update_menu_char_frame_112_asm_stub),
+      "), super::v111::update_menu_char_frame_111_asm_stub),
       // Menu sleep patch
       Patch::nop(0xd97e, patch_source!("
         8bc7
@@ -201,21 +201,6 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ),
   ],
 };
-
-global_asm! {
-  ".global _update_menu_char_frame_112_asm_stub",
-  "_update_menu_char_frame_112_asm_stub:",
-  "mov ecx, [ebx+0x10]",
-  "lea edx, [ebx+0x08]",
-  "call {}",
-  "mov ecx, [ebx+0x0c]",
-  "mov esi, eax",
-  "ret",
-  sym update_menu_char_frame,
-}
-extern "C" {
-  pub fn update_menu_char_frame_112_asm_stub();
-}
 
 global_asm! {
   ".global _intercept_teleport_112_asm_stub",

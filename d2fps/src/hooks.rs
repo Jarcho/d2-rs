@@ -31,6 +31,8 @@ use windows_sys::{
 
 mod v109d;
 mod v110;
+mod v111;
+mod v111b;
 mod v112;
 mod v113c;
 mod v113d;
@@ -193,8 +195,18 @@ impl HookSet {
         addresses: d2interface::v110::ADDRESSES,
         load_modules: load_split_modules,
       },
-      // (0x0001_0000, 0x000b_002d) => "1.11",
-      // (0x0001_0000, 0x000b_002e) => "1.11b",
+      (0x0001_0000, 0x000b_002d) => &HookSet {
+        version: "1.11",
+        patch_sets: v111::PATCHES,
+        addresses: d2interface::v111::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      (0x0001_0000, 0x000b_002e) => &HookSet {
+        version: "1.11b",
+        patch_sets: v111b::PATCHES,
+        addresses: d2interface::v111b::ADDRESSES,
+        load_modules: load_split_modules,
+      },
       (0x0001_0000, 0x000c_0031) => &HookSet {
         version: "1.12",
         patch_sets: v112::PATCHES,

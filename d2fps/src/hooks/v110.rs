@@ -249,6 +249,15 @@ impl super::Entity for Entity {
     self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
   }
 
+  fn set_pos(&mut self, pos: LinearPos<FixedU16>) {
+    unsafe {
+      if let Some(mut epos) = self.pos.d {
+        epos.as_mut().linear_pos = pos;
+        epos.as_mut().iso_pos = pos.into();
+      }
+    }
+  }
+
   unsafe fn tracker_pos(&self) -> (LinearPos<FixedU16>, LinearPos<u16>) {
     self.pos.d.map_or_else(Default::default, |pos| {
       (pos.as_ref().linear_pos, pos.as_ref().target_pos[0])

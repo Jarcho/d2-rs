@@ -46,7 +46,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         8b 4b 0c
         03 f0
         8b c6
-      "), crate::hooks::v112::update_menu_char_frame_112_asm_stub),
+      "), crate::hooks::v111::update_menu_char_frame_111_asm_stub),
       // Menu sleep patch
       Patch::nop(0x18a4e, patch_source!("
         8bc7

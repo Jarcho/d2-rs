@@ -142,6 +142,18 @@ impl<T> ops::IndexMut<EntityKind> for EntityTables<T> {
     &mut self.0[index.0 as usize]
   }
 }
+impl<T: LinkedList> EntityTables<T> {
+  pub fn for_each_dy(&self, mut f: impl FnMut(&T)) {
+    unsafe { iter_lists(slice::from_raw_parts(self.0[0].0.as_ptr(), 256)) }.for_each(&mut f);
+    self.0[3].iter().for_each(&mut f);
+  }
+
+  pub fn for_each_dy_mut(&mut self, mut f: impl FnMut(&mut T)) {
+    unsafe { iter_mut_lists(slice::from_raw_parts_mut(self.0[0].0.as_mut_ptr(), 256)) }
+      .for_each(&mut f);
+    self.0[3].iter_mut().for_each(&mut f);
+  }
+}
 
 #[repr(transparent)]
 pub struct EntityTable<T>([Option<NonNull<T>>; 128]);
@@ -157,7 +169,7 @@ impl<T: LinkedList> EntityTable<T> {
   }
 }
 
-/// Gets an iterator over all elements in slice of linked lists.
+/// Gets an iterator over all elements in the slice of linked lists.
 ///
 /// # Safety
 /// Creating a reference to each element in the lists must be valid.
@@ -174,7 +186,7 @@ pub unsafe fn iter_lists<T: LinkedList<U>, U>(
   })
 }
 
-/// Gets an iterator over all elements in slice of linked lists.
+/// Gets an iterator over all elements in the slice of linked lists.
 ///
 /// # Safety
 /// Creating a mutable reference to each element in the lists must be valid, and
