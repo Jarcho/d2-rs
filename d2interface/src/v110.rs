@@ -7,7 +7,7 @@ use core::ptr::NonNull;
 pub type EntityTables = all_versions::EntityTables<Entity>;
 pub type EntityTable = all_versions::EntityTable<Entity>;
 
-pub static ADDRESSES: GameAddresses = GameAddresses {
+pub const ADDRESSES: GameAddresses = GameAddresses {
   player: 0x11c200,
   env_splashes: 0x1076fc,
   env_bubbles: 0x107700,

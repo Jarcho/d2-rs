@@ -118,9 +118,10 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
       }));
 
       let mut instance = D2FPS.lock();
-      if instance.hooks.init().is_err() || !instance.perf_freq.init() {
+      if !instance.perf_freq.init() {
         return FALSE;
       };
+      instance.hooks.init();
       instance.config.load_config();
     }
     DLL_PROCESS_DETACH => {
@@ -153,11 +154,7 @@ pub extern "C" fn attach_hooks() -> bool {
       }
 
       log!("Attaching D2fps...");
-      if instance.hooks.attach(&mut instance.config).is_err() {
-        log!("Failed to attach");
-        return false;
-      }
-
+      instance.hooks.attach(&mut instance.config);
       log_loaded_modules();
 
       unsafe {

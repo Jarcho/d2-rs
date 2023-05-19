@@ -8,7 +8,7 @@ use crate::{
 pub type EntityTables = all_versions::EntityTables<Entity>;
 pub type EntityTable = all_versions::EntityTable<Entity>;
 
-pub static ADDRESSES: GameAddresses = GameAddresses {
+pub const ADDRESSES: GameAddresses = GameAddresses {
   player: 0x1263f8,
   env_splashes: 0x11095c,
   env_bubbles: 0x110960,

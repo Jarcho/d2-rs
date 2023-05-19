@@ -8,7 +8,7 @@ use core::arch::global_asm;
 use d2interface::v114d::{DyPos, Entity};
 
 #[rustfmt::skip]
-pub(super) static PATCHES: PatchSets = PatchSets {
+pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
     D2Module::GameExe,
     0x00400000,

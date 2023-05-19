@@ -24,13 +24,18 @@ macro_rules! decl_addresses {
       $(#[$meta])*
       pub(crate) $item: usize
     ),*}
-    impl GameAddresses {$(
+    impl GameAddresses {
+      pub const ZERO: Self = Self {
+        $($item: 0usize,)*
+      };
+      $(
         #[allow(clippy::missing_safety_doc, clippy::useless_transmute)]
         $(#[$meta])*
         pub unsafe fn $item(&self, m: $module) -> $ty {
           core::mem::transmute(self.$item.wrapping_add(m.0 as usize))
         }
-    )*}
+      )*
+    }
   };
 }
 decl_addresses! {

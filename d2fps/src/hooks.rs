@@ -1,7 +1,7 @@
 use crate::{
   config::Config,
   tracker::UnitId,
-  util::{read_file_version, Module},
+  util::{read_file_version, FileVersion, Module},
   D2Fps, D2FPS, GAME_FPS,
 };
 use arrayvec::ArrayVec;
@@ -83,32 +83,6 @@ impl D2Modules {
       D2Module::Win => self.d2win.0,
     }
   }
-
-  fn from_game_exe() -> Result<Self, ()> {
-    let module = unsafe { GetModuleHandleW(GAME_EXE) };
-    if module == 0 {
-      log!("Failed to find game.exe");
-      Err(())
-    } else {
-      Ok(Self {
-        d2client: D2Client(module),
-        d2common: D2Common(module),
-        d2game: D2Game(module),
-        d2gfx: D2Gfx(module),
-        d2win: D2Win(module),
-      })
-    }
-  }
-
-  fn from_loaded_modules(modules: &LoadedModules) -> Self {
-    Self {
-      d2client: D2Client(modules.d2client.0),
-      d2common: D2Common(modules.d2common.0),
-      d2game: D2Game(modules.d2game.0),
-      d2gfx: D2Gfx(modules.d2gfx.0),
-      d2win: D2Win(modules.d2win.0),
-    }
-  }
 }
 
 struct LoadedModules {
@@ -117,47 +91,6 @@ struct LoadedModules {
   d2game: Module,
   d2gfx: Module,
   d2win: Module,
-}
-impl LoadedModules {
-  fn load() -> Result<Self, ()> {
-    Ok(Self {
-      d2client: match unsafe { Module::new(w!("D2Client.dll")) } {
-        Ok(m) => m,
-        Err(e) => {
-          log!("Failed to load `D2Client.dll`");
-          return Err(e);
-        }
-      },
-      d2common: match unsafe { Module::new(w!("D2Common.dll")) } {
-        Ok(m) => m,
-        Err(e) => {
-          log!("Failed to load `D2Common.dll`");
-          return Err(e);
-        }
-      },
-      d2game: match unsafe { Module::new(w!("D2Game.dll")) } {
-        Ok(m) => m,
-        Err(e) => {
-          log!("Failed to load `D2Game.dll`");
-          return Err(e);
-        }
-      },
-      d2gfx: match unsafe { Module::new(w!("D2gfx.dll")) } {
-        Ok(m) => m,
-        Err(e) => {
-          log!("Failed to load `D2gfx.dll`");
-          return Err(e);
-        }
-      },
-      d2win: match unsafe { Module::new(w!("D2Win.dll")) } {
-        Ok(m) => m,
-        Err(e) => {
-          log!("Failed to load `D2Win.dll`");
-          return Err(e);
-        }
-      },
-    })
-  }
 }
 
 struct ModulePatches {
@@ -177,100 +110,135 @@ struct PatchSets {
   game_smoothing: &'static [ModulePatches],
 }
 
-#[derive(Debug, Clone, Copy)]
-enum GameVersion {
-  // V100,
-  // V101,
-  V102,
-  V103,
-  V104b,
-  V104c,
-  V105,
-  V105b,
-  // V106,
-  // V106b,
-  V107,
-  V108,
-  V109,
-  V109b,
-  V109d,
-  V110b,
-  V110s,
-  V110,
-  V111,
-  V111b,
-  V112,
-  V113a,
-  V113c,
-  V113d,
-  V114a,
-  V114b,
-  V114c,
-  V114d,
+fn load_split_modules(modules: &mut Option<LoadedModules>) -> Result<D2Modules, ()> {
+  let modules = match modules {
+    Some(modules) => modules,
+    None => {
+      *modules = Some(LoadedModules {
+        d2client: unsafe { Module::new(w!("D2Client.dll"))? },
+        d2common: unsafe { Module::new(w!("D2Common.dll"))? },
+        d2game: unsafe { Module::new(w!("D2Game.dll"))? },
+        d2gfx: unsafe { Module::new(w!("D2gfx.dll"))? },
+        d2win: unsafe { Module::new(w!("D2Win.dll"))? },
+      });
+      modules.as_ref().unwrap()
+    }
+  };
+  Ok(D2Modules {
+    d2client: D2Client(modules.d2client.0),
+    d2common: D2Common(modules.d2common.0),
+    d2game: D2Game(modules.d2game.0),
+    d2gfx: D2Gfx(modules.d2gfx.0),
+    d2win: D2Win(modules.d2win.0),
+  })
 }
-impl fmt::Display for GameVersion {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.write_str(match *self {
-      Self::V102 => "1.02",
-      Self::V103 => "1.03",
-      Self::V104b => "1.04b",
-      Self::V104c => "1.04c",
-      Self::V105 => "1.05",
-      Self::V105b => "1.05b",
-      Self::V107 => "1.07",
-      Self::V108 => "1.08",
-      Self::V109 => "1.09",
-      Self::V109b => "1.09b",
-      Self::V109d => "1.09d",
-      Self::V110b => "1.10b",
-      Self::V110s => "1.10s",
-      Self::V110 => "1.10",
-      Self::V111 => "1.11",
-      Self::V111b => "1.11b",
-      Self::V112 => "1.12",
-      Self::V113a => "1.13a",
-      Self::V113c => "1.13c",
-      Self::V113d => "1.13d",
-      Self::V114a => "1.14a",
-      Self::V114b => "1.14b",
-      Self::V114c => "1.14c",
-      Self::V114d => "1.14d",
+
+fn load_combined_modules(_: &mut Option<LoadedModules>) -> Result<D2Modules, ()> {
+  let module = unsafe { GetModuleHandleW(GAME_EXE) };
+  if module == 0 {
+    log!("Failed to find game.exe");
+    Err(())
+  } else {
+    Ok(D2Modules {
+      d2client: D2Client(module),
+      d2common: D2Common(module),
+      d2game: D2Game(module),
+      d2gfx: D2Gfx(module),
+      d2win: D2Win(module),
     })
   }
 }
-impl GameVersion {
-  fn from_file() -> Result<Option<GameVersion>, ()> {
-    let version = unsafe { read_file_version(GAME_EXE)? };
+
+struct HookSet {
+  version: &'static str,
+  patch_sets: PatchSets,
+  addresses: GameAddresses,
+  load_modules: fn(&mut Option<LoadedModules>) -> Result<D2Modules, ()>,
+}
+impl HookSet {
+  const UNKNOWN: &HookSet = &HookSet {
+    version: "unknown",
+    patch_sets: PatchSets { menu_fps: &[], game_fps: &[], game_smoothing: &[] },
+    addresses: GameAddresses::ZERO,
+    load_modules: load_combined_modules,
+  };
+
+  fn from_game_file_version(version: FileVersion) -> &'static HookSet {
     match (version.ms, version.ls) {
-      // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v100),
-      // (0x0001_0000, 0x0000_0001) => Some(GameVersion::v101),
-      (0x0001_0000, 0x0002_0000) => Ok(Some(GameVersion::V102)),
-      (0x0001_0000, 0x0003_0000) => Ok(Some(GameVersion::V103)),
-      (0x0001_0000, 0x0004_0001) => Ok(Some(GameVersion::V104b)),
-      (0x0001_0000, 0x0004_0002) => Ok(Some(GameVersion::V104c)),
-      (0x0001_0000, 0x0005_0000) => Ok(Some(GameVersion::V105)),
-      (0x0001_0000, 0x0005_0001) => Ok(Some(GameVersion::V105b)),
-      // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106),
-      // (0x0001_0000, 0x0006_0000) => Some(GameVersion::v106b),
-      (0x0001_0000, 0x0007_0000) => Ok(Some(GameVersion::V107)),
-      (0x0001_0000, 0x0008_001c) => Ok(Some(GameVersion::V108)),
-      (0x0001_0000, 0x0009_0013) => Ok(Some(GameVersion::V109)),
-      (0x0001_0000, 0x0009_0014) => Ok(Some(GameVersion::V109b)),
-      (0x0001_0000, 0x0009_0016) => Ok(Some(GameVersion::V109d)),
-      (0x0001_0000, 0x000a_0009) => Ok(Some(GameVersion::V110b)),
-      (0x0001_0000, 0x000a_000a) => Ok(Some(GameVersion::V110s)),
-      (0x0001_0000, 0x000a_0027) => Ok(Some(GameVersion::V110)),
-      (0x0001_0000, 0x000b_002d) => Ok(Some(GameVersion::V111)),
-      (0x0001_0000, 0x000b_002e) => Ok(Some(GameVersion::V111b)),
-      (0x0001_0000, 0x000c_0031) => Ok(Some(GameVersion::V112)),
-      (0x0001_0000, 0x000d_0037) => Ok(Some(GameVersion::V113a)),
-      (0x0001_0000, 0x000d_003c) => Ok(Some(GameVersion::V113c)),
-      (0x0001_0000, 0x000d_0040) => Ok(Some(GameVersion::V113d)),
-      (0x0001_000e, 0x0000_0040) => Ok(Some(GameVersion::V114a)),
-      (0x0001_000e, 0x0001_0044) => Ok(Some(GameVersion::V114b)),
-      (0x0001_000e, 0x0002_0046) => Ok(Some(GameVersion::V114c)),
-      (0x0001_000e, 0x0003_0047) => Ok(Some(GameVersion::V114d)),
-      _ => Ok(None),
+      // (0x0001_0000, 0x0000_0001) => "1.00",
+      // (0x0001_0000, 0x0000_0001) => "1.01",
+      // (0x0001_0000, 0x0002_0000) => "1.02",
+      // (0x0001_0000, 0x0003_0000) => "1.03,"
+      // (0x0001_0000, 0x0004_0001) => "1.04b",
+      // (0x0001_0000, 0x0004_0002) => "1.04c",
+      // (0x0001_0000, 0x0005_0000) => "1.05",
+      // (0x0001_0000, 0x0005_0001) => "1.05b",
+      // (0x0001_0000, 0x0006_0000) => "1.06",
+      // (0x0001_0000, 0x0006_0000) => "1.06b",
+      // (0x0001_0000, 0x0007_0000) => "1.07",
+      // (0x0001_0000, 0x0008_001c) => "1.08",
+      // (0x0001_0000, 0x0009_0013) => "1.09",
+      // (0x0001_0000, 0x0009_0014) => "1.09b",
+      (0x0001_0000, 0x0009_0016) => &HookSet {
+        version: "1.09d",
+        patch_sets: v109d::PATCHES,
+        addresses: d2interface::v109d::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      // (0x0001_0000, 0x000a_0009) => "1.10b",
+      // (0x0001_0000, 0x000a_000a) => "1.10s",
+      (0x0001_0000, 0x000a_0027) => &HookSet {
+        version: "1.10",
+        patch_sets: v110::PATCHES,
+        addresses: d2interface::v110::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      // (0x0001_0000, 0x000b_002d) => "1.11",
+      // (0x0001_0000, 0x000b_002e) => "1.11b",
+      (0x0001_0000, 0x000c_0031) => &HookSet {
+        version: "1.12",
+        patch_sets: v112::PATCHES,
+        addresses: d2interface::v112::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      // (0x0001_0000, 0x000d_0037) => "1.13a",
+      (0x0001_0000, 0x000d_003c) => &HookSet {
+        version: "1.13c",
+        patch_sets: v113c::PATCHES,
+        addresses: d2interface::v113c::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      (0x0001_0000, 0x000d_0040) => &HookSet {
+        version: "1.13d",
+        patch_sets: v113d::PATCHES,
+        addresses: d2interface::v113d::ADDRESSES,
+        load_modules: load_split_modules,
+      },
+      (0x0001_000e, 0x0000_0040) => &HookSet {
+        version: "1.14a",
+        patch_sets: v114a::PATCHES,
+        addresses: d2interface::v114a::ADDRESSES,
+        load_modules: load_combined_modules,
+      },
+      (0x0001_000e, 0x0001_0044) => &HookSet {
+        version: "1.14b",
+        patch_sets: v114b::PATCHES,
+        addresses: d2interface::v114b::ADDRESSES,
+        load_modules: load_combined_modules,
+      },
+      (0x0001_000e, 0x0002_0046) => &HookSet {
+        version: "1.14c",
+        patch_sets: v114c::PATCHES,
+        addresses: d2interface::v114c::ADDRESSES,
+        load_modules: load_combined_modules,
+      },
+      (0x0001_000e, 0x0003_0047) => &HookSet {
+        version: "1.14d",
+        patch_sets: v114d::PATCHES,
+        addresses: d2interface::v114d::ADDRESSES,
+        load_modules: load_combined_modules,
+      },
+      _ => Self::UNKNOWN,
     }
   }
 }
@@ -413,7 +381,7 @@ impl WindowHook {
 }
 
 pub struct HookManager {
-  version: Option<GameVersion>,
+  hook_set: &'static HookSet,
   modules: Option<LoadedModules>,
   accessor: GameAccessor,
   patches: ArrayVec<AppliedPatch, 60>,
@@ -422,7 +390,7 @@ pub struct HookManager {
 impl HookManager {
   pub const fn new() -> Self {
     Self {
-      version: None,
+      hook_set: HookSet::UNKNOWN,
       modules: None,
       accessor: GameAccessor::new(),
       patches: ArrayVec::new_const(),
@@ -430,104 +398,64 @@ impl HookManager {
     }
   }
 
-  pub fn init(&mut self) -> Result<(), ()> {
-    assert!(self.version.is_none());
-    match GameVersion::from_file() {
-      Ok(Some(version)) => {
-        self.version = Some(version);
-        log!("Detected game version: v{version}");
-        Ok(())
-      }
-      Ok(None) => {
-        log!("Unknown game version");
-        Err(())
+  pub fn init(&mut self) {
+    match unsafe { read_file_version(GAME_EXE) } {
+      Ok(version) => {
+        self.hook_set = HookSet::from_game_file_version(version);
+        log!("Detected game version: {}", self.hook_set.version);
       }
       Err(_) => {
-        log!("Error detecting game version");
-        Err(())
+        log!("Error detecting game version")
       }
     }
   }
 
-  pub(crate) fn attach(&mut self, config: &mut Config) -> Result<(), ()> {
-    let (sets, modules) = match self.version {
-      Some(GameVersion::V109d) => {
-        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
-        unsafe { self.accessor.load(&modules, &d2interface::v109d::ADDRESSES) };
-        (&v109d::PATCHES, modules)
-      }
-      Some(GameVersion::V110) => {
-        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
-        unsafe { self.accessor.load(&modules, &d2interface::v110::ADDRESSES) };
-        (&v110::PATCHES, modules)
-      }
-      Some(GameVersion::V112) => {
-        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
-        unsafe { self.accessor.load(&modules, &d2interface::v112::ADDRESSES) };
-        (&v112::PATCHES, modules)
-      }
-      Some(GameVersion::V113c) => {
-        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
-        unsafe { self.accessor.load(&modules, &d2interface::v113c::ADDRESSES) };
-        (&v113c::PATCHES, modules)
-      }
-      Some(GameVersion::V113d) => {
-        let modules = D2Modules::from_loaded_modules(self.loaded_modules()?);
-        unsafe { self.accessor.load(&modules, &d2interface::v113d::ADDRESSES) };
-        (&v113d::PATCHES, modules)
-      }
-      Some(GameVersion::V114a) => {
-        let modules = D2Modules::from_game_exe()?;
-        unsafe { self.accessor.load(&modules, &d2interface::v114a::ADDRESSES) };
-        (&v114a::PATCHES, modules)
-      }
-      Some(GameVersion::V114b) => {
-        let modules = D2Modules::from_game_exe()?;
-        unsafe { self.accessor.load(&modules, &d2interface::v114b::ADDRESSES) };
-        (&v114b::PATCHES, modules)
-      }
-      Some(GameVersion::V114c) => {
-        let modules = D2Modules::from_game_exe()?;
-        unsafe { self.accessor.load(&modules, &d2interface::v114c::ADDRESSES) };
-        (&v114c::PATCHES, modules)
-      }
-      Some(GameVersion::V114d) => {
-        let modules = D2Modules::from_game_exe()?;
-        unsafe { self.accessor.load(&modules, &d2interface::v114d::ADDRESSES) };
-        (&v114d::PATCHES, modules)
-      }
-      _ => {
-        log!("Unsupported game version");
-        return Err(());
-      }
+  pub(crate) fn attach(&mut self, config: &mut Config) {
+    let Ok(modules) = (self.hook_set.load_modules)(&mut self.modules) else {
+      log!("Disabling all features: failed to load game modules");
+      config.enable_smoothing = false;
+      return;
     };
+    unsafe { self.accessor.load(&modules, &self.hook_set.addresses) };
 
-    if sets.game_smoothing.is_empty() && config.enable_smoothing {
-      log!("Game version does not support motion smoothing");
-      config.enable_smoothing = false;
+    if self.hook_set.patch_sets.menu_fps.is_empty() {
+      log!("Disabling menu frame rate unlock: unsupported version");
+    } else if unsafe {
+      self
+        .apply_patch_set(&modules, self.hook_set.patch_sets.menu_fps)
+        .is_err()
+    } {
+      log!("Disabling menu frame rate unlock: failed to apply patches");
     }
 
-    let mut count = 2;
-    if unsafe { self.apply_patch_set(&modules, sets.menu_fps).is_err() } {
-      log!("Failed to apply menu fps patches");
-      count -= 1;
-    }
-    if unsafe { self.apply_patch_set(&modules, sets.game_fps).is_err() } {
-      log!("Failed to apply game fps patches");
-      count -= 2;
-      config.enable_smoothing = false;
-    } else if config.enable_smoothing
-      && unsafe { self.apply_patch_set(&modules, sets.game_smoothing).is_err() }
-    {
-      log!("Failed to apply game smoothing patches");
-      config.enable_smoothing = false;
+    let mut game_fps = true;
+    if self.hook_set.patch_sets.game_fps.is_empty() {
+      log!("Disabling game frame rate unlock: unsupported version");
+      game_fps = false;
+    } else if unsafe {
+      self
+        .apply_patch_set(&modules, self.hook_set.patch_sets.game_fps)
+        .is_err()
+    } {
+      log!("Disabling game frame rate unlock: failed to apply patches");
+      game_fps = false;
     }
 
-    if count == 0 {
-      self.modules = None;
-      Err(())
-    } else {
-      Ok(())
+    if config.enable_smoothing {
+      if self.hook_set.patch_sets.game_smoothing.is_empty() {
+        log!("Disabling game motion smoothing: unsupported version");
+        config.enable_smoothing = false;
+      } else if !game_fps {
+        log!("Disabling game motion smoothing: game frame rate must be unlocked");
+        config.enable_smoothing = false;
+      } else if unsafe {
+        self
+          .apply_patch_set(&modules, self.hook_set.patch_sets.game_smoothing)
+          .is_err()
+      } {
+        log!("Failed to apply game motion smoothing patches, disabling feature");
+        config.enable_smoothing = false;
+      }
     }
   }
 
@@ -566,16 +494,6 @@ impl HookManager {
     } else {
       self.patches.truncate(start_idx);
       Err(())
-    }
-  }
-
-  fn loaded_modules(&mut self) -> Result<&LoadedModules, ()> {
-    match &mut self.modules {
-      Some(modules) => Ok(modules),
-      modules @ None => {
-        *modules = Some(LoadedModules::load()?);
-        modules.as_ref().ok_or(())
-      }
     }
   }
 }

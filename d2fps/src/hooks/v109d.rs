@@ -16,7 +16,7 @@ use d2interface::{
 use super::{entity_linear_whole_xpos, entity_linear_whole_ypos};
 
 #[rustfmt::skip]
-pub(super) static PATCHES: PatchSets = PatchSets {
+pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
     D2Module::Win,
     0x6f8a0000,

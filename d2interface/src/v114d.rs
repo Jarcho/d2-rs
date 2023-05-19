@@ -2,7 +2,7 @@ use crate::all_versions::GameAddresses;
 
 pub use crate::v114c::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
-pub static ADDRESSES: GameAddresses = GameAddresses {
+pub const ADDRESSES: GameAddresses = GameAddresses {
   player: 0x3a6a70,
   env_splashes: 0x3a89fc,
   env_bubbles: 0x3a8a00,
