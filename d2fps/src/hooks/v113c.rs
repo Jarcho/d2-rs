@@ -1,15 +1,14 @@
 use crate::hooks::{
   draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, D2Module, ModulePatches, PatchSets,
+  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
-use d2interface::v113c::Entity;
+use d2interface::{self as d2, v113c::Entity};
 
 #[rustfmt::skip]
 pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
-    D2Module::Win,
-    0x6f8e0000,
+    d2::Module::Win,
     &[
       // Draw menu framerate
       Patch::call_c(0x189fc, patch_source!("
@@ -61,8 +60,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ],
   )],
   game_fps: &[ModulePatches::new(
-    D2Module::Client,
-    0x6fab0000,
+    d2::Module::Client,
     &[
       // Game loop sleep patch
       Patch::call_c(0x3cb7c, patch_source!("
@@ -107,8 +105,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
   )],
   game_smoothing: &[
     ModulePatches::new(
-      D2Module::Client,
-      0x6fab0000,
+      d2::Module::Client,
       &[
         // Npc mouse over perspective
         Patch::call_std1(0x6e6a4, patch_source!("e8 05dbf9ff"), entity_linear_xpos::<Entity>),
@@ -125,8 +122,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       ],
     ),
     ModulePatches::new(
-      D2Module::Common,
-      0x6fd50000,
+      d2::Module::Common,
       &[Patch::call_c(0xe0b7, patch_source!("e8 84f9ffff"), super::v112::intercept_teleport_112_asm_stub)],
     ),
   ],

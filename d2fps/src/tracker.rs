@@ -1,13 +1,13 @@
 use core::mem;
-use d2interface::{all_versions::EntityKind, FixedI16, FixedU16, LinearPos};
+use d2interface as d2;
 
 #[derive(Clone, Copy)]
 pub struct UnitId {
-  pub kind: EntityKind,
+  pub kind: d2::EntityKind,
   pub id: u32,
 }
 impl UnitId {
-  pub const fn new(kind: EntityKind, id: u32) -> Self {
+  pub const fn new(kind: d2::EntityKind, id: u32) -> Self {
     Self { kind, id }
   }
 
@@ -25,19 +25,19 @@ impl UnitId {
 
 #[derive(Clone, Copy)]
 pub struct Position {
-  pub real: LinearPos<FixedU16>,
-  pub delta: LinearPos<FixedI16>,
+  pub real: d2::LinearPos<d2::FixedU16>,
+  pub delta: d2::LinearPos<d2::FixedI16>,
 }
 impl Position {
-  pub fn for_time(&mut self, fract: FixedI16) -> LinearPos<FixedU16> {
+  pub fn for_time(&mut self, fract: d2::FixedI16) -> d2::LinearPos<d2::FixedU16> {
     let x = ((self.delta.x.repr() as i64 * fract.repr() as i64) >> 16) as u32;
     let y = ((self.delta.y.repr() as i64 * fract.repr() as i64) >> 16) as u32;
     let x = self.real.x.repr().wrapping_add(x);
     let y = self.real.y.repr().wrapping_add(y);
-    LinearPos::new(FixedU16::from_repr(x), FixedU16::from_repr(y))
+    d2::LinearPos::new(d2::FixedU16::from_repr(x), d2::FixedU16::from_repr(y))
   }
 
-  fn update_pos(&mut self, pos: LinearPos<FixedU16>, target: LinearPos<u16>) {
+  fn update_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>, target: d2::LinearPos<u16>) {
     let vx = pos.x.repr().wrapping_sub(self.real.x.repr()) as i32;
     let vy = pos.y.repr().wrapping_sub(self.real.y.repr()) as i32;
     self.real = pos;
@@ -48,14 +48,11 @@ impl Position {
 
     let dx = if lx < 0 { vx.max(lx) } else { vx.min(lx) };
     let dy = if ly < 0 { vy.max(ly) } else { vy.min(ly) };
-    self.delta = LinearPos::new(FixedI16::from_repr(dx), FixedI16::from_repr(dy));
+    self.delta = d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy));
   }
 
-  fn new(pos: LinearPos<FixedU16>) -> Self {
-    Self {
-      real: pos,
-      delta: LinearPos::new(FixedI16::default(), FixedI16::default()),
-    }
+  fn new(pos: d2::LinearPos<d2::FixedU16>) -> Self {
+    Self { real: pos, delta: d2::LinearPos::default() }
   }
 }
 
@@ -81,8 +78,8 @@ impl EntityTracker {
       active: [0; UNIT_COUNT / 32],
       entities: [Entry { distance: -1, kind: 0, id: 0 }; UNIT_COUNT],
       positions: [Position {
-        real: LinearPos::new(FixedU16::from_repr(0), FixedU16::from_repr(0)),
-        delta: LinearPos::new(FixedI16::from_repr(0), FixedI16::from_repr(0)),
+        real: d2::LinearPos::new(d2::FixedU16::from_repr(0), d2::FixedU16::from_repr(0)),
+        delta: d2::LinearPos::new(d2::FixedI16::from_repr(0), d2::FixedI16::from_repr(0)),
       }; UNIT_COUNT],
     }
   }
@@ -177,7 +174,12 @@ impl EntityTracker {
     }
   }
 
-  pub fn insert_or_update(&mut self, id: UnitId, pos: LinearPos<FixedU16>, target: LinearPos<u16>) {
+  pub fn insert_or_update(
+    &mut self,
+    id: UnitId,
+    pos: d2::LinearPos<d2::FixedU16>,
+    target: d2::LinearPos<u16>,
+  ) {
     match self.probe_idx(id) {
       (None, i) => {
         self.mark_active(i);
@@ -197,12 +199,12 @@ impl EntityTracker {
 fn test_entity_tracker() {
   let mut tracker = EntityTracker::new();
   tracker.insert_or_update(
-    UnitId { kind: EntityKind::Pc, id: 0 },
-    LinearPos::new(FixedU16::default(), FixedU16::default()),
-    LinearPos::new(0, 0),
+    UnitId { kind: d2::EntityKind::Pc, id: 0 },
+    d2::LinearPos::new(d2::FixedU16::default(), d2::FixedU16::default()),
+    d2::LinearPos::new(0, 0),
   );
   tracker.clear_unused();
-  assert!(tracker.get(UnitId::new(EntityKind::Pc, 0)).is_some());
+  assert!(tracker.get(UnitId::new(d2::EntityKind::Pc, 0)).is_some());
   tracker.clear_unused();
-  assert!(tracker.get(UnitId::new(EntityKind::Pc, 0)).is_none());
+  assert!(tracker.get(UnitId::new(d2::EntityKind::Pc, 0)).is_none());
 }

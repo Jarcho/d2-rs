@@ -1,20 +1,19 @@
 use crate::{
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame, D2Module,
+    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame,
     ModulePatches, PatchSets,
   },
   tracker::UnitId,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
-use d2interface::{v109d::Entity, FixedU16, IsoPos, LinearPos};
+use d2interface::{self as d2, v109d::Entity};
 
 #[rustfmt::skip]
 pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
-    D2Module::Win,
-    0x6f8a0000,
+    d2::Module::Win,
     &[
       // Draw menu framerate
       Patch::call_c(0xebe4, patch_source!("
@@ -63,8 +62,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ],
   )],
   game_fps: &[ModulePatches::new(
-    D2Module::Client,
-    0x6faa0000,
+    d2::Module::Client,
     &[
       // Game loop sleep patch
       Patch::call_c(0x262c, patch_source!("
@@ -100,8 +98,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
   )],
   game_smoothing: &[
     ModulePatches::new(
-      D2Module::Client,
-      0x6faa0000,
+      d2::Module::Client,
       &[
         // Course entity mouse detection
         Patch::call_std1(0x8d40c, patch_source!("e8 49110300"), entity_iso_xpos::<Entity>),
@@ -118,8 +115,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       ],
     ),
     ModulePatches::new(
-      D2Module::Common,
-      0x6fd40000,
+      d2::Module::Common,
       &[
         Patch::call_c(0x5f9f7, patch_source!("
           89 3e
@@ -140,13 +136,13 @@ impl super::Entity for Entity {
     self.has_room()
   }
 
-  fn linear_pos(&self) -> LinearPos<FixedU16> {
+  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16> {
     self
       .pos(
         |pos| {
-          LinearPos::new(
-            FixedU16::from_wrapping(pos.linear_pos.x),
-            FixedU16::from_wrapping(pos.linear_pos.y),
+          d2::LinearPos::new(
+            d2::FixedU16::from_wrapping(pos.linear_pos.x),
+            d2::FixedU16::from_wrapping(pos.linear_pos.y),
           )
         },
         |pos| pos.linear_pos,
@@ -154,11 +150,11 @@ impl super::Entity for Entity {
       .unwrap()
   }
 
-  fn iso_pos(&self) -> IsoPos<i32> {
+  fn iso_pos(&self) -> d2::IsoPos<i32> {
     self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
   }
 
-  fn set_pos(&mut self, pos: LinearPos<FixedU16>) {
+  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
     unsafe {
       if let Some(mut epos) = self.pos.d {
         epos.as_mut().linear_pos = pos;
@@ -167,7 +163,7 @@ impl super::Entity for Entity {
     }
   }
 
-  unsafe fn tracker_pos(&self) -> (LinearPos<FixedU16>, LinearPos<u16>) {
+  unsafe fn tracker_pos(&self) -> (d2::LinearPos<d2::FixedU16>, d2::LinearPos<u16>) {
     self.pos.d.map_or_else(Default::default, |pos| {
       (pos.as_ref().linear_pos, pos.as_ref().target_pos[0])
     })

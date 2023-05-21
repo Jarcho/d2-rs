@@ -1,14 +1,11 @@
-use crate::hooks::{
-  draw_game, draw_game_paused, game_loop_sleep_hook, D2Module, ModulePatches, PatchSets,
-};
+use crate::hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, ModulePatches, PatchSets};
 use bin_patch::{patch_source, Patch};
-use d2interface::v111b::Entity;
+use d2interface::{self as d2, v111b::Entity};
 
 #[rustfmt::skip]
 pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
-    D2Module::Win,
-    0x6f8e0000,
+    d2::Module::Win,
     &[
       // Draw menu framerate
       Patch::call_c(0x13f3c, patch_source!("
@@ -60,8 +57,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ],
   )],
   game_fps: &[ModulePatches::new(
-    D2Module::Client,
-    0x6fab0000,
+    d2::Module::Client,
     &[
       // Game loop sleep patch
       Patch::call_c(0x5d48c, patch_source!("

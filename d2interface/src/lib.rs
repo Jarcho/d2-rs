@@ -12,8 +12,10 @@ macro_rules! decl_enum {
   }
 }
 
-pub mod all_versions;
-mod util;
+mod common;
+mod coord;
+mod module;
+
 pub mod v109d;
 pub mod v110;
 pub mod v111;
@@ -26,6 +28,10 @@ pub mod v114b;
 pub mod v114c;
 pub mod v114d;
 
-pub use util::{
-  FixedI16, FixedPoint, FixedU16, FixedU3, FixedU8, IsoPos, LinearPos, Size, UnknownPos,
+pub use crate::{
+  common::{
+    ActId, ActIdS, EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameType, LinkedList,
+  },
+  coord::{FixedI16, FixedPoint, FixedU16, FixedU3, FixedU8, IsoPos, LinearPos, Size, UnknownPos},
+  module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Win},
 };

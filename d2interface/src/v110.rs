@@ -1,25 +1,27 @@
 use crate::{
-  all_versions::{self, EntityKind, InRoom, LinkedList, GameAddresses},
-  FixedU16, FixedU8, IsoPos, LinearPos, Size,
+  common::{self, EntityKind, InRoom, LinkedList},
+  Addresses, FixedU16, FixedU8, IsoPos, LinearPos, Size,
 };
 use core::ptr::NonNull;
 
-pub type EntityTables = all_versions::EntityTables<Entity>;
-pub type EntityTable = all_versions::EntityTable<Entity>;
+pub use crate::v109d::BASE_ADDRESSES;
 
-pub const ADDRESSES: GameAddresses = GameAddresses {
+pub type EntityTables = common::EntityTables<Entity>;
+pub type EntityTable = common::EntityTable<Entity>;
+
+pub const ADDRESSES: Addresses = Addresses {
   player: 0x11c200,
   env_splashes: 0x1076fc,
   env_bubbles: 0x107700,
-  client_update_count: 0x107768,
+  client_updates: 0x107768,
   game_type: 0x107960,
-  active_entity_tables: 0x11aa00,
+  active_entities: 0x11aa00,
   draw_game_fn: 0x107754,
-  client_fps_frame_count: 0x10777c,
-  client_total_frame_count: 0x107764,
+  client_fps_frames: 0x10777c,
+  client_total_frames: 0x107764,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0x6cc40,
-  render_in_perspective: 0x3b50,
+  in_perspective: 0x3b50,
   hwnd: 0x1d270,
   server_update_time: 0x115844,
   draw_menu: 0xd6f0,

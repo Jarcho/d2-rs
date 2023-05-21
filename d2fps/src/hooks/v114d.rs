@@ -1,16 +1,15 @@
 use crate::hooks::{
   draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, D2Module, ModulePatches, PatchSets,
+  entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
-use d2interface::v114d::Entity;
+use d2interface::{self as d2, v114d::Entity};
 
 #[rustfmt::skip]
 pub(super) const PATCHES: PatchSets = PatchSets {
   menu_fps: &[ModulePatches::new(
-    D2Module::GameExe,
-    0x00400000,
+    d2::Module::GameExe,
     &[
       // Draw menu framerate
       Patch::call_c(0xfa606, patch_source!("
@@ -59,8 +58,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ],
   )],
   game_fps: &[ModulePatches::new(
-    D2Module::GameExe,
-    0x00400000,
+    d2::Module::GameExe,
     &[
       // Game loop sleep patch
       Patch::call_c(0x51c2a, patch_source!("
@@ -96,8 +94,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ],
   )],
   game_smoothing: &[ModulePatches::new(
-    D2Module::GameExe,
-    0x00400000,
+    d2::Module::GameExe,
     &[
       // Animated entity mouse detection refinement
       Patch::call_std1(0x6414a, patch_source!("e8 01c51b00"), entity_iso_xpos::<Entity>),

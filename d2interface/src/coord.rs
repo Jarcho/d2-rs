@@ -4,6 +4,19 @@ use core::{fmt, marker::PhantomData, ops};
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct FixedPoint<T, const N: u8>(T);
+impl<T, const N: u8> FixedPoint<T, N> {
+  /// Creates a fixed-point number from it's underlying representation.
+  #[inline]
+  pub const fn from_repr(value: T) -> Self {
+    Self(value)
+  }
+
+  /// Gets the fixed-point number's representation.
+  #[inline]
+  pub fn repr(self) -> T {
+    self.0
+  }
+}
 impl<T, const N: u8> FixedPoint<T, N>
 where
   T: ops::Shl<u8, Output = T> + ops::Shr<u8, Output = T>,
@@ -12,12 +25,6 @@ where
   #[inline]
   pub fn from_wrapping(value: T) -> Self {
     Self(value << N)
-  }
-
-  /// Creates a fixed-point number from it's underlying representation.
-  #[inline]
-  pub const fn from_repr(value: T) -> Self {
-    Self(value)
   }
 
   /// Truncates a fixed-point number to an integer.
@@ -35,14 +42,7 @@ where
       FixedPoint(self.0 >> (N - M))
     }
   }
-
-  /// Gets the fixed-point number's representation.
-  #[inline]
-  pub fn repr(self) -> T {
-    self.0
-  }
 }
-
 impl<T: ops::Add<Output = T>, const N: u8> ops::Add for FixedPoint<T, N> {
   type Output = Self;
   #[inline]
@@ -69,6 +69,22 @@ impl<T: ops::Div<Output = T>, const N: u8> ops::Div<T> for FixedPoint<T, N> {
   #[inline]
   fn div(self, rhs: T) -> Self::Output {
     Self(self.0 / rhs)
+  }
+}
+impl<T: Copy, const N: u8> fmt::Display for FixedPoint<T, N>
+where
+  f64: From<T>,
+{
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    (f64::from(self.repr()) / <f64 as From<u32>>::from(1u32 << N)).fmt(f)
+  }
+}
+impl<T, const N: u8> fmt::Debug for FixedPoint<T, N>
+where
+  FixedPoint<T, N>: fmt::Display,
+{
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    <Self as fmt::Display>::fmt(self, f)
   }
 }
 
@@ -106,6 +122,11 @@ impl<T, System> Pos<T, System> {
   #[inline]
   pub fn cast<U>(self, mut f: impl FnMut(T) -> U) -> Pos<U, System> {
     Pos::new(f(self.x), f(self.y))
+  }
+}
+impl<T: fmt::Display, System> fmt::Display for Pos<T, System> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "({}, {})", self.x, self.y)
   }
 }
 impl<T: fmt::Debug, System> fmt::Debug for Pos<T, System> {

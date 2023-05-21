@@ -1,29 +1,33 @@
 use core::ptr::NonNull;
 
-use crate::{
-  all_versions::{self, EntityKind, GameAddresses, LinkedList},
-  FixedU16, IsoPos, LinearPos,
-};
+use crate::{common, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos};
 
-pub type EntityTables = all_versions::EntityTables<Entity>;
-pub type EntityTable = all_versions::EntityTable<Entity>;
+pub type EntityTables = common::EntityTables<Entity>;
+pub type EntityTable = common::EntityTable<Entity>;
 
-pub const ADDRESSES: GameAddresses = GameAddresses {
+pub const ADDRESSES: Addresses = Addresses {
   player: 0x1263f8,
   env_splashes: 0x11095c,
   env_bubbles: 0x110960,
-  client_update_count: 0x1109c8,
+  client_updates: 0x1109c8,
   game_type: 0x110bc0,
-  active_entity_tables: 0x124bf8,
+  active_entities: 0x124bf8,
   draw_game_fn: 0x1109b4,
-  client_fps_frame_count: 0x1109dc,
-  client_total_frame_count: 0x1109c4,
+  client_fps_frames: 0x1109dc,
+  client_total_frames: 0x1109c4,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0xf290,
-  render_in_perspective: 0x3b60,
+  in_perspective: 0x3b60,
   hwnd: 0x1d214,
   server_update_time: 0xf4198,
   draw_menu: 0xf290,
+};
+pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
+  client: 0x6faa0000,
+  common: 0x6fd40000,
+  game: 0x6fc30000,
+  gfx: 0x6fa70000,
+  win: 0x6f8a0000,
 };
 
 #[repr(C)]
@@ -41,6 +45,14 @@ pub struct Room {
 }
 
 #[repr(C)]
+pub struct StaticPos {
+  pub iso_pos: IsoPos<i32>,
+  pub linear_pos: LinearPos<u32>,
+  pub _padding1: [u32; 3],
+  pub room: Option<NonNull<Room>>,
+}
+
+#[repr(C)]
 pub struct DyPos {
   pub linear_pos: LinearPos<FixedU16>,
   pub iso_pos: IsoPos<i32>,
@@ -48,14 +60,6 @@ pub struct DyPos {
   pub room: Option<NonNull<Room>>,
   pub _padding1: [u32; 4],
   pub entity: NonNull<Entity>,
-}
-
-#[repr(C)]
-pub struct StaticPos {
-  pub iso_pos: IsoPos<i32>,
-  pub linear_pos: LinearPos<u32>,
-  pub _padding1: [u32; 3],
-  pub room: Option<NonNull<Room>>,
 }
 
 #[repr(C)]
@@ -79,7 +83,7 @@ pub struct Entity {
   pub _padding4: [u32; 30],
   pub next_entity: Option<NonNull<Entity>>,
 }
-impl LinkedList for Entity {
+impl common::LinkedList for Entity {
   fn next(&self) -> Option<NonNull<Self>> {
     self.next_entity
   }

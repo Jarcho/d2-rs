@@ -6,14 +6,8 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use bin_patch::{AppliedPatch, Patch};
-use core::{fmt, mem::transmute, ptr::NonNull};
-use d2interface::{
-  all_versions::{
-    D2Client, D2Common, D2Game, D2Gfx, D2Win, EntityKind, EntityTables, EnvArray, EnvImage,
-    GameAddresses, GameType, LinkedList,
-  },
-  FixedI16, FixedU16, IsoPos, LinearPos,
-};
+use core::{mem::transmute, ptr::NonNull};
+use d2interface as d2;
 use windows_sys::{
   w,
   Win32::{
@@ -43,46 +37,22 @@ mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
 
-#[derive(Clone, Copy)]
-enum D2Module {
-  GameExe,
-  Client,
-  Common,
-  #[allow(dead_code)]
-  Game,
-  #[allow(dead_code)]
-  Gfx,
-  Win,
-}
-impl fmt::Display for D2Module {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.write_str(match *self {
-      Self::GameExe => "game.exe",
-      Self::Client => "D2Client.dll",
-      Self::Common => "D2Common.dll",
-      Self::Game => "D2Game.dll",
-      Self::Gfx => "D2gfx.dll",
-      Self::Win => "D2Win.dll",
-    })
-  }
-}
 #[derive(Default)]
-struct D2Modules {
-  d2client: D2Client,
-  d2common: D2Common,
-  d2game: D2Game,
-  d2gfx: D2Gfx,
-  d2win: D2Win,
+struct Modules {
+  client: d2::Client,
+  common: d2::Common,
+  game: d2::Game,
+  gfx: d2::Gfx,
+  win: d2::Win,
 }
-impl D2Modules {
-  fn get(&self, module: D2Module) -> HMODULE {
+impl Modules {
+  fn get(&self, module: d2::Module) -> HMODULE {
     match module {
-      D2Module::GameExe => self.d2client.0,
-      D2Module::Client => self.d2client.0,
-      D2Module::Common => self.d2common.0,
-      D2Module::Game => self.d2game.0,
-      D2Module::Gfx => self.d2gfx.0,
-      D2Module::Win => self.d2win.0,
+      d2::Module::GameExe | d2::Module::Client => self.client.0,
+      d2::Module::Common => self.common.0,
+      d2::Module::Game => self.game.0,
+      d2::Module::Gfx => self.gfx.0,
+      d2::Module::Win => self.win.0,
     }
   }
 }
@@ -96,13 +66,12 @@ struct LoadedModules {
 }
 
 struct ModulePatches {
-  module: D2Module,
-  pref_base: usize,
+  module: d2::Module,
   patches: &'static [Patch],
 }
 impl ModulePatches {
-  const fn new(module: D2Module, pref_base: usize, patches: &'static [Patch]) -> Self {
-    Self { module, pref_base, patches }
+  const fn new(module: d2::Module, patches: &'static [Patch]) -> Self {
+    Self { module, patches }
   }
 }
 
@@ -112,7 +81,7 @@ struct PatchSets {
   game_smoothing: &'static [ModulePatches],
 }
 
-fn load_split_modules(modules: &mut Option<LoadedModules>) -> Result<D2Modules, ()> {
+fn load_split_modules(modules: &mut Option<LoadedModules>) -> Result<Modules, ()> {
   let modules = match modules {
     Some(modules) => modules,
     None => {
@@ -126,27 +95,27 @@ fn load_split_modules(modules: &mut Option<LoadedModules>) -> Result<D2Modules, 
       modules.as_ref().unwrap()
     }
   };
-  Ok(D2Modules {
-    d2client: D2Client(modules.d2client.0),
-    d2common: D2Common(modules.d2common.0),
-    d2game: D2Game(modules.d2game.0),
-    d2gfx: D2Gfx(modules.d2gfx.0),
-    d2win: D2Win(modules.d2win.0),
+  Ok(Modules {
+    client: d2::Client(modules.d2client.0),
+    common: d2::Common(modules.d2common.0),
+    game: d2::Game(modules.d2game.0),
+    gfx: d2::Gfx(modules.d2gfx.0),
+    win: d2::Win(modules.d2win.0),
   })
 }
 
-fn load_combined_modules(_: &mut Option<LoadedModules>) -> Result<D2Modules, ()> {
+fn load_combined_modules(_: &mut Option<LoadedModules>) -> Result<Modules, ()> {
   let module = unsafe { GetModuleHandleW(GAME_EXE) };
   if module == 0 {
     log!("Failed to find game.exe");
     Err(())
   } else {
-    Ok(D2Modules {
-      d2client: D2Client(module),
-      d2common: D2Common(module),
-      d2game: D2Game(module),
-      d2gfx: D2Gfx(module),
-      d2win: D2Win(module),
+    Ok(Modules {
+      client: d2::Client(module),
+      common: d2::Common(module),
+      game: d2::Game(module),
+      gfx: d2::Gfx(module),
+      win: d2::Win(module),
     })
   }
 }
@@ -154,14 +123,16 @@ fn load_combined_modules(_: &mut Option<LoadedModules>) -> Result<D2Modules, ()>
 struct HookSet {
   version: &'static str,
   patch_sets: PatchSets,
-  addresses: GameAddresses,
-  load_modules: fn(&mut Option<LoadedModules>) -> Result<D2Modules, ()>,
+  addresses: d2::Addresses,
+  base_addresses: d2::BaseAddresses,
+  load_modules: fn(&mut Option<LoadedModules>) -> Result<Modules, ()>,
 }
 impl HookSet {
   const UNKNOWN: &HookSet = &HookSet {
     version: "unknown",
     patch_sets: PatchSets { menu_fps: &[], game_fps: &[], game_smoothing: &[] },
-    addresses: GameAddresses::ZERO,
+    addresses: d2::Addresses::ZERO,
+    base_addresses: d2::BaseAddresses::ZERO,
     load_modules: load_combined_modules,
   };
 
@@ -184,7 +155,8 @@ impl HookSet {
       (0x0001_0000, 0x0009_0016) => &HookSet {
         version: "1.09d",
         patch_sets: v109d::PATCHES,
-        addresses: d2interface::v109d::ADDRESSES,
+        addresses: d2::v109d::ADDRESSES,
+        base_addresses: d2::v109d::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       // (0x0001_0000, 0x000a_0009) => "1.10b",
@@ -192,62 +164,72 @@ impl HookSet {
       (0x0001_0000, 0x000a_0027) => &HookSet {
         version: "1.10",
         patch_sets: v110::PATCHES,
-        addresses: d2interface::v110::ADDRESSES,
+        addresses: d2::v110::ADDRESSES,
+        base_addresses: d2::v110::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       (0x0001_0000, 0x000b_002d) => &HookSet {
         version: "1.11",
         patch_sets: v111::PATCHES,
-        addresses: d2interface::v111::ADDRESSES,
+        addresses: d2::v111::ADDRESSES,
+        base_addresses: d2::v111::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       (0x0001_0000, 0x000b_002e) => &HookSet {
         version: "1.11b",
         patch_sets: v111b::PATCHES,
-        addresses: d2interface::v111b::ADDRESSES,
+        addresses: d2::v111b::ADDRESSES,
+        base_addresses: d2::v111b::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       (0x0001_0000, 0x000c_0031) => &HookSet {
         version: "1.12",
         patch_sets: v112::PATCHES,
-        addresses: d2interface::v112::ADDRESSES,
+        addresses: d2::v112::ADDRESSES,
+        base_addresses: d2::v112::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       // (0x0001_0000, 0x000d_0037) => "1.13a",
       (0x0001_0000, 0x000d_003c) => &HookSet {
         version: "1.13c",
         patch_sets: v113c::PATCHES,
-        addresses: d2interface::v113c::ADDRESSES,
+        addresses: d2::v113c::ADDRESSES,
+        base_addresses: d2::v113c::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       (0x0001_0000, 0x000d_0040) => &HookSet {
         version: "1.13d",
         patch_sets: v113d::PATCHES,
-        addresses: d2interface::v113d::ADDRESSES,
+        addresses: d2::v113d::ADDRESSES,
+        base_addresses: d2::v113d::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
       (0x0001_000e, 0x0000_0040) => &HookSet {
         version: "1.14a",
         patch_sets: v114a::PATCHES,
-        addresses: d2interface::v114a::ADDRESSES,
+        addresses: d2::v114a::ADDRESSES,
+        base_addresses: d2::v114a::BASE_ADDRESSES,
         load_modules: load_combined_modules,
       },
       (0x0001_000e, 0x0001_0044) => &HookSet {
         version: "1.14b",
         patch_sets: v114b::PATCHES,
-        addresses: d2interface::v114b::ADDRESSES,
+        addresses: d2::v114b::ADDRESSES,
+        base_addresses: d2::v114b::BASE_ADDRESSES,
         load_modules: load_combined_modules,
       },
       (0x0001_000e, 0x0002_0046) => &HookSet {
         version: "1.14c",
         patch_sets: v114c::PATCHES,
-        addresses: d2interface::v114c::ADDRESSES,
+        addresses: d2::v114c::ADDRESSES,
+        base_addresses: d2::v114c::BASE_ADDRESSES,
         load_modules: load_combined_modules,
       },
       (0x0001_000e, 0x0003_0047) => &HookSet {
         version: "1.14d",
         patch_sets: v114d::PATCHES,
-        addresses: d2interface::v114d::ADDRESSES,
+        addresses: d2::v114d::ADDRESSES,
+        base_addresses: d2::v114d::BASE_ADDRESSES,
         load_modules: load_combined_modules,
       },
       _ => Self::UNKNOWN,
@@ -257,17 +239,17 @@ impl HookSet {
 
 pub struct GameAccessor {
   pub player: NonNull<Option<NonNull<()>>>,
-  pub env_splashes: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
-  pub env_bubbles: NonNull<Option<NonNull<EnvArray<EnvImage>>>>,
-  pub client_update_count: NonNull<u32>,
-  pub game_type: NonNull<GameType>,
-  pub active_entity_tables: NonNull<()>,
+  pub env_splashes: NonNull<Option<NonNull<d2::EnvImages>>>,
+  pub env_bubbles: NonNull<Option<NonNull<d2::EnvImages>>>,
+  pub client_updates: NonNull<u32>,
+  pub game_type: NonNull<d2::GameType>,
+  pub active_entities: NonNull<()>,
   pub draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)>,
-  pub client_fps_frame_count: NonNull<u32>,
-  pub client_total_frame_count: NonNull<u32>,
+  pub client_fps_frames: NonNull<u32>,
+  pub client_total_frames: NonNull<u32>,
   pub apply_pos_change: usize,
   pub server_update_time: NonNull<u32>,
-  pub render_in_perspective: unsafe extern "stdcall" fn() -> u32,
+  pub in_perspective: unsafe extern "stdcall" fn() -> u32,
   pub hwnd: NonNull<HWND>,
   pub draw_menu: unsafe extern "stdcall" fn(),
 }
@@ -278,15 +260,15 @@ impl GameAccessor {
       player: NonNull::dangling(),
       env_splashes: NonNull::dangling(),
       env_bubbles: NonNull::dangling(),
-      client_update_count: NonNull::dangling(),
+      client_updates: NonNull::dangling(),
       game_type: NonNull::dangling(),
-      active_entity_tables: NonNull::dangling(),
+      active_entities: NonNull::dangling(),
       draw_game_fn: NonNull::dangling(),
-      client_fps_frame_count: NonNull::dangling(),
-      client_total_frame_count: NonNull::dangling(),
+      client_fps_frames: NonNull::dangling(),
+      client_total_frames: NonNull::dangling(),
       apply_pos_change: 0,
       server_update_time: NonNull::dangling(),
-      render_in_perspective: {
+      in_perspective: {
         extern "stdcall" fn f() -> u32 {
           panic!()
         }
@@ -302,29 +284,29 @@ impl GameAccessor {
     }
   }
 
-  unsafe fn load(&mut self, modules: &D2Modules, addresses: &GameAddresses) {
-    self.player = addresses.player(modules.d2client);
-    self.env_splashes = addresses.env_splashes(modules.d2client);
-    self.env_bubbles = addresses.env_bubbles(modules.d2client);
-    self.client_update_count = addresses.client_update_count(modules.d2client);
-    self.game_type = addresses.game_type(modules.d2client);
-    self.active_entity_tables = addresses.active_entity_tables(modules.d2client);
-    self.draw_game_fn = addresses.draw_game_fn(modules.d2client);
-    self.client_fps_frame_count = addresses.client_fps_frame_count(modules.d2client);
-    self.client_total_frame_count = addresses.client_total_frame_count(modules.d2client);
-    self.apply_pos_change = addresses.apply_pos_change(modules.d2common);
-    self.server_update_time = addresses.server_update_time(modules.d2game);
-    self.render_in_perspective = addresses.render_in_perspective(modules.d2gfx);
-    self.hwnd = addresses.hwnd(modules.d2gfx);
-    self.draw_menu = addresses.draw_menu(modules.d2win);
+  unsafe fn load(&mut self, modules: &Modules, addresses: &d2::Addresses) {
+    self.player = addresses.player(modules.client);
+    self.env_splashes = addresses.env_splashes(modules.client);
+    self.env_bubbles = addresses.env_bubbles(modules.client);
+    self.client_updates = addresses.client_updates(modules.client);
+    self.game_type = addresses.game_type(modules.client);
+    self.active_entities = addresses.active_entities(modules.client);
+    self.draw_game_fn = addresses.draw_game_fn(modules.client);
+    self.client_fps_frames = addresses.client_fps_frames(modules.client);
+    self.client_total_frames = addresses.client_total_frames(modules.client);
+    self.apply_pos_change = addresses.apply_pos_change(modules.common);
+    self.server_update_time = addresses.server_update_time(modules.game);
+    self.in_perspective = addresses.in_perspective(modules.gfx);
+    self.hwnd = addresses.hwnd(modules.gfx);
+    self.draw_menu = addresses.draw_menu(modules.win);
   }
 
   pub unsafe fn player<T>(&self) -> Option<NonNull<T>> {
     *self.player.cast().as_ptr()
   }
 
-  pub unsafe fn active_entity_tables<T>(&self) -> NonNull<EntityTables<T>> {
-    self.active_entity_tables.cast()
+  pub unsafe fn active_entities<T>(&self) -> NonNull<d2::EntityTables<T>> {
+    self.active_entities.cast()
   }
 }
 
@@ -396,7 +378,7 @@ pub struct HookManager {
   hook_set: &'static HookSet,
   modules: Option<LoadedModules>,
   accessor: GameAccessor,
-  patches: ArrayVec<AppliedPatch, 60>,
+  patches: ArrayVec<AppliedPatch, 15>,
   window_hook: WindowHook,
 }
 impl HookManager {
@@ -481,7 +463,7 @@ impl HookManager {
 
   unsafe fn apply_patch_set(
     &mut self,
-    modules: &D2Modules,
+    modules: &Modules,
     patches: &[ModulePatches],
   ) -> Result<(), ()> {
     let start_idx = self.patches.len();
@@ -489,7 +471,7 @@ impl HookManager {
 
     for m in patches {
       let d2mod = modules.get(m.module);
-      let reloc_dist = d2mod.wrapping_sub(m.pref_base as isize);
+      let reloc_dist = d2mod.wrapping_sub(self.hook_set.base_addresses[m.module] as isize);
       for patch in m.patches {
         match patch.apply(d2mod, reloc_dist) {
           Ok(p) => self.patches.push(p),
@@ -510,33 +492,33 @@ impl HookManager {
   }
 }
 
-trait Entity: LinkedList {
+trait Entity: d2::LinkedList {
   fn unit_id(&self) -> UnitId;
   fn has_room(&self) -> bool;
-  fn linear_pos(&self) -> LinearPos<FixedU16>;
-  fn iso_pos(&self) -> IsoPos<i32>;
-  fn set_pos(&mut self, pos: LinearPos<FixedU16>);
-  unsafe fn tracker_pos(&self) -> (LinearPos<FixedU16>, LinearPos<u16>);
+  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16>;
+  fn iso_pos(&self) -> d2::IsoPos<i32>;
+  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>);
+  unsafe fn tracker_pos(&self) -> (d2::LinearPos<d2::FixedU16>, d2::LinearPos<u16>);
 }
 
 impl D2Fps {
-  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<LinearPos<FixedU16>> {
+  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
     self
       .entity_tracker
       .get(e.unit_id())
       .map(|pos| pos.for_time(self.unit_offset))
   }
 
-  fn entity_linear_pos(&mut self, e: &impl Entity) -> LinearPos<FixedU16> {
+  fn entity_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FixedU16> {
     match self.entity_adjusted_pos(e) {
       Some(pos) => pos,
       None => e.linear_pos(),
     }
   }
 
-  fn entity_iso_pos(&mut self, e: &impl Entity) -> IsoPos<i32> {
+  fn entity_iso_pos(&mut self, e: &impl Entity) -> d2::IsoPos<i32> {
     match self.entity_adjusted_pos(e) {
-      Some(pos) => IsoPos::from(pos),
+      Some(pos) => d2::IsoPos::from(pos),
       None => e.iso_pos(),
     }
   }
@@ -565,49 +547,48 @@ impl D2Fps {
   }
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
-    let mut f = |e: &T| {
+    self.hooks.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
       let (pos, target_pos) = e.tracker_pos();
       self.entity_tracker.insert_or_update(e.unit_id(), pos, target_pos);
-    };
-    let tables = self.hooks.accessor.active_entity_tables::<T>().as_ref();
-    tables[EntityKind::Pc].iter().for_each(&mut f);
-    tables[EntityKind::Npc].iter().for_each(&mut f);
-    tables[EntityKind::Missile].iter().for_each(&mut f);
+    });
     self.entity_tracker.clear_unused();
   }
 
-  fn update_entity_positions<T: Entity>(&mut self) {
+  unsafe fn update_entity_positions<T: Entity>(&mut self) {
     let frame_len = self.perf_freq.ms_to_sample(40) as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
     let fract = (offset << 16) / frame_len;
-    self.unit_offset = FixedI16::from_repr(fract as i32);
+    self.unit_offset = d2::FixedI16::from_repr(fract as i32);
 
-    unsafe { self.hooks.accessor.active_entity_tables::<T>().as_mut() }.for_each_dy_mut(|e| {
-      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
-        e.set_pos(pos.for_time(self.unit_offset));
-      }
-    });
+    self
+      .hooks
+      .accessor
+      .active_entities::<T>()
+      .as_mut()
+      .for_each_dy_mut(|e| {
+        if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+          e.set_pos(pos.for_time(self.unit_offset));
+        }
+      });
   }
 
-  fn reset_entity_positions<T: Entity>(&mut self) {
-    let frame_len = self.perf_freq.ms_to_sample(40) as i64;
-    let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
-    let since_update = since_update.min(frame_len);
-    let offset = since_update - frame_len;
-    let fract = (offset << 16) / frame_len;
-    self.unit_offset = FixedI16::from_repr(fract as i32);
-
-    unsafe { self.hooks.accessor.active_entity_tables::<T>().as_mut() }.for_each_dy_mut(|e| {
-      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
-        e.set_pos(pos.real);
-      }
-    });
+  unsafe fn reset_entity_positions<T: Entity>(&mut self) {
+    self
+      .hooks
+      .accessor
+      .active_entities::<T>()
+      .as_mut()
+      .for_each_dy_mut(|e| {
+        if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+          e.set_pos(pos.real);
+        }
+      });
   }
 
-  unsafe fn update_env_images(&mut self, prev_pos: IsoPos<i32>) {
-    if (self.hooks.accessor.render_in_perspective)() == 0 {
+  unsafe fn update_env_images(&mut self, prev_pos: d2::IsoPos<i32>) {
+    if (self.hooks.accessor.in_perspective)() == 0 {
       let dx = prev_pos.x.wrapping_sub(self.player_pos.x) as u32;
       let dy = prev_pos.y.wrapping_sub(self.player_pos.y) as u32;
 
@@ -634,10 +615,10 @@ extern "stdcall" fn entity_iso_ypos<E: Entity>(e: &E) -> i32 {
   D2FPS.lock().entity_iso_pos(e).y
 }
 
-extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> FixedU16 {
+extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> d2::FixedU16 {
   D2FPS.lock().entity_linear_pos(e).x
 }
-extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> FixedU16 {
+extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FixedU16 {
   D2FPS.lock().entity_linear_pos(e).y
 }
 
@@ -657,7 +638,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
     let enable_smoothing = instance.frame_rate != GAME_FPS && instance.config.enable_smoothing;
     let prev_update_count = instance.game_update_count;
-    instance.game_update_count = *instance.hooks.accessor.client_update_count.as_ptr();
+    instance.game_update_count = *instance.hooks.accessor.client_updates.as_ptr();
 
     if enable_smoothing {
       if instance.update_server_time(time) {
@@ -672,7 +653,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
         instance.update_env_images(prev_player_pos);
       }
     } else {
-      instance.unit_offset = FixedI16::from_repr(0);
+      instance.unit_offset = d2::FixedI16::from_repr(0);
       instance.player_pos = player.as_ref().iso_pos();
     }
 
@@ -683,8 +664,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     let mut instance_lock = D2FPS.lock();
     let instance = &mut *instance_lock;
 
-    *instance.hooks.accessor.client_fps_frame_count.as_ptr() += 1;
-    *instance.hooks.accessor.client_total_frame_count.as_ptr() += 1;
+    *instance.hooks.accessor.client_fps_frames.as_ptr() += 1;
+    *instance.hooks.accessor.client_total_frames.as_ptr() += 1;
 
     if enable_smoothing {
       instance.reset_entity_positions::<E>();
@@ -787,13 +768,13 @@ unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -
 
 unsafe extern "fastcall" fn intercept_teleport<E: Entity>(
   entity: &E,
-  x: FixedU16,
-  y: FixedU16,
+  x: d2::FixedU16,
+  y: d2::FixedU16,
 ) -> usize {
   let mut instance = D2FPS.lock();
   if let Some(pos) = instance.entity_tracker.get(entity.unit_id()) {
-    pos.real = LinearPos::new(x, y);
-    pos.delta = LinearPos::default();
+    pos.real = d2::LinearPos::new(x, y);
+    pos.delta = d2::LinearPos::default();
   }
   instance.hooks.accessor.apply_pos_change
 }
