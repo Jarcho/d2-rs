@@ -25,6 +25,10 @@ features = ["std", "parking_lot"]
 [dependencies.d2interface]
 path = "../d2interface"
 
+[dependencies.xxhash-rust]
+version = "0.8.6"
+features = ["xxh3"]
+
 [dependencies.windows-sys]
 version = "0.48.0"
 features = [

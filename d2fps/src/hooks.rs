@@ -1,12 +1,15 @@
 use crate::{
   config::Config,
   tracker::UnitId,
-  util::{read_file_version, FileVersion, Module},
+  util::{hash_module_file, read_file_version, FileVersion, Module},
   D2Fps, D2FPS, GAME_FPS,
 };
 use arrayvec::ArrayVec;
 use bin_patch::{AppliedPatch, Patch};
-use core::{mem::transmute, ptr::NonNull};
+use core::{
+  mem::{replace, take, transmute},
+  ptr::NonNull,
+};
 use d2interface as d2;
 use windows_sys::{
   w,
@@ -23,6 +26,7 @@ use windows_sys::{
   },
 };
 
+mod v100;
 mod v109d;
 mod v110;
 mod v111;
@@ -138,7 +142,17 @@ impl HookSet {
 
   fn from_game_file_version(version: FileVersion) -> &'static HookSet {
     match (version.ms, version.ls) {
-      // (0x0001_0000, 0x0000_0001) => "1.00",
+      (0x0001_0000, 0x0000_0001) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
+        Some(0x5215437ecc8b67b9) => &HookSet {
+          version: "1.00",
+          patch_sets: v100::PATCHES,
+          addresses: d2::v100::ADDRESSES,
+          base_addresses: d2::v100::BASE_ADDRESSES,
+          load_modules: load_split_modules,
+        },
+        // Some(0x1b093efaa009e78b) => 1.01,
+        _ => Self::UNKNOWN,
+      },
       // (0x0001_0000, 0x0000_0001) => "1.01",
       // (0x0001_0000, 0x0002_0000) => "1.02",
       // (0x0001_0000, 0x0003_0000) => "1.03,"
@@ -637,8 +651,10 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   QueryPerformanceCounter(&mut time);
   if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
     let enable_smoothing = instance.frame_rate != GAME_FPS && instance.config.enable_smoothing;
-    let prev_update_count = instance.game_update_count;
-    instance.game_update_count = *instance.hooks.accessor.client_updates.as_ptr();
+    let prev_update_count = replace(
+      &mut instance.game_update_count,
+      *instance.hooks.accessor.client_updates.as_ptr(),
+    );
 
     if enable_smoothing {
       if instance.update_server_time(time) {
@@ -653,17 +669,19 @@ unsafe extern "C" fn draw_game<E: Entity>() {
         instance.update_env_images(prev_player_pos);
       }
     } else {
-      instance.unit_offset = d2::FixedI16::from_repr(0);
+      instance.unit_offset = d2::FixedI16::default();
       instance.player_pos = player.as_ref().iso_pos();
     }
 
     let draw = instance.hooks.accessor.draw_game_fn;
+    let unit_offset = take(&mut instance.unit_offset);
     drop(instance_lock);
     (*draw.as_ptr())(0);
 
     let mut instance_lock = D2FPS.lock();
     let instance = &mut *instance_lock;
 
+    instance.unit_offset = unit_offset;
     *instance.hooks.accessor.client_fps_frames.as_ptr() += 1;
     *instance.hooks.accessor.client_total_frames.as_ptr() += 1;
 

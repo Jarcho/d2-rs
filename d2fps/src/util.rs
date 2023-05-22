@@ -8,6 +8,7 @@ use core::{
 use gcd::Gcd;
 use std::{
   ffi::{OsStr, OsString},
+  fs,
   os::windows::prelude::{OsStrExt, OsStringExt},
 };
 use windows_sys::{
@@ -32,6 +33,7 @@ use windows_sys::{
     UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR},
   },
 };
+use xxhash_rust::xxh3::xxh3_64;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ratio {
@@ -254,6 +256,23 @@ pub fn log_loaded_modules() {
       }
     }
   }
+}
+
+pub fn hash_module_file(module: HMODULE) -> Option<u64> {
+  if module == 0 {
+    return None;
+  }
+  let process = unsafe { GetCurrentProcess() };
+  let mut buf = [0; 260];
+  let len = unsafe { GetModuleFileNameExW(process, module, buf.as_mut_ptr(), 260) };
+  if len != 0 {
+    if let Some(name) = OsString::from_wide(&buf[..len as usize]).to_str() {
+      if let Ok(buf) = fs::read(name) {
+        return Some(xxh3_64(&buf));
+      }
+    }
+  }
+  None
 }
 
 pub struct FileVersion {

@@ -1,8 +1,7 @@
 use crate::{
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame,
-    ModulePatches, PatchSets,
+    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, ModulePatches, PatchSets,
   },
   tracker::UnitId,
 };
@@ -58,7 +57,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         8b 46 08
         8b 56 0c
         03 c1
-      "), update_menu_char_frame_109d_asm_stub),
+      "), super::v100::update_menu_char_frame_100_asm_stub),
     ],
   )],
   game_fps: &[ModulePatches::new(
@@ -181,20 +180,6 @@ global_asm! {
 }
 extern "C" {
   pub fn draw_menu_109d_asm_stub();
-}
-
-global_asm! {
-  ".global _update_menu_char_frame_109d_asm_stub",
-  "_update_menu_char_frame_109d_asm_stub:",
-  "mov ecx, [esi+0x10]",
-  "lea edx, [esi+0x08]",
-  "call {}",
-  "mov edx, [esi+0x0c]",
-  "ret",
-  sym update_menu_char_frame,
-}
-extern "C" {
-  pub fn update_menu_char_frame_109d_asm_stub();
 }
 
 global_asm! {
