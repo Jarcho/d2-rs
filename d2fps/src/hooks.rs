@@ -30,6 +30,7 @@ mod v100;
 mod v101;
 mod v102;
 mod v103;
+mod v104b;
 mod v109d;
 mod v110;
 mod v111;
@@ -176,7 +177,13 @@ impl HookSet {
         base_addresses: d2::v103::BASE_ADDRESSES,
         load_modules: load_split_modules,
       },
-      // (0x0001_0000, 0x0004_0001) => "1.04b",
+      (0x0001_0000, 0x0004_0001) => &HookSet {
+        version: "1.04b",
+        patch_sets: v104b::PATCHES,
+        addresses: d2::v104b::ADDRESSES,
+        base_addresses: d2::v104b::BASE_ADDRESSES,
+        load_modules: load_split_modules,
+      },
       // (0x0001_0000, 0x0004_0002) => "1.04c",
       // (0x0001_0000, 0x0005_0000) => "1.05",
       // (0x0001_0000, 0x0005_0001) => "1.05b",
