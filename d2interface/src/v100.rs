@@ -14,7 +14,7 @@ pub const ADDRESSES: Addresses = Addresses {
   draw_game_fn: 0x12ebf4,
   client_fps_frames: 0x12ec1c,
   client_total_frames: 0x12ec04,
-  // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
+  // Doesn't exist in this version
   apply_pos_change: 0x0,
   in_perspective: 0x10dc,
   hwnd: 0x2a954,
