@@ -1,6 +1,5 @@
 use crate::{
-  common::{self, EntityKind, InRoom, LinkedList},
-  Addresses, FixedU16, FixedU8, IsoPos, LinearPos, Size,
+  common, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos, LinearPos, LinkedList, Size,
 };
 use core::ptr::NonNull;
 

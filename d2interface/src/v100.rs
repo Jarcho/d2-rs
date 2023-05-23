@@ -1,6 +1,5 @@
-use core::ptr::NonNull;
-
 use crate::{Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, LinkedList};
+use core::ptr::NonNull;
 
 pub type EntityTables = crate::EntityTables<Entity>;
 pub type EntityTable = crate::EntityTable<Entity>;

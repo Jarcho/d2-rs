@@ -27,6 +27,7 @@ use windows_sys::{
 };
 
 mod v100;
+mod v101;
 mod v109d;
 mod v110;
 mod v111;
@@ -150,7 +151,13 @@ impl HookSet {
           base_addresses: d2::v100::BASE_ADDRESSES,
           load_modules: load_split_modules,
         },
-        // Some(0x1b093efaa009e78b) => 1.01,
+        Some(0x1b093efaa009e78b) => &HookSet {
+          version: "1.01",
+          patch_sets: v101::PATCHES,
+          addresses: d2::v101::ADDRESSES,
+          base_addresses: d2::v101::BASE_ADDRESSES,
+          load_modules: load_split_modules,
+        },
         _ => Self::UNKNOWN,
       },
       // (0x0001_0000, 0x0000_0001) => "1.01",
