@@ -76,6 +76,11 @@ impl fmt::Display for Ratio {
     }
   }
 }
+impl fmt::Debug for Ratio {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    <Self as fmt::Display>::fmt(self, f)
+  }
+}
 
 #[derive(Clone, Copy)]
 pub struct PerfFreq {

@@ -512,7 +512,6 @@ trait Entity: d2::LinkedList {
   fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16>;
   fn iso_pos(&self) -> d2::IsoPos<i32>;
   fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>);
-  unsafe fn tracker_pos(&self) -> (d2::LinearPos<d2::FixedU16>, d2::LinearPos<u16>);
 }
 
 impl D2Fps {
@@ -562,8 +561,7 @@ impl D2Fps {
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
     self.hooks.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
-      let (pos, target_pos) = e.tracker_pos();
-      self.entity_tracker.insert_or_update(e.unit_id(), pos, target_pos);
+      self.entity_tracker.insert_or_update(e.unit_id(), e.linear_pos());
     });
     self.entity_tracker.clear_unused();
   }

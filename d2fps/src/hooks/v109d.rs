@@ -161,12 +161,6 @@ impl super::Entity for Entity {
       }
     }
   }
-
-  unsafe fn tracker_pos(&self) -> (d2::LinearPos<d2::FixedU16>, d2::LinearPos<u16>) {
-    self.pos.d.map_or_else(Default::default, |pos| {
-      (pos.as_ref().linear_pos, pos.as_ref().target_pos[0])
-    })
-  }
 }
 
 global_asm! {
