@@ -73,5 +73,12 @@ impl Config {
     if self.bg_fps.map_or(false, |x| x.num == 0) {
       self.bg_fps = None;
     }
+
+    log!(
+      "Loaded config:\n  fps: {:?}\n  bg-fps: {:?}\n  enable-smoothing: {}",
+      self.fps,
+      self.bg_fps,
+      self.enable_smoothing,
+    );
   }
 }
