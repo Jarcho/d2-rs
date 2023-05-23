@@ -1,4 +1,7 @@
-use crate::{common, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos};
+use crate::{
+  common, module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos,
+  LinearPos,
+};
 use core::ptr::NonNull;
 
 pub use crate::v100::StaticPos;
@@ -18,10 +21,10 @@ pub const ADDRESSES: Addresses = Addresses {
   client_total_frames: 0x1109c4,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0xf290,
-  in_perspective: 0x3b60,
-  hwnd: 0x1d214,
+  in_perspective: Ordinal(10010),
+  hwnd: Ordinal(10027),
   server_update_time: 0xf4198,
-  draw_menu: 0xf290,
+  draw_menu: Ordinal(10019),
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x6faa0000,

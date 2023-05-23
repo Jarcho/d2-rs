@@ -1,6 +1,9 @@
 use crate::{EnvImages, GameType};
-use core::{fmt, ops::Index, ptr::NonNull};
-use windows_sys::Win32::Foundation::{HMODULE, HWND};
+use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
+use windows_sys::Win32::{
+  Foundation::{HMODULE, HWND},
+  System::LibraryLoader::GetProcAddress,
+};
 
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
@@ -18,23 +21,60 @@ pub struct Gfx(pub HMODULE);
 #[repr(transparent)]
 pub struct Win(pub HMODULE);
 
+pub(crate) enum Ordinal {
+  Ordinal(u16),
+  Address(usize),
+}
+
+macro_rules! decl_addresses_ty {
+  () => {
+    usize
+  };
+  (ordinal) => {
+    Ordinal
+  };
+}
+macro_rules! decl_addresses_init {
+  () => {
+    0usize
+  };
+  (ordinal) => {
+    Ordinal::Address(0usize)
+  };
+}
+macro_rules! decl_addresses_impl {
+  ($(#[$meta:meta])* $module:ident::$item:ident: $ty:ty) => {
+    $(#[$meta])*
+    #[allow(clippy::missing_safety_doc, clippy::useless_transmute)]
+    pub unsafe fn $item(&self, m: $module) -> $ty {
+      transmute(self.$item.wrapping_add(m.0 as usize))
+    }
+  };
+  ($(#[$meta:meta])* ordinal $module:ident::$item:ident: $ty:ty) => {
+    $(#[$meta])*
+    #[allow(clippy::missing_safety_doc, clippy::useless_transmute)]
+    pub unsafe fn $item(&self, m: $module) -> Option<$ty> {
+      match self.$item {
+        Ordinal::Ordinal(o) => GetProcAddress(m.0, transmute(o as usize)).map(|x| transmute(x)),
+        Ordinal::Address(a) => transmute(a.wrapping_add(m.0 as usize)),
+      }
+    }
+  };
+}
+
 macro_rules! decl_addresses {
-  ($($(#[$meta:meta])* $module:ident::$item:ident: $ty:ty),* $(,)?) => {
+  ($($(#[$meta:meta])* $(#$ordinal:ident)? $module:ident::$item:ident: $ty:ty),* $(,)?) => {
     pub struct Addresses {$(
       $(#[$meta])*
-      pub(crate) $item: usize
+      pub(crate) $item: decl_addresses_ty!($($ordinal)?)
     ),*}
     impl Addresses {
       pub const ZERO: Self = Self {
-        $($item: 0usize,)*
+        $($item: decl_addresses_init!($($ordinal)?),)*
       };
-      $(
-        #[allow(clippy::missing_safety_doc, clippy::useless_transmute)]
-        $(#[$meta])*
-        pub unsafe fn $item(&self, m: $module) -> $ty {
-          core::mem::transmute(self.$item.wrapping_add(m.0 as usize))
-        }
-      )*
+      $(decl_addresses_impl! {
+        $(#[$meta])* $($ordinal)? $module::$item: $ty
+      })*
     }
   };
 }
@@ -61,13 +101,13 @@ decl_addresses! {
   /// Applies a position change to a `DyPos`. Signature depends on game version.
   Common::apply_pos_change: usize,
   /// Whether the game is rendered in perspective mode.
-  Gfx::in_perspective: unsafe extern "stdcall" fn() -> u32,
+  #ordinal Gfx::in_perspective: unsafe extern "stdcall" fn() -> u32,
   /// The game's window handle
-  Gfx::hwnd: NonNull<HWND>,
+  #ordinal Gfx::hwnd: unsafe extern "stdcall" fn() -> HWND,
   /// The time the game server most recently updated the game state.
   Game::server_update_time: NonNull<u32>,
   /// Draw the game's current menu.
-  Win::draw_menu: unsafe extern "stdcall" fn(),
+  #ordinal Win::draw_menu: unsafe extern "stdcall" fn(),
 }
 
 #[derive(Clone, Copy)]

@@ -1,5 +1,6 @@
 use crate::{
-  common, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos, LinearPos, LinkedList, Size,
+  common, module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos,
+  LinearPos, LinkedList, Size,
 };
 use core::ptr::NonNull;
 
@@ -20,10 +21,10 @@ pub const ADDRESSES: Addresses = Addresses {
   client_total_frames: 0x107764,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0x6cc40,
-  in_perspective: 0x3b50,
-  hwnd: 0x1d270,
+  in_perspective: Ordinal(10010),
+  hwnd: Ordinal(10027),
   server_update_time: 0x115844,
-  draw_menu: 0xd6f0,
+  draw_menu: Ordinal(10019),
 };
 
 #[repr(C)]

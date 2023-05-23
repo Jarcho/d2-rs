@@ -1,4 +1,4 @@
-use crate::Addresses;
+use crate::{module::Ordinal::Ordinal, Addresses};
 
 pub use crate::v111b::{
   DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos, BASE_ADDRESSES,
@@ -16,8 +16,8 @@ pub const ADDRESSES: Addresses = Addresses {
   client_total_frames: 0x1032ac,
   // Signature: `__stdcall(DyPos* @ esi, FixedU16, FixedU16, Room*)`
   apply_pos_change: 0x4af00,
-  in_perspective: 0x8de0,
-  hwnd: 0x1d458,
+  in_perspective: Ordinal(10071),
+  hwnd: Ordinal(10078),
   server_update_time: 0x111c34,
-  draw_menu: 0xd710,
+  draw_menu: Ordinal(10094),
 };

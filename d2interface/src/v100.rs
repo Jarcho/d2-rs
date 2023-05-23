@@ -1,4 +1,7 @@
-use crate::{Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, LinkedList};
+use crate::{
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos,
+  LinkedList,
+};
 use core::ptr::NonNull;
 
 pub type EntityTables = crate::EntityTables<Entity>;
@@ -16,10 +19,10 @@ pub const ADDRESSES: Addresses = Addresses {
   client_total_frames: 0x12ec04,
   // Doesn't exist in this version
   apply_pos_change: 0x0,
-  in_perspective: 0x10dc,
-  hwnd: 0x2a954,
+  in_perspective: Ordinal(10012),
+  hwnd: Ordinal(10029),
   server_update_time: 0xbe75c,
-  draw_menu: 0x121c,
+  draw_menu: Ordinal(10015),
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x10000000,

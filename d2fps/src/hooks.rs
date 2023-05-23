@@ -277,7 +277,7 @@ pub struct GameAccessor {
   pub apply_pos_change: usize,
   pub server_update_time: NonNull<u32>,
   pub in_perspective: unsafe extern "stdcall" fn() -> u32,
-  pub hwnd: NonNull<HWND>,
+  pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
   pub draw_menu: unsafe extern "stdcall" fn(),
 }
 unsafe impl Send for GameAccessor {}
@@ -301,7 +301,12 @@ impl GameAccessor {
         }
         f
       },
-      hwnd: NonNull::dangling(),
+      get_hwnd: {
+        extern "stdcall" fn f() -> HWND {
+          panic!()
+        }
+        f
+      },
       draw_menu: {
         extern "stdcall" fn f() {
           panic!()
@@ -311,7 +316,7 @@ impl GameAccessor {
     }
   }
 
-  unsafe fn load(&mut self, modules: &Modules, addresses: &d2::Addresses) {
+  unsafe fn load(&mut self, modules: &Modules, addresses: &d2::Addresses) -> Result<(), ()> {
     self.player = addresses.player(modules.client);
     self.env_splashes = addresses.env_splashes(modules.client);
     self.env_bubbles = addresses.env_bubbles(modules.client);
@@ -323,9 +328,10 @@ impl GameAccessor {
     self.client_total_frames = addresses.client_total_frames(modules.client);
     self.apply_pos_change = addresses.apply_pos_change(modules.common);
     self.server_update_time = addresses.server_update_time(modules.game);
-    self.in_perspective = addresses.in_perspective(modules.gfx);
-    self.hwnd = addresses.hwnd(modules.gfx);
-    self.draw_menu = addresses.draw_menu(modules.win);
+    self.in_perspective = addresses.in_perspective(modules.gfx).ok_or(())?;
+    self.get_hwnd = addresses.hwnd(modules.gfx).ok_or(())?;
+    self.draw_menu = addresses.draw_menu(modules.win).ok_or(())?;
+    Ok(())
   }
 
   pub unsafe fn player<T>(&self) -> Option<NonNull<T>> {
@@ -382,7 +388,7 @@ impl WindowHook {
 
   pub unsafe fn attach(&mut self, accessor: &GameAccessor) -> bool {
     if !self.0 {
-      let hwnd = *accessor.hwnd.as_ptr();
+      let hwnd = (accessor.get_hwnd)();
       if hwnd != 0 {
         self.0 = true;
         SetWindowSubclass(hwnd, Some(win_proc), Self::ID, 0);
@@ -394,7 +400,7 @@ impl WindowHook {
 
   pub unsafe fn detach(&mut self, accessor: &GameAccessor) {
     if self.0 {
-      let hwnd = *accessor.hwnd.as_ptr();
+      let hwnd = (accessor.get_hwnd)();
       RemoveWindowSubclass(hwnd, Some(win_proc), Self::ID);
       self.0 = false;
     }
@@ -437,7 +443,11 @@ impl HookManager {
       config.enable_smoothing = false;
       return;
     };
-    unsafe { self.accessor.load(&modules, &self.hook_set.addresses) };
+    if unsafe { self.accessor.load(&modules, &self.hook_set.addresses).is_err() } {
+      log!("Disabling all features: failed to load game addresses");
+      config.enable_smoothing = false;
+      return;
+    }
 
     if self.hook_set.patch_sets.menu_fps.is_empty() {
       log!("Disabling menu frame rate unlock: unsupported version");
@@ -726,7 +736,7 @@ unsafe extern "fastcall" fn draw_menu(
   let mut instance_lock = D2FPS.lock();
   let instance = &mut *instance_lock;
   if instance.hooks.window_hook.attach(&instance.hooks.accessor) && instance.config.fps.is_none() {
-    let hwnd = *instance.hooks.accessor.hwnd.as_ptr();
+    let hwnd = (instance.hooks.accessor.get_hwnd)();
     instance.frame_rate_from_window(hwnd);
   }
 

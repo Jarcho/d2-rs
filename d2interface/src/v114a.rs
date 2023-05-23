@@ -1,4 +1,4 @@
-use crate::{Addresses, BaseAddresses};
+use crate::{module::Ordinal::Address, Addresses, BaseAddresses};
 
 pub use crate::v113d::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
@@ -14,10 +14,10 @@ pub const ADDRESSES: Addresses = Addresses {
   client_total_frames: 0x42e034,
   // Signature: `__stdcall(DyPos* @ eax, FixedU16, FixedU16, Room*)`
   apply_pos_change: 0,
-  in_perspective: 0x5370,
-  hwnd: 0x348264,
+  in_perspective: Address(0x5370),
+  hwnd: Address(0x5b50),
   server_update_time: 0x497d38,
-  draw_menu: 0x3cdd0,
+  draw_menu: Address(0x3cdd0),
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x00400000,
