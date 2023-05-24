@@ -116,7 +116,6 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         Patch::call_c(0x6024f, patch_source!("
           893e
           8d442414
-          896e04
         "), super::v100::intercept_teleport_100_asm_stub),
       ],
     ),

@@ -859,13 +859,14 @@ unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -
   *frame
 }
 
-unsafe extern "fastcall" fn intercept_teleport<E: Entity>(
-  entity: &E,
+unsafe extern "fastcall" fn intercept_teleport(
+  kind: d2::EntityKind,
+  id: u32,
   x: d2::FixedU16,
   y: d2::FixedU16,
 ) -> usize {
   let mut instance = D2FPS.lock();
-  if let Some(pos) = instance.entity_tracker.get(entity.unit_id()) {
+  if let Some(pos) = instance.entity_tracker.get(UnitId { kind, id }) {
     pos.real = d2::LinearPos::new(x, y);
     pos.delta = d2::LinearPos::default();
   }

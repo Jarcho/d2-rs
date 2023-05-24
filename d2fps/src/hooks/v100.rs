@@ -121,7 +121,6 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         Patch::call_c(0x5fc9f, patch_source!("
           893e
           8d442414
-          896e04
         "), intercept_teleport_100_asm_stub),
       ],
     ),
@@ -196,14 +195,15 @@ global_asm! {
   ".global _intercept_teleport_100_asm_stub",
   "_intercept_teleport_100_asm_stub:",
   "mov [esi], edi",
-  "mov [esi+0x4], ebp",
   "mov ecx, [esi+0x30]",
-  "mov edx, edi",
+  "mov edx, [ecx+0x8]",
+  "mov ecx, [ecx]",
   "push ebp",
+  "push edi",
   "call {}",
   "lea eax, [esp+0x18]",
   "ret",
-  sym intercept_teleport::<Entity>,
+  sym intercept_teleport,
 }
 extern "C" {
   pub fn intercept_teleport_100_asm_stub();

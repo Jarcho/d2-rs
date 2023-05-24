@@ -128,9 +128,9 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ModulePatches::new(
       d2::Module::Common,
       &[
-        Patch::call_c(0x6d860, patch_source!("
-          89 3e
-          89 6e 04
+        Patch::call_c(0x6d85c, patch_source!("
+          8d442428
+          893e
         "), intercept_teleport_110_asm_stub),
       ],
     ),
@@ -204,15 +204,15 @@ global_asm! {
   ".global _intercept_teleport_110_asm_stub",
   "_intercept_teleport_110_asm_stub:",
   "mov [esi], edi",
-  "mov [esi+0x4], ebp",
-  "push eax",
   "mov ecx, [esi+0x30]",
-  "mov edx, edi",
+  "mov edx, [ecx+0xc]",
+  "mov ecx, [ecx]",
   "push ebp",
+  "push edi",
   "call {}",
-  "pop eax",
+  "lea eax, [esp+0x2c]",
   "ret",
-  sym intercept_teleport::<Entity>,
+  sym intercept_teleport,
 }
 extern "C" {
   pub fn intercept_teleport_110_asm_stub();

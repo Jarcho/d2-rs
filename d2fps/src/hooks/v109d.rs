@@ -1,7 +1,7 @@
 use crate::{
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, ModulePatches, PatchSets,
+    entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
   },
   tracker::UnitId,
 };
@@ -117,10 +117,9 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       d2::Module::Common,
       &[
         Patch::call_c(0x5f9f7, patch_source!("
-          89 3e
-          8d 44 24 14
-          89 6e 04
-        "), intercept_teleport_109d_asm_stub),
+          893e
+          8d442414
+        "), super::v100::intercept_teleport_100_asm_stub),
       ],
     ),
   ],
@@ -174,21 +173,4 @@ global_asm! {
 }
 extern "C" {
   pub fn draw_menu_109d_asm_stub();
-}
-
-global_asm! {
-  ".global _intercept_teleport_109d_asm_stub",
-  "_intercept_teleport_109d_asm_stub:",
-  "mov [esi], edi",
-  "mov [esi+0x4], ebp",
-  "mov ecx, [esi+0x30]",
-  "mov edx, edi",
-  "push ebp",
-  "call {}",
-  "lea eax, [esp+0x18]",
-  "ret",
-  sym intercept_teleport::<Entity>,
-}
-extern "C" {
-  pub fn intercept_teleport_109d_asm_stub();
 }

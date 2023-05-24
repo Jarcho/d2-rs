@@ -130,16 +130,18 @@ extern "C" {
 global_asm! {
   ".global _intercept_teleport_114d_asm_stub",
   "_intercept_teleport_114d_asm_stub:",
+  "mov edx, [esp+0x4]",
   "push eax",
-  "mov ecx, [eax+0x30]",
-  "mov edx, [esp+0xc]",
+  "push ecx",
   "push edx",
-  "mov edx, [esp+0xc]",
+  "mov ecx, [eax+0x30]",
+  "mov edx, [ecx+0xc]",
+  "mov ecx, [ecx]",
   "call {}",
   "mov ecx, eax",
   "pop eax",
   "jmp ecx",
-  sym intercept_teleport::<Entity>,
+  sym intercept_teleport,
 }
 extern "C" {
   pub fn intercept_teleport_114d_asm_stub();
