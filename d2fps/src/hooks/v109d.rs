@@ -1,12 +1,8 @@
-use crate::{
-  hooks::{
-    draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
-  },
-  tracker::UnitId,
+use crate::hooks::{
+  draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
-use core::arch::global_asm;
 use d2interface::{self as d2, v109d::Entity};
 
 #[rustfmt::skip]
@@ -50,7 +46,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
         89 54 24 14
         ff d0
         e8 4e 06 00 00
-      "), draw_menu_109d_asm_stub),
+      "), super::v100::draw_menu_100_asm_stub),
       // Menu char frame rate
       Patch::call_c(0x1b6a, patch_source!("
         8b 4e 10
@@ -124,53 +120,3 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ),
   ],
 };
-
-impl super::Entity for Entity {
-  fn unit_id(&self) -> UnitId {
-    UnitId::new(self.kind, self.id)
-  }
-
-  fn has_room(&self) -> bool {
-    self.has_room()
-  }
-
-  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16> {
-    self
-      .pos(
-        |pos| {
-          d2::LinearPos::new(
-            d2::FixedU16::from_wrapping(pos.linear_pos.x),
-            d2::FixedU16::from_wrapping(pos.linear_pos.y),
-          )
-        },
-        |pos| pos.linear_pos,
-      )
-      .unwrap()
-  }
-
-  fn iso_pos(&self) -> d2::IsoPos<i32> {
-    self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
-  }
-
-  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
-    unsafe {
-      if let Some(mut epos) = self.pos.d {
-        epos.as_mut().linear_pos = pos;
-        epos.as_mut().iso_pos = pos.into();
-      }
-    }
-  }
-}
-
-global_asm! {
-  ".global _draw_menu_109d_asm_stub",
-  "_draw_menu_109d_asm_stub:",
-  "mov ecx, [esp+0x48]",
-  "lea edx, [esp+0x18]",
-  "call {}",
-  "ret",
-  sym draw_menu,
-}
-extern "C" {
-  pub fn draw_menu_109d_asm_stub();
-}

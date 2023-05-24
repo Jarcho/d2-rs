@@ -34,6 +34,7 @@ mod v104b;
 mod v105;
 mod v106;
 mod v106b;
+mod v107;
 mod v109d;
 mod v110;
 mod v111;
@@ -228,9 +229,13 @@ impl HookSet {
         Some(x) => panic!("{x:#x}"),
         _ => Self::UNKNOWN,
       },
-      // (0x0001_0000, 0x0006_0000) => "1.06",
-      // (0x0001_0000, 0x0006_0000) => "1.06b",
-      // (0x0001_0000, 0x0007_0000) => "1.07",
+      (0x0001_0000, 0x0007_0000) => &HookSet {
+        version: "1.07",
+        patch_sets: v107::PATCHES,
+        addresses: d2::v107::ADDRESSES,
+        base_addresses: d2::v107::BASE_ADDRESSES,
+        load_modules: load_split_modules,
+      },
       // (0x0001_0000, 0x0008_001c) => "1.08",
       // (0x0001_0000, 0x0009_0013) => "1.09",
       // (0x0001_0000, 0x0009_0014) => "1.09b",
