@@ -123,7 +123,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ),
     ModulePatches::new(
       d2::Module::Common,
-      &[Patch::call_c(0x6f367, patch_source!("e8 94faffff"), super::v112::intercept_teleport_112_asm_stub)],
+      &[Patch::call_c(0x6f367, patch_source!("e8 94faffff"), super::v111::intercept_teleport_111_asm_stub)],
     ),
   ],
 };

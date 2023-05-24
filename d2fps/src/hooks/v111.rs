@@ -1,6 +1,7 @@
 use crate::hooks::{
-  draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, ModulePatches,
-  PatchSets,
+  draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+  entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame,
+  ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
@@ -104,7 +105,31 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       "), draw_game::<Entity>),
     ],
   )],
-  game_smoothing: &[],
+  game_smoothing: &[
+    ModulePatches::new(
+      d2::Module::Client,
+      &[
+        // Course entity mouse detection
+        Patch::call_std1(0x27274, patch_source!("e89d4efeff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x2727c, patch_source!("e8bf4efeff"), entity_iso_ypos::<Entity>),
+        // Animated entity mouse detection refinement
+        Patch::call_std1(0x2700e, patch_source!("e80351feff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x27033, patch_source!("e80851feff"), entity_iso_ypos::<Entity>),
+        // Npc mouse over perspective
+        Patch::call_std1(0xc3934, patch_source!("e89b87f4ff"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xc392d, patch_source!("e86288f4ff"), entity_linear_ypos::<Entity>),
+        // Npc mouse over
+        Patch::call_std1(0xc398f, patch_source!("e88287f4ff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xc39a4, patch_source!("e89787f4ff"), entity_iso_ypos::<Entity>),
+      ],
+    ),
+    ModulePatches::new(
+      d2::Module::Common,
+      &[
+        Patch::call_c(0x11797, patch_source!("e874f8ffff"), intercept_teleport_111_asm_stub),
+      ],
+    ),
+  ],
 };
 
 global_asm! {
@@ -120,4 +145,20 @@ global_asm! {
 }
 extern "C" {
   pub fn update_menu_char_frame_111_asm_stub();
+}
+
+global_asm! {
+  ".global _intercept_teleport_111_asm_stub",
+  "_intercept_teleport_111_asm_stub:",
+  "push ecx",
+  "push eax",
+  "mov ecx, [esi+0x30]",
+  "mov edx, [ecx+0xc]",
+  "mov ecx, [ecx]",
+  "call {}",
+  "jmp eax",
+  sym intercept_teleport,
+}
+extern "C" {
+  pub fn intercept_teleport_111_asm_stub();
 }

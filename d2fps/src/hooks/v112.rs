@@ -1,9 +1,8 @@
 use crate::hooks::{
   draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, ModulePatches, PatchSets,
+  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
-use core::arch::global_asm;
 use d2interface::{self as d2, v112::Entity};
 
 #[rustfmt::skip]
@@ -124,23 +123,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ),
     ModulePatches::new(
       d2::Module::Common,
-      &[Patch::call_c(0x4b467, patch_source!("e8 94faffff"), intercept_teleport_112_asm_stub)],
+      &[Patch::call_c(0x4b467, patch_source!("e8 94faffff"), super::v111::intercept_teleport_111_asm_stub)],
     ),
   ],
 };
-
-global_asm! {
-  ".global _intercept_teleport_112_asm_stub",
-  "_intercept_teleport_112_asm_stub:",
-  "push ecx",
-  "push eax",
-  "mov ecx, [esi+0x30]",
-  "mov edx, [ecx+0xc]",
-  "mov ecx, [ecx]",
-  "call {}",
-  "jmp eax",
-  sym intercept_teleport,
-}
-extern "C" {
-  pub fn intercept_teleport_112_asm_stub();
-}
