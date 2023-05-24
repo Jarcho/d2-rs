@@ -23,6 +23,7 @@ pub mod v103;
 pub mod v104b;
 pub mod v105;
 pub mod v106;
+pub mod v106b;
 pub mod v109d;
 pub mod v110;
 pub mod v111;

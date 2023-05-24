@@ -5,6 +5,9 @@ use core::ptr::NonNull;
 
 pub use crate::v105::{Room, StaticPos, BASE_ADDRESSES};
 
+pub type EntityTables = crate::EntityTables<Entity>;
+pub type EntityTable = crate::EntityTable<Entity>;
+
 pub const ADDRESSES: Addresses = Addresses {
   player: 0xf6768,
   env_splashes: 0xe2dcc,
