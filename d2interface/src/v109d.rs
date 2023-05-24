@@ -1,6 +1,8 @@
-use crate::{module::Ordinal::Ordinal, Addresses, BaseAddresses};
+use crate::{module::Ordinal::Ordinal, Addresses};
 
-pub use crate::v107::{DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos};
+pub use crate::v109::{
+  DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos, BASE_ADDRESSES,
+};
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x1263f8,
@@ -18,11 +20,4 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Ordinal(10027),
   server_update_time: 0xf4198,
   draw_menu: Ordinal(10019),
-};
-pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
-  client: 0x6faa0000,
-  common: 0x6fd40000,
-  game: 0x6fc30000,
-  gfx: 0x6fa70000,
-  win: 0x6f8a0000,
 };

@@ -1,0 +1,28 @@
+use crate::{module::Ordinal::Ordinal, Addresses, BaseAddresses};
+
+pub use crate::v108::{DyPos, Entity, EntityPos, EntityTable, EntityTables, Room, StaticPos};
+
+pub const ADDRESSES: Addresses = Addresses {
+  player: 0x127578,
+  env_splashes: 0x111afc,
+  env_bubbles: 0x111b00,
+  client_updates: 0x111b68,
+  game_type: 0x111d60,
+  active_entities: 0x125d78,
+  draw_game_fn: 0x111b54,
+  client_fps_frames: 0x111b7c,
+  client_total_frames: 0x111b64,
+  // Doesn't exist in this version
+  apply_pos_change: 0,
+  in_perspective: Ordinal(10010),
+  hwnd: Ordinal(10027),
+  server_update_time: 0xf4300,
+  draw_menu: Ordinal(10019),
+};
+pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
+  client: 0x6faa0000,
+  common: 0x6fd40000,
+  game: 0x6fc30000,
+  gfx: 0x6fa70000,
+  win: 0x6f8a0000,
+};
