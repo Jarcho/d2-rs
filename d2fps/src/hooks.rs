@@ -32,6 +32,7 @@ mod v102;
 mod v103;
 mod v104b;
 mod v105;
+mod v106;
 mod v109d;
 mod v110;
 mod v111;
@@ -207,6 +208,24 @@ impl HookSet {
         addresses: d2::v105::ADDRESSES,
         base_addresses: d2::v105::BASE_ADDRESSES,
         load_modules: load_split_modules,
+      },
+      (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
+        Some(0x73645dbfe51df9ae) => &HookSet {
+          version: "1.06",
+          patch_sets: v106::PATCHES,
+          addresses: d2::v106::ADDRESSES,
+          base_addresses: d2::v106::BASE_ADDRESSES,
+          load_modules: load_split_modules,
+        },
+        // Some(0x1b093efaa009e78b) => &HookSet {
+        //   version: "1.01",
+        //   patch_sets: v101::PATCHES,
+        //   addresses: d2::v101::ADDRESSES,
+        //   base_addresses: d2::v101::BASE_ADDRESSES,
+        //   load_modules: load_split_modules,
+        // },
+        Some(x) => panic!("{x:#x}"),
+        _ => Self::UNKNOWN,
       },
       // (0x0001_0000, 0x0006_0000) => "1.06",
       // (0x0001_0000, 0x0006_0000) => "1.06b",

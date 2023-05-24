@@ -1,9 +1,12 @@
-use crate::hooks::{
-  draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
+use crate::{
+  hooks::{
+    draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+    entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
+  },
+  tracker::UnitId,
 };
 use bin_patch::{patch_source, Patch};
-use d2interface::{self as d2, v105::Entity};
+use d2interface::{self as d2, v106::Entity};
 
 #[rustfmt::skip]
 pub(super) const PATCHES: PatchSets = PatchSets {
@@ -74,7 +77,7 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       Patch::call_c(0x8228, patch_source!("
         391d $a030c46f
         752b
-        e8dbb40600
+        e81bb30600
         85c0
         742e
         33c9
@@ -97,23 +100,23 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       d2::Module::Client,
       &[
         // Course entity mouse detection
-        Patch::call_std1(0x72f2d, patch_source!("e8a6a50200"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0x72f35, patch_source!("e898a50200"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0x72d6d, patch_source!("e886a40200"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x72d75, patch_source!("e878a40200"), entity_iso_ypos::<Entity>),
         // Animated entity mouse detection refinement
-        Patch::call_std1(0x733d6, patch_source!("e8fda00200"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0x733fd, patch_source!("e8d0a00200"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0x73216, patch_source!("e8dd9f0200"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x7323d, patch_source!("e8b09f0200"), entity_iso_ypos::<Entity>),
         // Npc mouse over perspective
-        Patch::call_std1(0x9cafe, patch_source!("e84b090000"), entity_linear_xpos::<Entity>),
-        Patch::call_std1(0x9caf7, patch_source!("e84c090000"), entity_linear_ypos::<Entity>),
+        Patch::call_std1(0x9c81e, patch_source!("e84b090000"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0x9c817, patch_source!("e84c090000"), entity_linear_ypos::<Entity>),
         // Npc mouse over
-        Patch::call_std1(0x9cb2a, patch_source!("e8a9090000"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0x9cb3d, patch_source!("e890090000"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0x9c84a, patch_source!("e8a9090000"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x9c85d, patch_source!("e890090000"), entity_iso_ypos::<Entity>),
       ],
     ),
     ModulePatches::new(
       d2::Module::Common,
       &[
-        Patch::call_c(0x4a5a7, patch_source!("
+        Patch::call_c(0x4a527, patch_source!("
           893e
           8d442414
           896e04
@@ -122,3 +125,40 @@ pub(super) const PATCHES: PatchSets = PatchSets {
     ),
   ],
 };
+
+impl super::Entity for Entity {
+  fn unit_id(&self) -> UnitId {
+    UnitId::new(self.kind, self.id)
+  }
+
+  fn has_room(&self) -> bool {
+    self.has_room()
+  }
+
+  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16> {
+    self
+      .pos(
+        |pos| {
+          d2::LinearPos::new(
+            d2::FixedU16::from_wrapping(pos.linear_pos.x),
+            d2::FixedU16::from_wrapping(pos.linear_pos.y),
+          )
+        },
+        |pos| pos.linear_pos,
+      )
+      .unwrap()
+  }
+
+  fn iso_pos(&self) -> d2::IsoPos<i32> {
+    self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
+  }
+
+  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
+    unsafe {
+      if let Some(mut epos) = self.pos.d {
+        epos.as_mut().linear_pos = pos;
+        epos.as_mut().iso_pos = pos.into();
+      }
+    }
+  }
+}
