@@ -1,4 +1,7 @@
-use crate::hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, ModulePatches, PatchSets};
+use crate::hooks::{
+  draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
+};
 use bin_patch::{patch_source, Patch};
 use d2interface::{self as d2, v111b::Entity};
 
@@ -100,5 +103,29 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       "), draw_game::<Entity>),
     ],
   )],
-  game_smoothing: &[],
+  game_smoothing: &[
+    ModulePatches::new(
+      d2::Module::Client,
+      &[
+        // Course entity mouse detection
+        Patch::call_std1(0x4d0e4, patch_source!("e81df1fbff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x4d0ec, patch_source!("e839f1fbff"), entity_iso_ypos::<Entity>),
+        // Animated entity mouse detection refinement
+        Patch::call_std1(0x4ce1e, patch_source!("e8e3f3fbff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x4ce43, patch_source!("e8e2f3fbff"), entity_iso_ypos::<Entity>),
+        // Npc mouse over perspective
+        Patch::call_std1(0xb9f04, patch_source!("e8c122f5ff"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xb9efd, patch_source!("e87c23f5ff"), entity_linear_ypos::<Entity>),
+        // Npc mouse over
+        Patch::call_std1(0xb9f5f, patch_source!("e8a222f5ff"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xb9f74, patch_source!("e8b122f5ff"), entity_iso_ypos::<Entity>),
+      ],
+    ),
+    ModulePatches::new(
+      d2::Module::Common,
+      &[
+        Patch::call_c(0x7c777, patch_source!("e884f9ffff"), super::v111::intercept_teleport_111_asm_stub),
+      ],
+    ),
+  ],
 };
