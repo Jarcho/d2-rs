@@ -1,6 +1,6 @@
 use crate::hooks::{
   draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, ModulePatches, PatchSets,
+  entity_linear_ypos, game_loop_sleep_hook, ModulePatches, PatchSets,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
@@ -109,7 +109,10 @@ pub(super) const PATCHES: PatchSets = PatchSets {
       Patch::call_std1(0xdb6e9, patch_source!("e8 624f1400"), entity_iso_xpos::<Entity>),
       Patch::call_std1(0xdb6fb, patch_source!("e8 b04f1400"), entity_iso_ypos::<Entity>),
       // Intercept teleport call
-      Patch::call_c(0x250a3e, patch_source!("e8 4df1ffff"), intercept_teleport_114d_asm_stub),
+      Patch::call_c(0x250a3c, patch_source!("
+        8bc6
+        e84df1ffff
+      "), super::v114c::intercept_teleport_114c_asm_stub),
     ],
   )],
 };
@@ -125,24 +128,4 @@ global_asm! {
 }
 extern "C" {
   pub fn draw_menu_114d_asm_stub();
-}
-
-global_asm! {
-  ".global _intercept_teleport_114d_asm_stub",
-  "_intercept_teleport_114d_asm_stub:",
-  "mov edx, [esp+0x4]",
-  "push eax",
-  "push ecx",
-  "push edx",
-  "mov ecx, [eax+0x30]",
-  "mov edx, [ecx+0xc]",
-  "mov ecx, [ecx]",
-  "call {}",
-  "mov ecx, eax",
-  "pop eax",
-  "jmp ecx",
-  sym intercept_teleport,
-}
-extern "C" {
-  pub fn intercept_teleport_114d_asm_stub();
 }
