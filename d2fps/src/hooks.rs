@@ -347,14 +347,10 @@ impl HookSet {
 
 pub struct GameAccessor {
   pub player: NonNull<Option<NonNull<()>>>,
-  pub env_splashes: NonNull<Option<NonNull<d2::EnvImages>>>,
-  pub env_bubbles: NonNull<Option<NonNull<d2::EnvImages>>>,
-  pub client_updates: NonNull<u32>,
+  pub env_effects: NonNull<d2::ClientEnvEffects>,
   pub game_type: NonNull<d2::GameType>,
   pub active_entities: NonNull<()>,
-  pub draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)>,
-  pub client_fps_frames: NonNull<u32>,
-  pub client_total_frames: NonNull<u32>,
+  pub client_loop_globals: NonNull<d2::ClientLoopGlobals>,
   pub apply_pos_change: usize,
   pub server_update_time: NonNull<u32>,
   pub in_perspective: unsafe extern "stdcall" fn() -> u32,
@@ -366,14 +362,10 @@ impl GameAccessor {
   const fn new() -> Self {
     Self {
       player: NonNull::dangling(),
-      env_splashes: NonNull::dangling(),
-      env_bubbles: NonNull::dangling(),
-      client_updates: NonNull::dangling(),
+      env_effects: NonNull::dangling(),
       game_type: NonNull::dangling(),
       active_entities: NonNull::dangling(),
-      draw_game_fn: NonNull::dangling(),
-      client_fps_frames: NonNull::dangling(),
-      client_total_frames: NonNull::dangling(),
+      client_loop_globals: NonNull::dangling(),
       apply_pos_change: 0,
       server_update_time: NonNull::dangling(),
       in_perspective: {
@@ -399,14 +391,10 @@ impl GameAccessor {
 
   unsafe fn load(&mut self, modules: &Modules, addresses: &d2::Addresses) -> Result<(), ()> {
     self.player = addresses.player(modules.client);
-    self.env_splashes = addresses.env_splashes(modules.client);
-    self.env_bubbles = addresses.env_bubbles(modules.client);
-    self.client_updates = addresses.client_updates(modules.client);
+    self.env_effects = addresses.env_effects(modules.client);
     self.game_type = addresses.game_type(modules.client);
     self.active_entities = addresses.active_entities(modules.client);
-    self.draw_game_fn = addresses.draw_game_fn(modules.client);
-    self.client_fps_frames = addresses.client_fps_frames(modules.client);
-    self.client_total_frames = addresses.client_total_frames(modules.client);
+    self.client_loop_globals = addresses.client_loop_globals(modules.client);
     self.apply_pos_change = addresses.apply_pos_change(modules.common);
     self.server_update_time = addresses.server_update_time(modules.game);
     self.in_perspective = addresses.in_perspective(modules.gfx).ok_or(())?;
@@ -708,13 +696,13 @@ impl D2Fps {
       let dx = prev_pos.x.wrapping_sub(self.player_pos.x) as u32;
       let dy = prev_pos.y.wrapping_sub(self.player_pos.y) as u32;
 
-      if let Some(mut splashes) = *self.hooks.accessor.env_splashes.as_ptr() {
+      if let Some(mut splashes) = self.hooks.accessor.env_effects.as_mut().splashes {
         for splash in splashes.as_mut().as_mut_slice() {
           splash.pos.x = splash.pos.x.wrapping_add(dx);
           splash.pos.y = splash.pos.y.wrapping_add(dy);
         }
       }
-      if let Some(mut bubbles) = *self.hooks.accessor.env_bubbles.as_ptr() {
+      if let Some(mut bubbles) = self.hooks.accessor.env_effects.as_mut().bubbles {
         for bubble in bubbles.as_mut().as_mut_slice() {
           bubble.pos.x = bubble.pos.x.wrapping_add(dx);
           bubble.pos.y = bubble.pos.y.wrapping_add(dy);
@@ -754,8 +742,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
     let enable_smoothing = instance.frame_rate != GAME_FPS && instance.config.enable_smoothing;
     let prev_update_count = replace(
-      &mut instance.game_update_count,
-      *instance.hooks.accessor.client_updates.as_ptr(),
+      &mut instance.client_update_count,
+      instance.hooks.accessor.client_loop_globals.as_ref().updates,
     );
 
     if enable_smoothing {
@@ -767,7 +755,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       let prev_player_pos = instance.player_pos;
       instance.player_pos = instance.entity_iso_pos(player.as_ref());
 
-      if instance.game_update_count == prev_update_count {
+      if instance.client_update_count == prev_update_count {
         instance.update_env_images(prev_player_pos);
       }
     } else {
@@ -775,17 +763,23 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       instance.player_pos = player.as_ref().iso_pos();
     }
 
-    let draw = instance.hooks.accessor.draw_game_fn;
+    let draw = instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
     let unit_offset = take(&mut instance.unit_offset);
     drop(instance_lock);
-    (*draw.as_ptr())(0);
+    draw(0);
 
     let mut instance_lock = D2FPS.lock();
     let instance = &mut *instance_lock;
 
     instance.unit_offset = unit_offset;
-    *instance.hooks.accessor.client_fps_frames.as_ptr() += 1;
-    *instance.hooks.accessor.client_total_frames.as_ptr() += 1;
+    instance.hooks.accessor.client_loop_globals.as_mut().frames_drawn += 1;
+    instance
+      .hooks
+      .accessor
+      .client_loop_globals
+      .as_mut()
+      .fps_timer
+      .frames_drawn += 1;
 
     if enable_smoothing {
       instance.reset_entity_positions::<E>();
@@ -804,9 +798,9 @@ unsafe extern "C" fn draw_game_paused() {
     .render_timer
     .update_time(cur_time as u64, &instance.perf_freq)
   {
-    let f = *instance.hooks.accessor.draw_game_fn.as_ptr();
+    let draw = instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
     drop(instance_lock);
-    f(0);
+    draw(0);
   }
 }
 

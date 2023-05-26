@@ -4,14 +4,10 @@ pub use crate::v110::{DyPos, Entity, EntityPos, EntityTable, EntityTables, Room,
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x11c4f0,
-  env_splashes: 0x11c340,
-  env_bubbles: 0x11c344,
-  client_updates: 0xfb398,
+  env_effects: 0x11c340,
   game_type: 0x11bfbc,
   active_entities: 0x10b290,
-  draw_game_fn: 0xfb384,
-  client_fps_frames: 0xfb3ac,
-  client_total_frames: 0xfb394,
+  client_loop_globals: 0xfb380,
   // Signature: `__stdcall(DyPos* @ esi, FixedU16, FixedU16, Room*)`
   apply_pos_change: 0x11010,
   in_perspective: Ordinal(10060),

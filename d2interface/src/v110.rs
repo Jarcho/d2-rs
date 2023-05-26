@@ -11,14 +11,10 @@ pub type EntityTable = common::EntityTable<Entity>;
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x11c200,
-  env_splashes: 0x1076fc,
-  env_bubbles: 0x107700,
-  client_updates: 0x107768,
+  env_effects: 0x1076fc,
   game_type: 0x107960,
   active_entities: 0x11aa00,
-  draw_game_fn: 0x107754,
-  client_fps_frames: 0x10777c,
-  client_total_frames: 0x107764,
+  client_loop_globals: 0x107750,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0x6cc40,
   in_perspective: Ordinal(10010),

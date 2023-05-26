@@ -6,14 +6,10 @@ pub use crate::v112::{
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x11bbfc,
-  env_splashes: 0x11bf60,
-  env_bubbles: 0x11bf64,
-  client_updates: 0x1197f8,
+  env_effects: 0x11bf60,
   game_type: 0x11c394,
   active_entities: 0x10a608,
-  draw_game_fn: 0x1197e4,
-  client_fps_frames: 0x11980c,
-  client_total_frames: 0x1197f4,
+  client_loop_globals: 0x1197e0,
   // Signature: `__stdcall(DyPos* @ esi, FixedU16, FixedU16, Room*)`
   apply_pos_change: 0xda40,
   in_perspective: Ordinal(10013),

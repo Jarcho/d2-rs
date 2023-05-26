@@ -9,14 +9,10 @@ pub type EntityTable = crate::EntityTable<Entity>;
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x1451b8,
-  env_splashes: 0x12eb64,
-  env_bubbles: 0x12eb68,
-  client_updates: 0x12ec08,
+  env_effects: 0x12eb64,
   game_type: 0x12ede0,
   active_entities: 0x1439b8,
-  draw_game_fn: 0x12ebf4,
-  client_fps_frames: 0x12ec1c,
-  client_total_frames: 0x12ec04,
+  client_loop_globals: 0x12ebf0,
   // Doesn't exist in this version
   apply_pos_change: 0x0,
   in_perspective: Ordinal(10012),

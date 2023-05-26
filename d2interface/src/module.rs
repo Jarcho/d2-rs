@@ -1,4 +1,4 @@
-use crate::{EnvImages, GameType};
+use crate::{common::ClientLoopGlobals, ClientEnvEffects, GameType};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
 use windows_sys::Win32::{
   Foundation::{HMODULE, HWND},
@@ -82,22 +82,14 @@ decl_addresses! {
   /// Pointer to the current player. May exist even when not in-game.
   Client::player: NonNull<Option<NonNull<()>>>,
   /// The array containing the active splash effects (Acts 1&3 rain).
-  Client::env_splashes: NonNull<Option<NonNull<EnvImages>>>,
-  /// The array containing the active bubble effects (Act 3 water).
-  Client::env_bubbles: NonNull<Option<NonNull<EnvImages>>>,
-  /// The number of times the client has updated the game state.
-  Client::client_updates: NonNull<u32>,
+  Client::env_effects: NonNull<ClientEnvEffects>,
   /// The type of game the client is currently running. Only meaningful if a
   /// game is running.
   Client::game_type: NonNull<GameType>,
   /// The table of active game entities.
   Client::active_entities: NonNull<()>,
-  /// The currently selected draw function.
-  Client::draw_game_fn: NonNull<unsafe extern "fastcall" fn(u32)>,
-  /// Frame count used to calculate the client's current fps.
-  Client::client_fps_frames: NonNull<u32>,
-  /// The total number of frames drawn by the client.
-  Client::client_total_frames: NonNull<u32>,
+  /// Globals controlling the main client loop.
+  Client::client_loop_globals: NonNull<ClientLoopGlobals>,
   /// Applies a position change to a `DyPos`. Signature depends on game version.
   Common::apply_pos_change: usize,
   /// Whether the game is rendered in perspective mode.

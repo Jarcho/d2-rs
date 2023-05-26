@@ -185,3 +185,60 @@ pub struct EnvImage {
   pub till_next_frame: u32,
 }
 pub type EnvImages = EnvArray<EnvImage>;
+
+#[repr(C)]
+pub struct ClientEnvEffects {
+  /// Water splashes when raining (Act 1&3).
+  pub splashes: Option<NonNull<EnvImages>>,
+  /// Water bubbles (Act 3).
+  pub bubbles: Option<NonNull<EnvImages>>,
+  /// Weather particles (Rain & Snow).
+  pub particles: u32,
+}
+
+#[repr(C)]
+pub struct ClientFpsTimer {
+  /// The most recently calculated fps
+  pub fps: u32,
+  /// The number of frames drawn since the last update
+  pub frames_drawn: u32,
+  /// The number of frames skipped since the last update
+  pub frames_skipped: u32,
+  /// The most recently calculated frames skipped per second.
+  pub fps_skip: u32,
+  /// The time of the last fps update.
+  pub last_update: u32,
+}
+
+#[repr(C)]
+pub struct ClientPingTimer {
+  /// The time of the next ping update.
+  pub next_update: u32,
+  /// The time of the previous ping update.
+  pub last_update: u32,
+  /// The last measured ping time.
+  pub ping: u32,
+}
+
+#[repr(C)]
+pub struct ClientLoopGlobals {
+  /// Which draw function is active.
+  pub draw_fn_id: u32,
+  /// The current active draw function.
+  pub draw_fn: unsafe extern "fastcall" fn(u32),
+  pub mem_pool: u32,
+  /// The time the client was last stepped while the game was not paused.
+  pub last_step: u32,
+  /// The time the client state was last updated.
+  pub last_update: u32,
+  /// The number of frames drawn this game session.
+  pub frames_drawn: u32,
+  /// The number of times the client state was updated this game session.
+  pub updates: u32,
+  /// The client's ping timer.
+  pub ping_timer: ClientPingTimer,
+  /// The client's fps timer.
+  pub fps_timer: ClientFpsTimer,
+  /// The time of the loading screen update.
+  pub last_loading_update: u32,
+}
