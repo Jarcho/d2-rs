@@ -17,7 +17,8 @@ use windows_sys::{
     Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM},
     Media::timeGetTime,
     System::{
-      LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter, Threading::Sleep,
+      LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter,
+      SystemInformation::GetTickCount, Threading::Sleep,
     },
     UI::{
       Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
@@ -628,27 +629,34 @@ impl D2Fps {
     }
   }
 
-  unsafe fn update_server_time(&mut self, time: i64) -> bool {
-    if self.hooks.accessor.game_type.as_ref().is_sp() {
-      let prev_update_time = self.game_update_time_ms;
-      self.game_update_time_ms = *self.hooks.accessor.server_update_time.as_ptr();
-
-      if self.game_update_time_ms != prev_update_time {
-        let cur_time_ms = timeGetTime() & 0x7FFFFFFF;
-        if self.game_update_time_ms < cur_time_ms {
-          self.game_update_time = self.perf_freq.ms_to_sample(
-            self.perf_freq.sample_to_ms(time as u64)
-              - (cur_time_ms - self.game_update_time_ms) as u64,
-          );
-        } else {
-          // Fallback time for when the clock wraps around.
-          // Will be corrected next frame.
-          self.game_update_time = time as u64;
-        }
-        return true;
+  unsafe fn update_game_time(&mut self, time: i64) -> bool {
+    let is_sp = self.hooks.accessor.game_type.as_ref().is_sp();
+    let prev_update_time = self.game_update_time_ms;
+    self.game_update_time_ms = if is_sp {
+      *self.hooks.accessor.server_update_time.as_ptr()
+    } else {
+      self.hooks.accessor.client_loop_globals.as_ref().last_update
+    };
+    if self.game_update_time_ms != prev_update_time {
+      let cur_time_ms = if is_sp {
+        timeGetTime() & 0x7FFFFFFF
+      } else {
+        GetTickCount()
+      };
+      if self.game_update_time_ms < cur_time_ms {
+        self.game_update_time = self.perf_freq.ms_to_sample(
+          self.perf_freq.sample_to_ms(time as u64)
+            - (cur_time_ms - self.game_update_time_ms) as u64,
+        );
+      } else {
+        // Fallback time for when the clock wraps around.
+        // Will be corrected next frame.
+        self.game_update_time = time as u64;
       }
+      true
+    } else {
+      false
     }
-    false
   }
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
@@ -656,6 +664,19 @@ impl D2Fps {
       self.entity_tracker.insert_or_update(e.unit_id(), e.linear_pos());
     });
     self.entity_tracker.clear_unused();
+  }
+
+  unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
+    self.hooks.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
+      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+        let epos = e.linear_pos();
+        if pos.real != epos && pos.teleport {
+          pos.delta = d2::LinearPos::default();
+          pos.teleport = false;
+        }
+        pos.real = e.linear_pos();
+      }
+    });
   }
 
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
@@ -747,8 +768,10 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     );
 
     if enable_smoothing {
-      if instance.update_server_time(time) {
+      if instance.update_game_time(time) {
         instance.update_entites_from_tables::<E>();
+      } else {
+        instance.update_entites_from_tables_no_delta::<E>();
       }
       instance.update_entity_positions::<E>();
 
@@ -880,16 +903,10 @@ unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -
   *frame
 }
 
-unsafe extern "fastcall" fn intercept_teleport(
-  kind: d2::EntityKind,
-  id: u32,
-  x: d2::FixedU16,
-  y: d2::FixedU16,
-) -> usize {
+unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) -> usize {
   let mut instance = D2FPS.lock();
   if let Some(pos) = instance.entity_tracker.get(UnitId { kind, id }) {
-    pos.real = d2::LinearPos::new(x, y);
-    pos.delta = d2::LinearPos::default();
+    pos.teleport = true;
   }
   instance.hooks.accessor.apply_pos_change
 }

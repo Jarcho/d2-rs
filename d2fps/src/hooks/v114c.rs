@@ -120,8 +120,6 @@ pub(super) const PATCHES: PatchSets = PatchSets {
 global_asm! {
   ".global _intercept_teleport_114c_asm_stub",
   "_intercept_teleport_114c_asm_stub:",
-  "push ecx",
-  "push eax",
   "mov ecx, [esi+0x30]",
   "mov edx, [ecx+0xc]",
   "mov ecx, [ecx]",

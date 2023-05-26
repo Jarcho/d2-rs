@@ -27,6 +27,7 @@ impl UnitId {
 pub struct Position {
   pub real: d2::LinearPos<d2::FixedU16>,
   pub delta: d2::LinearPos<d2::FixedI16>,
+  pub teleport: bool,
 }
 impl Position {
   pub fn for_time(&mut self, fract: d2::FixedI16) -> d2::LinearPos<d2::FixedU16> {
@@ -41,11 +42,20 @@ impl Position {
     let dx = pos.x.repr().wrapping_sub(self.real.x.repr()) as i32;
     let dy = pos.y.repr().wrapping_sub(self.real.y.repr()) as i32;
     self.real = pos;
-    self.delta = d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy));
+    self.delta = if self.teleport {
+      d2::LinearPos::default()
+    } else {
+      d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy))
+    };
+    self.teleport = false;
   }
 
   fn new(pos: d2::LinearPos<d2::FixedU16>) -> Self {
-    Self { real: pos, delta: d2::LinearPos::default() }
+    Self {
+      real: pos,
+      delta: d2::LinearPos::default(),
+      teleport: false,
+    }
   }
 }
 
@@ -73,6 +83,7 @@ impl EntityTracker {
       positions: [Position {
         real: d2::LinearPos::new(d2::FixedU16::from_repr(0), d2::FixedU16::from_repr(0)),
         delta: d2::LinearPos::new(d2::FixedI16::from_repr(0), d2::FixedI16::from_repr(0)),
+        teleport: false,
       }; UNIT_COUNT],
     }
   }
@@ -97,7 +108,7 @@ impl EntityTracker {
     self.active[i >> 5] |= 1u32 << (i & 31);
   }
 
-  fn shift(&mut self, mut i: usize) {
+  fn shift_out(&mut self, mut i: usize) {
     let mut current = self.entities[i];
     let mut count = 0u16;
     while current.distance >= 0 && count < UNIT_COUNT as u16 {
@@ -175,7 +186,7 @@ impl EntityTracker {
       }
       (Some(distance), i) => {
         self.mark_active(i);
-        self.shift(i);
+        self.shift_out(i);
         self.entities[i] = Entry { distance, kind: id.kind.0 as u16, id: id.id };
         self.positions[i] = Position::new(pos);
       }

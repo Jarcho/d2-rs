@@ -198,8 +198,6 @@ global_asm! {
   "mov ecx, [esi+0x30]",
   "mov edx, [ecx+0x8]",
   "mov ecx, [ecx]",
-  "push ebp",
-  "push edi",
   "call {}",
   "lea eax, [esp+0x18]",
   "ret",
