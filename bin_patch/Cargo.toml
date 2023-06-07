@@ -3,6 +3,10 @@ name = "bin_patch"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies.xxhash-rust]
+version = "0.8.6"
+features = ["xxh3"]
+
 [dependencies.bin_patch_mac]
 path = "../bin_patch_mac"
 

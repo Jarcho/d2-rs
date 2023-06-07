@@ -5,3 +5,7 @@ edition = "2021"
 
 [lib]
 proc-macro = true
+
+[dependencies.xxhash-rust]
+version = "0.8.6"
+features = ["xxh3"]

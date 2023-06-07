@@ -2,4 +2,3 @@ LIBRARY d2fps
 EXPORTS
 _DllMain@12
 attach_hooks
-detach_hooks

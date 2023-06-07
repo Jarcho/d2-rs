@@ -5,6 +5,7 @@ use proc_macro::{
   Spacing::Alone,
   TokenStream, TokenTree as TT,
 };
+use xxhash_rust::xxh3::xxh3_64;
 
 #[proc_macro]
 pub fn patch_source(i: TokenStream) -> TokenStream {
@@ -22,10 +23,17 @@ pub fn patch_source(i: TokenStream) -> TokenStream {
 
   let mut bytes = Vec::with_capacity(256);
   let mut relocs = Vec::with_capacity(16);
+  let mut last_reloc = None;
 
   while let Some(&c) = lit.as_bytes().first() {
     match c {
       b' ' | b'\t' | b'\n' | b'\r' => {
+        if let Some(last_reloc) = last_reloc.take() {
+          if last_reloc + 4 != bytes.len() as u16 {
+            panic!("incorrect relocation size");
+          }
+          relocs.push(last_reloc);
+        }
         lit = &lit[1..];
       }
       b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
@@ -36,10 +44,13 @@ pub fn patch_source(i: TokenStream) -> TokenStream {
           panic!("incomplete byte value");
         }
       }
-      b'$' => {
-        relocs.push(bytes.len() as u16);
-        lit = &lit[1..];
-      }
+      b'$' => match last_reloc {
+        Some(_) => panic!("already reading relocation"),
+        None => {
+          last_reloc = Some(bytes.len() as u16);
+          lit = &lit[1..];
+        }
+      },
       _ => panic!("unexpected character `{}`", lit.chars().next().unwrap()),
     }
   }
@@ -47,25 +58,19 @@ pub fn patch_source(i: TokenStream) -> TokenStream {
   if bytes.len() > u16::MAX as usize {
     panic!("input too large")
   }
-  if let Some(&reloc) = relocs.last() {
-    if bytes.len() < reloc as usize + 4 {
-      panic!("incomplete relocation");
+  if let Some(last_reloc) = last_reloc.take() {
+    if last_reloc + 4 != bytes.len() as u16 {
+      panic!("incorrect relocation size");
     }
+    relocs.push(last_reloc);
   }
 
   TokenStream::from_iter([TT::Group(Group::new(
     Parenthesis,
     TokenStream::from_iter([
-      TT::Punct(Punct::new('&', Alone)),
-      TT::Group(Group::new(
-        Bracket,
-        TokenStream::from_iter(bytes.iter().flat_map(|&x| {
-          [
-            TT::Literal(Literal::u8_suffixed(x)),
-            TT::Punct(Punct::new(',', Alone)),
-          ]
-        })),
-      )),
+      TT::Literal(Literal::u16_suffixed(bytes.len() as u16)),
+      TT::Punct(Punct::new(',', Alone)),
+      TT::Literal(Literal::u64_suffixed(xxh3_64(&bytes))),
       TT::Punct(Punct::new(',', Alone)),
       TT::Punct(Punct::new('&', Alone)),
       TT::Group(Group::new(

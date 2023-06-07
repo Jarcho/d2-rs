@@ -1,31 +1,16 @@
 use core::{
   ffi::c_void,
-  mem::{size_of, transmute},
+  mem::{transmute, MaybeUninit},
   ptr::null_mut,
   slice,
 };
-use std::borrow::Cow::{self, Borrowed, Owned};
 use windows_sys::Win32::{
   Foundation::HMODULE,
   System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE},
 };
+use xxhash_rust::xxh3::xxh3_64;
 
 pub use bin_patch_mac::patch_source;
-
-static NOP_SEQUENCE: [u32; 10] = [
-  0x00841f0f, 0x00000000, 0x00841f0f, 0x00000000, 0x00841f0f, 0x00000000, 0x00841f0f, 0x00000000,
-  0x00841f0f, 0x00000000,
-];
-static NOP_BY_SIZE: [&[u8]; 8] = [
-  &[],
-  &[0x90],
-  &[0x66, 0x90],
-  &[0x0f, 0x1f, 0x00],
-  &[0x0f, 0x1f, 0x40, 0x00],
-  &[0x0f, 0x1f, 0x44, 0x00, 0x00],
-  &[0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00],
-  &[0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00],
-];
 
 struct MemUnlock {
   prev: u32,
@@ -53,7 +38,8 @@ impl Drop for MemUnlock {
 /// A code patch which can be applied to a loaded module.
 pub struct Patch {
   pub offset: usize,
-  original: &'static [u8],
+  len: u16,
+  hash: u64,
   relocs: &'static [u16],
   target: Option<unsafe extern "C" fn()>,
 }
@@ -62,12 +48,13 @@ impl Patch {
   /// function taking zero arguments.
   pub const fn call_c<R>(
     offset: usize,
-    (original, relocs): (&'static [u8], &'static [u16]),
+    (len, hash, relocs): (u16, u64, &'static [u16]),
     target: unsafe extern "C" fn() -> R,
   ) -> Self {
     Self {
       offset,
-      original,
+      len,
+      hash,
       relocs,
       target: Some(unsafe { transmute(target) }),
     }
@@ -77,12 +64,13 @@ impl Patch {
   /// `stdcall` function taking one argument.
   pub const fn call_std1<T1, R>(
     offset: usize,
-    (original, relocs): (&'static [u8], &'static [u16]),
+    (len, hash, relocs): (u16, u64, &'static [u16]),
     target: unsafe extern "stdcall" fn(T1) -> R,
   ) -> Self {
     Self {
       offset,
-      original,
+      len,
+      hash,
       relocs,
       target: Some(unsafe { transmute(target) }),
     }
@@ -90,8 +78,40 @@ impl Patch {
 
   /// Create a patch which replaces the referenced code with code that does
   /// nothing.
-  pub const fn nop(offset: usize, (original, relocs): (&'static [u8], &'static [u16])) -> Self {
-    Self { offset, original, relocs, target: None }
+  pub const fn nop(offset: usize, (len, hash, relocs): (u16, u64, &'static [u16])) -> Self {
+    Self { offset, len, hash, relocs, target: None }
+  }
+
+  /// Checks if the memory at the patch location contains the expected bytes.
+  ///
+  /// # Safety
+  /// This reads frin arbitrary memory and there is no way to guarantee memory
+  /// safety.
+  pub unsafe fn has_expected(&self, base: HMODULE, reloc_dist: isize) -> bool {
+    let address = (base as usize + self.offset) as *mut c_void;
+    let Ok(_mem) = MemUnlock::new(address, self.len.into()) else {
+      return false;
+    };
+
+    let mut reloc_buf = [MaybeUninit::<u8>::uninit(); u16::MAX as usize];
+    let slice = slice::from_raw_parts(address.cast::<u8>(), self.len.into());
+    let slice = if reloc_dist == 0 || self.relocs.is_empty() {
+      slice
+    } else {
+      reloc_buf
+        .as_mut_ptr()
+        .cast::<u8>()
+        .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
+      for &reloc in self.relocs {
+        let p = reloc_buf[reloc as usize..reloc as usize + 4]
+          .as_mut_ptr()
+          .cast::<isize>();
+        p.write_unaligned(p.read_unaligned().wrapping_add(reloc_dist));
+      }
+      slice::from_raw_parts(reloc_buf.as_ptr().cast::<u8>(), slice.len())
+    };
+
+    xxh3_64(slice) == self.hash
   }
 
   /// Applies the patch to the given base with the given relocation applied.
@@ -101,28 +121,11 @@ impl Patch {
   /// # Safety
   /// This writes to an arbitrary memory and there is no way to guarantee memory
   /// safety.
-  pub unsafe fn apply(&self, base: HMODULE, reloc_dist: isize) -> Result<AppliedPatch, ()> {
+  pub unsafe fn apply(&self, base: HMODULE) {
     let address = (base as usize + self.offset) as *mut c_void;
-    let _mem = MemUnlock::new(address, self.original.len())?;
+    let _mem = MemUnlock::new(address, self.len.into()).unwrap();
 
-    // Apply relocation if needed
-    let original = if reloc_dist == 0 || self.relocs.is_empty() {
-      Borrowed(self.original)
-    } else {
-      let mut relocated = self.original.to_owned();
-      for &reloc in self.relocs {
-        let p = relocated[reloc as usize..reloc as usize + size_of::<usize>()]
-          .as_mut_ptr()
-          .cast::<isize>();
-        p.write_unaligned(p.read_unaligned().wrapping_add(reloc_dist));
-      }
-      Owned(relocated)
-    };
-
-    let mut slice = slice::from_raw_parts_mut(address as *mut u8, original.len());
-    if slice != &*original {
-      return Err(());
-    }
+    let mut slice = slice::from_raw_parts_mut(address as *mut u8, self.len.into());
 
     // Write the call instruction.
     if let Some(target) = self.target {
@@ -142,41 +145,37 @@ impl Patch {
         .as_mut_ptr()
         .cast::<u32>()
         .write_unaligned(slice.len() as u32 - 5);
-      slice[5..].fill(0x90);
-    } else if slice.len() > NOP_SEQUENCE.len() * size_of::<u32>() {
+    } else if slice.len() > 32 {
       slice[0] = 0xeb;
       slice[1] = (slice.len() - 2) as u8;
-      slice[2..].fill(0x90);
     } else {
+      #[rustfmt::skip]
+      const NOP_BY_SIZE: [u8; 28] = [
+        0x90,
+        0x66, 0x90,
+        0x0f, 0x1f, 0x00,
+        0x0f, 0x1f, 0x40, 0x00,
+        0x0f, 0x1f, 0x44, 0x00, 0x00,
+        0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00,
+        0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00,
+      ];
+
       // Write eight byte NOP sequences
       let mut dst = slice.as_mut_ptr().cast::<u32>();
-      for &x in &NOP_SEQUENCE[..slice.len() / 8 * 2] {
-        dst.write_unaligned(x);
-        dst = dst.offset(1);
+      for _ in 0..slice.len() / 8 {
+        dst.write_unaligned(0x00841f0f);
+        dst.offset(1).write_unaligned(0);
+        dst = dst.offset(2);
       }
-      // Write final 1-7 byte NOP
-      let src = NOP_BY_SIZE[slice.len() % 8];
-      dst.cast::<u8>().copy_from_nonoverlapping(src.as_ptr(), src.len());
-    }
 
-    Ok(AppliedPatch { address, original })
-  }
-}
-
-/// An applied patch which will be reverted on drop.
-pub struct AppliedPatch {
-  address: *mut c_void,
-  original: Cow<'static, [u8]>,
-}
-impl Drop for AppliedPatch {
-  fn drop(&mut self) {
-    unsafe {
-      if let Ok(_mem) = MemUnlock::new(self.address, self.original.len()) {
-        (self.address as *mut u8)
-          .copy_from_nonoverlapping(self.original.as_ptr(), self.original.len());
+      // Write trailing 1-7 byte NOP
+      let len = slice.len() % 8;
+      let offset = len.wrapping_sub(1) * len / 2;
+      let src = NOP_BY_SIZE.as_ptr().add(offset);
+      if len != 0 && len != 4 && len != 3 && len != 1 {
+        panic!("{}, {:?}", slice.len(), slice::from_raw_parts(src, len));
       }
+      dst.cast::<u8>().copy_from_nonoverlapping(src, len);
     }
   }
 }
-unsafe impl Send for AppliedPatch {}
-unsafe impl Sync for AppliedPatch {}

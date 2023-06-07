@@ -7,7 +7,7 @@ use config::Config;
 use core::{
   ffi::c_void,
   num::NonZeroU32,
-  sync::atomic::{AtomicUsize, Ordering::Relaxed},
+  sync::atomic::{AtomicBool, Ordering::Relaxed},
 };
 use d2interface::{FixedI16, IsoPos};
 use parking_lot::Mutex;
@@ -17,8 +17,13 @@ use util::{message_box_error, monitor_refresh_rate};
 use windows_sys::Win32::{
   Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
   Graphics::Gdi::{MonitorFromWindow, HMONITOR, MONITOR_DEFAULTTONEAREST},
-  Media::{timeBeginPeriod, timeEndPeriod},
-  System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
+  Media::timeBeginPeriod,
+  System::{
+    LibraryLoader::{
+      GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
+    },
+    SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
+  },
 };
 
 macro_rules! log {
@@ -91,12 +96,20 @@ static D2FPS: Mutex<D2Fps> = Mutex::new(D2Fps {
   is_window_hidden: false,
   current_monitor: 0,
 });
-static ATTACH_COUNT: AtomicUsize = AtomicUsize::new(0);
+static IS_ATTACHED: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
-pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL {
+pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> BOOL {
   match reason {
     DLL_PROCESS_ATTACH => {
+      unsafe {
+        GetModuleHandleExW(
+          GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+          module as *const u16,
+          &mut 0,
+        );
+      }
+
       set_hook(Box::new(|info| {
         let msg: &str = if let Some(s) = info.payload().downcast_ref::<&str>() {
           s
@@ -114,6 +127,7 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
         } else {
           msg.into()
         };
+        log!("D2fps Error: {msg}");
         message_box_error(&msg);
       }));
 
@@ -125,11 +139,6 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
       instance.config.load_config();
     }
     DLL_PROCESS_DETACH => {
-      if ATTACH_COUNT.swap(0, Relaxed) != 0 {
-        unsafe {
-          timeEndPeriod(1);
-        }
-      }
       crate::logger::shutdown();
     }
     _ => {}
@@ -139,15 +148,15 @@ pub extern "system" fn DllMain(_: HMODULE, reason: u32, _: *mut c_void) -> BOOL 
 }
 
 #[no_mangle]
-pub extern "C" fn attach_hooks() -> bool {
-  let mut expected;
+pub extern "C" fn attach_hooks() {
+  let mut is_attached;
   loop {
-    expected = ATTACH_COUNT.load(Relaxed);
-    if expected == 0 {
+    is_attached = IS_ATTACHED.load(Relaxed);
+    if !is_attached {
       let mut instance_lock = D2FPS.lock();
       let instance = &mut *instance_lock;
-      if ATTACH_COUNT
-        .compare_exchange_weak(expected, expected, Relaxed, Relaxed)
+      if IS_ATTACHED
+        .compare_exchange_weak(is_attached, is_attached, Relaxed, Relaxed)
         .is_err()
       {
         continue;
@@ -167,38 +176,9 @@ pub extern "C" fn attach_hooks() -> bool {
         .render_timer
         .switch_rate(&instance.perf_freq, instance.frame_rate);
 
-      ATTACH_COUNT.store(1, Relaxed);
-    } else if ATTACH_COUNT
-      .compare_exchange_weak(expected, expected + 1, Relaxed, Relaxed)
-      .is_ok()
-    {
-      return true;
+      IS_ATTACHED.store(true, Relaxed);
     }
-  }
-}
 
-#[no_mangle]
-pub extern "C" fn detach_hooks() {
-  let mut expected;
-  loop {
-    expected = ATTACH_COUNT.load(Relaxed);
-    if expected == 0 {
-      return;
-    }
-    if ATTACH_COUNT
-      .compare_exchange_weak(expected, expected - 1, Relaxed, Relaxed)
-      .is_ok()
-    {
-      break;
-    }
-  }
-
-  if expected == 1 {
-    log!("Detaching D2fps");
-    let mut instance = D2FPS.lock();
-    instance.hooks.detach();
-    unsafe {
-      timeEndPeriod(1);
-    }
+    return;
   }
 }

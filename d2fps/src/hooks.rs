@@ -4,8 +4,7 @@ use crate::{
   util::{hash_module_file, read_file_version, FileVersion, Module},
   D2Fps, D2FPS, GAME_FPS,
 };
-use arrayvec::ArrayVec;
-use bin_patch::{AppliedPatch, Patch};
+use bin_patch::Patch;
 use core::{
   mem::{replace, take, transmute},
   ptr::NonNull,
@@ -15,13 +14,13 @@ use windows_sys::{
   w,
   Win32::{
     Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM},
-    Media::timeGetTime,
+    Media::{timeBeginPeriod, timeEndPeriod, timeGetTime},
     System::{
       LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter,
       SystemInformation::GetTickCount, Threading::Sleep,
     },
     UI::{
-      Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
+      Shell::{DefSubclassProc, SetWindowSubclass},
       WindowsAndMessaging::{SIZE_MINIMIZED, WM_ACTIVATE, WM_SIZE, WM_WINDOWPOSCHANGED},
     },
   },
@@ -426,10 +425,12 @@ unsafe extern "system" fn win_proc(
       if let Some(mut instance_lock) = D2FPS.try_lock() {
         let instance = &mut *instance_lock;
         if wparam != 0 {
+          timeBeginPeriod(1);
           instance
             .render_timer
             .switch_rate(&instance.perf_freq, instance.frame_rate);
         } else {
+          timeEndPeriod(1);
           instance
             .render_timer
             .switch_rate(&instance.perf_freq, instance.bg_frame_rate);
@@ -467,21 +468,12 @@ impl WindowHook {
     }
     false
   }
-
-  pub unsafe fn detach(&mut self, accessor: &GameAccessor) {
-    if self.0 {
-      let hwnd = (accessor.get_hwnd)();
-      RemoveWindowSubclass(hwnd, Some(win_proc), Self::ID);
-      self.0 = false;
-    }
-  }
 }
 
 pub struct HookManager {
   hook_set: &'static HookSet,
   modules: Option<LoadedModules>,
   accessor: GameAccessor,
-  patches: ArrayVec<AppliedPatch, 15>,
   window_hook: WindowHook,
 }
 impl HookManager {
@@ -490,7 +482,6 @@ impl HookManager {
       hook_set: HookSet::UNKNOWN,
       modules: None,
       accessor: GameAccessor::new(),
-      patches: ArrayVec::new_const(),
       window_hook: WindowHook(false),
     }
   }
@@ -560,42 +551,33 @@ impl HookManager {
     }
   }
 
-  pub fn detach(&mut self) {
-    unsafe {
-      self.window_hook.detach(&self.accessor);
-    }
-    self.patches.clear();
-    self.modules = None;
-  }
-
   unsafe fn apply_patch_set(
     &mut self,
     modules: &Modules,
-    patches: &[ModulePatches],
+    mod_patches: &[ModulePatches],
   ) -> Result<(), ()> {
-    let start_idx = self.patches.len();
     let mut success = true;
 
-    for m in patches {
+    for m in mod_patches {
       let d2mod = modules.get(m.module);
       let reloc_dist = d2mod.wrapping_sub(self.hook_set.base_addresses[m.module] as isize);
-      for patch in m.patches {
-        match patch.apply(d2mod, reloc_dist) {
-          Ok(p) => self.patches.push(p),
-          Err(_) => {
-            success = false;
-            log!("Failed to apply patch at: {}+{:#x}", m.module, patch.offset);
-          }
+      for p in m.patches {
+        if !p.has_expected(d2mod, reloc_dist) {
+          success = false;
+          log!("Failed to apply patch at: {}+{:#x}", m.module, p.offset);
         }
       }
     }
-
-    if success {
-      Ok(())
-    } else {
-      self.patches.truncate(start_idx);
-      Err(())
+    if !success {
+      return Err(());
     }
+    for m in mod_patches {
+      let d2mod = modules.get(m.module);
+      for p in m.patches {
+        p.apply(d2mod)
+      }
+    }
+    Ok(())
   }
 }
 
