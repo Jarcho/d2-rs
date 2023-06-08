@@ -45,5 +45,5 @@ pub use crate::{
     EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameType, InRoom, LinkedList,
   },
   coord::{FixedI16, FixedPoint, FixedU16, FixedU3, FixedU8, IsoPos, LinearPos, Size, UnknownPos},
-  module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Win},
+  module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };

@@ -25,7 +25,6 @@ use windows_sys::{
       GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
     },
     System::{
-      LibraryLoader::{FreeLibrary, LoadLibraryW},
       Performance::QueryPerformanceFrequency,
       ProcessStatus::{EnumProcessModules, GetModuleFileNameExW},
       Threading::GetCurrentProcess,
@@ -119,25 +118,7 @@ impl PerfFreq {
   }
 }
 
-pub struct Module(pub HMODULE);
-impl Module {
-  pub unsafe fn new(name: *const u16) -> Result<Self, ()> {
-    let x = LoadLibraryW(name);
-    if x == 0 {
-      Err(())
-    } else {
-      Ok(Module(x))
-    }
-  }
-}
-impl Drop for Module {
-  fn drop(&mut self) {
-    unsafe {
-      FreeLibrary(self.0);
-    }
-  }
-}
-
+/// Iterate a nul-terminated wide string.
 unsafe fn wcs_iter(s: *const u16) -> impl Iterator<Item = u16> {
   struct I(*const u16);
   impl Iterator for I {
@@ -157,6 +138,7 @@ unsafe fn wcs_iter(s: *const u16) -> impl Iterator<Item = u16> {
   I(s)
 }
 
+/// Attempt to read the monitors current refresh rate.
 pub unsafe fn monitor_refresh_rate(mon: HMONITOR) -> Option<Ratio> {
   let mut info = zeroed::<MONITORINFOEXW>();
   info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;

@@ -1,7 +1,7 @@
 use crate::{
   config::Config,
   tracker::UnitId,
-  util::{hash_module_file, read_file_version, FileVersion, Module},
+  util::{hash_module_file, read_file_version, FileVersion},
   D2Fps, D2FPS, GAME_FPS,
 };
 use bin_patch::Patch;
@@ -13,7 +13,7 @@ use d2interface as d2;
 use windows_sys::{
   w,
   Win32::{
-    Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM},
+    Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     Media::{timeBeginPeriod, timeEndPeriod, timeGetTime},
     System::{
       LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter,
@@ -51,34 +51,6 @@ mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
 
-#[derive(Default)]
-struct Modules {
-  client: d2::Client,
-  common: d2::Common,
-  game: d2::Game,
-  gfx: d2::Gfx,
-  win: d2::Win,
-}
-impl Modules {
-  fn get(&self, module: d2::Module) -> HMODULE {
-    match module {
-      d2::Module::GameExe | d2::Module::Client => self.client.0,
-      d2::Module::Common => self.common.0,
-      d2::Module::Game => self.game.0,
-      d2::Module::Gfx => self.gfx.0,
-      d2::Module::Win => self.win.0,
-    }
-  }
-}
-
-struct LoadedModules {
-  d2client: Module,
-  d2common: Module,
-  d2game: Module,
-  d2gfx: Module,
-  d2win: Module,
-}
-
 struct ModulePatches {
   module: d2::Module,
   patches: &'static [Patch],
@@ -95,51 +67,12 @@ struct PatchSets {
   game_smoothing: &'static [ModulePatches],
 }
 
-fn load_split_modules(modules: &mut Option<LoadedModules>) -> Result<Modules, ()> {
-  let modules = match modules {
-    Some(modules) => modules,
-    None => {
-      *modules = Some(LoadedModules {
-        d2client: unsafe { Module::new(w!("D2Client.dll"))? },
-        d2common: unsafe { Module::new(w!("D2Common.dll"))? },
-        d2game: unsafe { Module::new(w!("D2Game.dll"))? },
-        d2gfx: unsafe { Module::new(w!("D2gfx.dll"))? },
-        d2win: unsafe { Module::new(w!("D2Win.dll"))? },
-      });
-      modules.as_ref().unwrap()
-    }
-  };
-  Ok(Modules {
-    client: d2::Client(modules.d2client.0),
-    common: d2::Common(modules.d2common.0),
-    game: d2::Game(modules.d2game.0),
-    gfx: d2::Gfx(modules.d2gfx.0),
-    win: d2::Win(modules.d2win.0),
-  })
-}
-
-fn load_combined_modules(_: &mut Option<LoadedModules>) -> Result<Modules, ()> {
-  let module = unsafe { GetModuleHandleW(GAME_EXE) };
-  if module == 0 {
-    log!("Failed to find game.exe");
-    Err(())
-  } else {
-    Ok(Modules {
-      client: d2::Client(module),
-      common: d2::Common(module),
-      game: d2::Game(module),
-      gfx: d2::Gfx(module),
-      win: d2::Win(module),
-    })
-  }
-}
-
 struct HookSet {
   version: &'static str,
   patch_sets: PatchSets,
   addresses: d2::Addresses,
   base_addresses: d2::BaseAddresses,
-  load_modules: fn(&mut Option<LoadedModules>) -> Result<Modules, ()>,
+  load_modules: fn() -> Option<d2::Modules>,
 }
 impl HookSet {
   const UNKNOWN: &HookSet = &HookSet {
@@ -147,7 +80,7 @@ impl HookSet {
     patch_sets: PatchSets { menu_fps: &[], game_fps: &[], game_smoothing: &[] },
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
-    load_modules: load_combined_modules,
+    load_modules: d2::Modules::load_split_modules,
   };
 
   fn from_game_file_version(version: FileVersion) -> &'static HookSet {
@@ -158,14 +91,14 @@ impl HookSet {
           patch_sets: v100::PATCHES,
           addresses: d2::v100::ADDRESSES,
           base_addresses: d2::v100::BASE_ADDRESSES,
-          load_modules: load_split_modules,
+          load_modules: d2::Modules::load_split_modules,
         },
         Some(0x1b093efaa009e78b) => &HookSet {
           version: "1.01",
           patch_sets: v101::PATCHES,
           addresses: d2::v101::ADDRESSES,
           base_addresses: d2::v101::BASE_ADDRESSES,
-          load_modules: load_split_modules,
+          load_modules: d2::Modules::load_split_modules,
         },
         _ => Self::UNKNOWN,
       },
@@ -174,21 +107,21 @@ impl HookSet {
         patch_sets: v102::PATCHES,
         addresses: d2::v102::ADDRESSES,
         base_addresses: d2::v102::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0003_0000) => &HookSet {
         version: "1.03",
         patch_sets: v103::PATCHES,
         addresses: d2::v103::ADDRESSES,
         base_addresses: d2::v103::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0004_0001) => &HookSet {
         version: "1.04b",
         patch_sets: v104b::PATCHES,
         addresses: d2::v104b::ADDRESSES,
         base_addresses: d2::v104b::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0004_0002) => &HookSet {
         version: "1.04c",
@@ -196,14 +129,14 @@ impl HookSet {
         patch_sets: v104b::PATCHES,
         addresses: d2::v104b::ADDRESSES,
         base_addresses: d2::v104b::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0005_0000) => &HookSet {
         version: "1.05",
         patch_sets: v105::PATCHES,
         addresses: d2::v105::ADDRESSES,
         base_addresses: d2::v105::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0005_0001) => &HookSet {
         version: "1.05b",
@@ -211,7 +144,7 @@ impl HookSet {
         patch_sets: v105::PATCHES,
         addresses: d2::v105::ADDRESSES,
         base_addresses: d2::v105::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
         Some(0x73645dbfe51df9ae) => &HookSet {
@@ -219,16 +152,15 @@ impl HookSet {
           patch_sets: v106::PATCHES,
           addresses: d2::v106::ADDRESSES,
           base_addresses: d2::v106::BASE_ADDRESSES,
-          load_modules: load_split_modules,
+          load_modules: d2::Modules::load_split_modules,
         },
         Some(0x62fea87b064aec9e) => &HookSet {
           version: "1.06b",
           patch_sets: v106b::PATCHES,
           addresses: d2::v106b::ADDRESSES,
           base_addresses: d2::v106b::BASE_ADDRESSES,
-          load_modules: load_split_modules,
+          load_modules: d2::Modules::load_split_modules,
         },
-        Some(x) => panic!("{x:#x}"),
         _ => Self::UNKNOWN,
       },
       (0x0001_0000, 0x0007_0000) => &HookSet {
@@ -236,21 +168,21 @@ impl HookSet {
         patch_sets: v107::PATCHES,
         addresses: d2::v107::ADDRESSES,
         base_addresses: d2::v107::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0008_001c) => &HookSet {
         version: "1.08",
         patch_sets: v108::PATCHES,
         addresses: d2::v108::ADDRESSES,
         base_addresses: d2::v108::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0009_0013) => &HookSet {
         version: "1.09",
         patch_sets: v109::PATCHES,
         addresses: d2::v109::ADDRESSES,
         base_addresses: d2::v109::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0009_0014) => &HookSet {
         version: "1.09b",
@@ -258,14 +190,14 @@ impl HookSet {
         patch_sets: v109::PATCHES,
         addresses: d2::v109::ADDRESSES,
         base_addresses: d2::v109::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x0009_0016) => &HookSet {
         version: "1.09d",
         patch_sets: v109d::PATCHES,
         addresses: d2::v109d::ADDRESSES,
         base_addresses: d2::v109d::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       // (0x0001_0000, 0x000a_0009) => "1.10b",
       // (0x0001_0000, 0x000a_000a) => "1.10s",
@@ -274,28 +206,28 @@ impl HookSet {
         patch_sets: v110::PATCHES,
         addresses: d2::v110::ADDRESSES,
         base_addresses: d2::v110::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x000b_002d) => &HookSet {
         version: "1.11",
         patch_sets: v111::PATCHES,
         addresses: d2::v111::ADDRESSES,
         base_addresses: d2::v111::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x000b_002e) => &HookSet {
         version: "1.11b",
         patch_sets: v111b::PATCHES,
         addresses: d2::v111b::ADDRESSES,
         base_addresses: d2::v111b::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x000c_0031) => &HookSet {
         version: "1.12",
         patch_sets: v112::PATCHES,
         addresses: d2::v112::ADDRESSES,
         base_addresses: d2::v112::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       // (0x0001_0000, 0x000d_0037) => "1.13a",
       (0x0001_0000, 0x000d_003c) => &HookSet {
@@ -303,42 +235,42 @@ impl HookSet {
         patch_sets: v113c::PATCHES,
         addresses: d2::v113c::ADDRESSES,
         base_addresses: d2::v113c::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_0000, 0x000d_0040) => &HookSet {
         version: "1.13d",
         patch_sets: v113d::PATCHES,
         addresses: d2::v113d::ADDRESSES,
         base_addresses: d2::v113d::BASE_ADDRESSES,
-        load_modules: load_split_modules,
+        load_modules: d2::Modules::load_split_modules,
       },
       (0x0001_000e, 0x0000_0040) => &HookSet {
         version: "1.14a",
         patch_sets: v114a::PATCHES,
         addresses: d2::v114a::ADDRESSES,
         base_addresses: d2::v114a::BASE_ADDRESSES,
-        load_modules: load_combined_modules,
+        load_modules: d2::Modules::load_combined_module,
       },
       (0x0001_000e, 0x0001_0044) => &HookSet {
         version: "1.14b",
         patch_sets: v114b::PATCHES,
         addresses: d2::v114b::ADDRESSES,
         base_addresses: d2::v114b::BASE_ADDRESSES,
-        load_modules: load_combined_modules,
+        load_modules: d2::Modules::load_combined_module,
       },
       (0x0001_000e, 0x0002_0046) => &HookSet {
         version: "1.14c",
         patch_sets: v114c::PATCHES,
         addresses: d2::v114c::ADDRESSES,
         base_addresses: d2::v114c::BASE_ADDRESSES,
-        load_modules: load_combined_modules,
+        load_modules: d2::Modules::load_combined_module,
       },
       (0x0001_000e, 0x0003_0047) => &HookSet {
         version: "1.14d",
         patch_sets: v114d::PATCHES,
         addresses: d2::v114d::ADDRESSES,
         base_addresses: d2::v114d::BASE_ADDRESSES,
-        load_modules: load_combined_modules,
+        load_modules: d2::Modules::load_combined_module,
       },
       _ => Self::UNKNOWN,
     }
@@ -389,17 +321,17 @@ impl GameAccessor {
     }
   }
 
-  unsafe fn load(&mut self, modules: &Modules, addresses: &d2::Addresses) -> Result<(), ()> {
-    self.player = addresses.player(modules.client);
-    self.env_effects = addresses.env_effects(modules.client);
-    self.game_type = addresses.game_type(modules.client);
-    self.active_entities = addresses.active_entities(modules.client);
-    self.client_loop_globals = addresses.client_loop_globals(modules.client);
-    self.apply_pos_change = addresses.apply_pos_change(modules.common);
-    self.server_update_time = addresses.server_update_time(modules.game);
-    self.in_perspective = addresses.in_perspective(modules.gfx).ok_or(())?;
-    self.get_hwnd = addresses.hwnd(modules.gfx).ok_or(())?;
-    self.draw_menu = addresses.draw_menu(modules.win).ok_or(())?;
+  unsafe fn load(&mut self, modules: &d2::Modules, addresses: &d2::Addresses) -> Result<(), ()> {
+    self.player = addresses.player(modules.client());
+    self.env_effects = addresses.env_effects(modules.client());
+    self.game_type = addresses.game_type(modules.client());
+    self.active_entities = addresses.active_entities(modules.client());
+    self.client_loop_globals = addresses.client_loop_globals(modules.client());
+    self.apply_pos_change = addresses.apply_pos_change(modules.common());
+    self.server_update_time = addresses.server_update_time(modules.game());
+    self.in_perspective = addresses.in_perspective(modules.gfx()).ok_or(())?;
+    self.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
+    self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
     Ok(())
   }
 
@@ -472,7 +404,6 @@ impl WindowHook {
 
 pub struct HookManager {
   hook_set: &'static HookSet,
-  modules: Option<LoadedModules>,
   accessor: GameAccessor,
   window_hook: WindowHook,
 }
@@ -480,7 +411,6 @@ impl HookManager {
   pub const fn new() -> Self {
     Self {
       hook_set: HookSet::UNKNOWN,
-      modules: None,
       accessor: GameAccessor::new(),
       window_hook: WindowHook(false),
     }
@@ -499,7 +429,7 @@ impl HookManager {
   }
 
   pub(crate) fn attach(&mut self, config: &mut Config) {
-    let Ok(modules) = (self.hook_set.load_modules)(&mut self.modules) else {
+    let Some(modules) = (self.hook_set.load_modules)() else {
       log!("Disabling all features: failed to load game modules");
       config.enable_smoothing = false;
       return;
@@ -553,13 +483,13 @@ impl HookManager {
 
   unsafe fn apply_patch_set(
     &mut self,
-    modules: &Modules,
+    modules: &d2::Modules,
     mod_patches: &[ModulePatches],
   ) -> Result<(), ()> {
     let mut success = true;
 
     for m in mod_patches {
-      let d2mod = modules.get(m.module);
+      let d2mod = modules[m.module];
       let reloc_dist = d2mod.wrapping_sub(self.hook_set.base_addresses[m.module] as isize);
       for p in m.patches {
         if !p.has_expected(d2mod, reloc_dist) {
@@ -572,7 +502,7 @@ impl HookManager {
       return Err(());
     }
     for m in mod_patches {
-      let d2mod = modules.get(m.module);
+      let d2mod = modules[m.module];
       for p in m.patches {
         p.apply(d2mod)
       }

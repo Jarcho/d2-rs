@@ -1,25 +1,89 @@
 use crate::{common::ClientLoopGlobals, ClientEnvEffects, GameType};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
-use windows_sys::Win32::{
-  Foundation::{HMODULE, HWND},
-  System::LibraryLoader::GetProcAddress,
+use windows_sys::{
+  w,
+  Win32::{
+    Foundation::{HMODULE, HWND},
+    System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW},
+  },
 };
 
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct Client(pub HMODULE);
+pub struct Client(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct Common(pub HMODULE);
+pub struct Common(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct Game(pub HMODULE);
+pub struct Game(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct Gfx(pub HMODULE);
+pub struct Gfx(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct Win(pub HMODULE);
+pub struct Win(HMODULE);
+
+pub struct Modules {
+  modules: [HMODULE; 5],
+}
+impl Modules {
+  pub fn load_split_modules() -> Option<Self> {
+    const MODULE_NAMES: [*const u16; 5] = [
+      w!("D2Client.dll"),
+      w!("D2Common.dll"),
+      w!("D2Game.dll"),
+      w!("D2gfx.dll"),
+      w!("D2Win.dll"),
+    ];
+
+    let modules = MODULE_NAMES.map(|name| unsafe { LoadLibraryW(name) });
+    modules.iter().all(|&x| x != 0).then_some(Self { modules })
+  }
+
+  pub fn load_combined_module() -> Option<Self> {
+    let module = unsafe { GetModuleHandleW(w!("game.exe")) };
+    (module != 0).then_some(Self { modules: [module; 5] })
+  }
+
+  #[inline]
+  pub fn client(&self) -> Client {
+    Client(self.modules[0])
+  }
+
+  #[inline]
+  pub fn common(&self) -> Common {
+    Common(self.modules[1])
+  }
+
+  #[inline]
+  pub fn game(&self) -> Game {
+    Game(self.modules[2])
+  }
+
+  #[inline]
+  pub fn gfx(&self) -> Gfx {
+    Gfx(self.modules[3])
+  }
+
+  #[inline]
+  pub fn win(&self) -> Win {
+    Win(self.modules[4])
+  }
+}
+impl Index<Module> for Modules {
+  type Output = HMODULE;
+
+  fn index(&self, index: Module) -> &Self::Output {
+    match index {
+      Module::GameExe | Module::Client => &self.modules[0],
+      Module::Common => &self.modules[1],
+      Module::Game => &self.modules[2],
+      Module::Gfx => &self.modules[3],
+      Module::Win => &self.modules[4],
+    }
+  }
+}
 
 pub(crate) enum Ordinal {
   Ordinal(u16),
