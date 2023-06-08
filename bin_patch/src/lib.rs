@@ -85,11 +85,14 @@ impl Patch {
   /// Checks if the memory at the patch location contains the expected bytes.
   ///
   /// # Safety
-  /// This reads frin arbitrary memory and there is no way to guarantee memory
-  /// safety.
+  /// The memory in the slice `(base + patch.offset, patch.len)` must be
+  /// initialized and readable.
   pub unsafe fn has_expected(&self, base: HMODULE, reloc_dist: isize) -> bool {
     let address = (base as usize + self.offset) as *mut c_void;
     let Ok(_mem) = MemUnlock::new(address, self.len.into()) else {
+      return false;
+    };
+    let Ok(reloc_dist) = i32::try_from(reloc_dist) else {
       return false;
     };
 
@@ -103,10 +106,11 @@ impl Patch {
         .cast::<u8>()
         .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
       for &reloc in self.relocs {
-        let p = reloc_buf[reloc as usize..reloc as usize + 4]
-          .as_mut_ptr()
-          .cast::<isize>();
-        p.write_unaligned(p.read_unaligned().wrapping_add(reloc_dist));
+        let Some(p) = reloc_buf.get_mut(reloc as usize..reloc as usize + 4) else {
+          return false;
+        };
+        let p = p.as_mut_ptr().cast::<i32>();
+        p.write_unaligned(p.read_unaligned().wrapping_sub(reloc_dist));
       }
       slice::from_raw_parts(reloc_buf.as_ptr().cast::<u8>(), slice.len())
     };
@@ -145,9 +149,11 @@ impl Patch {
         .as_mut_ptr()
         .cast::<u32>()
         .write_unaligned(slice.len() as u32 - 5);
+      slice[5..].fill(0x90);
     } else if slice.len() > 32 {
       slice[0] = 0xeb;
       slice[1] = (slice.len() - 2) as u8;
+      slice[2..].fill(0x90);
     } else {
       #[rustfmt::skip]
       const NOP_BY_SIZE: [u8; 28] = [
@@ -172,9 +178,6 @@ impl Patch {
       let len = slice.len() % 8;
       let offset = len.wrapping_sub(1) * len / 2;
       let src = NOP_BY_SIZE.as_ptr().add(offset);
-      if len != 0 && len != 4 && len != 3 && len != 1 {
-        panic!("{}, {:?}", slice.len(), slice::from_raw_parts(src, len));
-      }
       dst.cast::<u8>().copy_from_nonoverlapping(src, len);
     }
   }
