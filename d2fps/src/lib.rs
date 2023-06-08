@@ -135,7 +135,6 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
       if !instance.perf_freq.init() {
         return FALSE;
       };
-      instance.hooks.init();
       instance.config.load_config();
     }
     DLL_PROCESS_DETACH => {

@@ -403,112 +403,117 @@ impl WindowHook {
 }
 
 pub struct HookManager {
-  hook_set: &'static HookSet,
   accessor: GameAccessor,
   window_hook: WindowHook,
 }
 impl HookManager {
   pub const fn new() -> Self {
     Self {
-      hook_set: HookSet::UNKNOWN,
       accessor: GameAccessor::new(),
       window_hook: WindowHook(false),
     }
   }
 
-  pub fn init(&mut self) {
-    match unsafe { read_file_version(GAME_EXE) } {
-      Ok(version) => {
-        self.hook_set = HookSet::from_game_file_version(version);
-        log!("Detected game version: {}", self.hook_set.version);
-      }
-      Err(_) => {
-        log!("Error detecting game version")
-      }
-    }
-  }
-
   pub(crate) fn attach(&mut self, config: &mut Config) {
-    let Some(modules) = (self.hook_set.load_modules)() else {
+    let hook_set = match unsafe { read_file_version(GAME_EXE) } {
+      Ok(version) => HookSet::from_game_file_version(version),
+      Err(_) => {
+        log!("Error detecting game version");
+        config.enable_smoothing = false;
+        return;
+      }
+    };
+    log!("Detected game version: {}", hook_set.version);
+
+    let Some(modules) = (hook_set.load_modules)() else {
       log!("Disabling all features: failed to load game modules");
       config.enable_smoothing = false;
       return;
     };
-    if unsafe { self.accessor.load(&modules, &self.hook_set.addresses).is_err() } {
+    if unsafe { self.accessor.load(&modules, &hook_set.addresses).is_err() } {
       log!("Disabling all features: failed to load game addresses");
       config.enable_smoothing = false;
       return;
     }
 
-    if self.hook_set.patch_sets.menu_fps.is_empty() {
+    if hook_set.patch_sets.menu_fps.is_empty() {
       log!("Disabling menu frame rate unlock: unsupported version");
     } else if unsafe {
-      self
-        .apply_patch_set(&modules, self.hook_set.patch_sets.menu_fps)
-        .is_err()
+      apply_patch_set(
+        &modules,
+        &hook_set.base_addresses,
+        hook_set.patch_sets.menu_fps,
+      )
+      .is_err()
     } {
       log!("Disabling menu frame rate unlock: failed to apply patches");
     }
 
     let mut game_fps = true;
-    if self.hook_set.patch_sets.game_fps.is_empty() {
+    if hook_set.patch_sets.game_fps.is_empty() {
       log!("Disabling game frame rate unlock: unsupported version");
       game_fps = false;
     } else if unsafe {
-      self
-        .apply_patch_set(&modules, self.hook_set.patch_sets.game_fps)
-        .is_err()
+      apply_patch_set(
+        &modules,
+        &hook_set.base_addresses,
+        hook_set.patch_sets.game_fps,
+      )
+      .is_err()
     } {
       log!("Disabling game frame rate unlock: failed to apply patches");
       game_fps = false;
     }
 
     if config.enable_smoothing {
-      if self.hook_set.patch_sets.game_smoothing.is_empty() {
+      if hook_set.patch_sets.game_smoothing.is_empty() {
         log!("Disabling game motion smoothing: unsupported version");
         config.enable_smoothing = false;
       } else if !game_fps {
         log!("Disabling game motion smoothing: game frame rate must be unlocked");
         config.enable_smoothing = false;
       } else if unsafe {
-        self
-          .apply_patch_set(&modules, self.hook_set.patch_sets.game_smoothing)
-          .is_err()
+        apply_patch_set(
+          &modules,
+          &hook_set.base_addresses,
+          hook_set.patch_sets.game_smoothing,
+        )
+        .is_err()
       } {
         log!("Failed to apply game motion smoothing patches, disabling feature");
         config.enable_smoothing = false;
       }
     }
   }
+}
 
-  unsafe fn apply_patch_set(
-    &mut self,
-    modules: &d2::Modules,
-    mod_patches: &[ModulePatches],
-  ) -> Result<(), ()> {
-    let mut success = true;
+unsafe fn apply_patch_set(
+  modules: &d2::Modules,
+  base_addresses: &d2::BaseAddresses,
+  mod_patches: &[ModulePatches],
+) -> Result<(), ()> {
+  let mut success = true;
 
-    for m in mod_patches {
-      let d2mod = modules[m.module];
-      let reloc_dist = d2mod.wrapping_sub(self.hook_set.base_addresses[m.module] as isize);
-      for p in m.patches {
-        if !p.has_expected(d2mod, reloc_dist) {
-          success = false;
-          log!("Failed to apply patch at: {}+{:#x}", m.module, p.offset);
-        }
+  for m in mod_patches {
+    let d2mod = modules[m.module];
+    let reloc_dist = d2mod.wrapping_sub(base_addresses[m.module] as isize);
+    for p in m.patches {
+      if !p.has_expected(d2mod, reloc_dist) {
+        success = false;
+        log!("Failed to apply patch at: {}+{:#x}", m.module, p.offset);
       }
     }
-    if !success {
-      return Err(());
-    }
-    for m in mod_patches {
-      let d2mod = modules[m.module];
-      for p in m.patches {
-        p.apply(d2mod)
-      }
-    }
-    Ok(())
   }
+  if !success {
+    return Err(());
+  }
+  for m in mod_patches {
+    let d2mod = modules[m.module];
+    for p in m.patches {
+      p.apply(d2mod)
+    }
+  }
+  Ok(())
 }
 
 trait Entity: d2::LinkedList {
