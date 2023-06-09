@@ -13,6 +13,7 @@ gcd = "2.3.0"
 arrayvec = "0.7.2"
 crossbeam-channel = "0.5.8"
 parking_lot = "0.12.1"
+bitflags = "2.3.1"
 
 [dependencies.bin_patch]
 path = "../bin_patch"

@@ -1,20 +1,20 @@
 use crate::{
-  config::Config,
+  features::{FeaturePatches, Features, ModulePatches},
   tracker::UnitId,
   util::{hash_module_file, read_file_version, FileVersion},
-  D2Fps, D2FPS, GAME_FPS,
+  InstanceSync, GAME_FPS, INSTANCE,
 };
-use bin_patch::Patch;
 use core::{
   mem::{replace, take, transmute},
   ptr::NonNull,
+  sync::atomic::Ordering::Relaxed,
 };
 use d2interface as d2;
 use windows_sys::{
   w,
   Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
-    Media::{timeBeginPeriod, timeEndPeriod, timeGetTime},
+    Media::timeGetTime,
     System::{
       LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter,
       SystemInformation::GetTickCount, Threading::Sleep,
@@ -31,12 +31,15 @@ mod v101;
 mod v102;
 mod v103;
 mod v104b;
+mod v104c;
 mod v105;
+mod v105b;
 mod v106;
 mod v106b;
 mod v107;
 mod v108;
 mod v109;
+mod v109b;
 mod v109d;
 mod v110;
 mod v111;
@@ -51,227 +54,58 @@ mod v114d;
 
 const GAME_EXE: *const u16 = w!("game.exe");
 
-struct ModulePatches {
-  module: d2::Module,
-  patches: &'static [Patch],
-}
-impl ModulePatches {
-  const fn new(module: d2::Module, patches: &'static [Patch]) -> Self {
-    Self { module, patches }
-  }
-}
-
-struct PatchSets {
-  menu_fps: &'static [ModulePatches],
-  game_fps: &'static [ModulePatches],
-  game_smoothing: &'static [ModulePatches],
-}
-
-struct HookSet {
+struct Hooks {
   version: &'static str,
-  patch_sets: PatchSets,
+  patches: FeaturePatches,
   addresses: d2::Addresses,
   base_addresses: d2::BaseAddresses,
   load_modules: fn() -> Option<d2::Modules>,
 }
-impl HookSet {
-  const UNKNOWN: &HookSet = &HookSet {
+impl Hooks {
+  const UNKNOWN: &Hooks = &Hooks {
     version: "unknown",
-    patch_sets: PatchSets { menu_fps: &[], game_fps: &[], game_smoothing: &[] },
+    patches: FeaturePatches::empty(),
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
     load_modules: d2::Modules::load_split_modules,
   };
 
-  fn from_game_file_version(version: FileVersion) -> &'static HookSet {
+  fn from_game_file_version(version: FileVersion) -> &'static Hooks {
     match (version.ms, version.ls) {
       (0x0001_0000, 0x0000_0001) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x5215437ecc8b67b9) => &HookSet {
-          version: "1.00",
-          patch_sets: v100::PATCHES,
-          addresses: d2::v100::ADDRESSES,
-          base_addresses: d2::v100::BASE_ADDRESSES,
-          load_modules: d2::Modules::load_split_modules,
-        },
-        Some(0x1b093efaa009e78b) => &HookSet {
-          version: "1.01",
-          patch_sets: v101::PATCHES,
-          addresses: d2::v101::ADDRESSES,
-          base_addresses: d2::v101::BASE_ADDRESSES,
-          load_modules: d2::Modules::load_split_modules,
-        },
+        Some(0x5215437ecc8b67b9) => &v100::HOOKS,
+        Some(0x1b093efaa009e78b) => &v101::HOOKS,
         _ => Self::UNKNOWN,
       },
-      (0x0001_0000, 0x0002_0000) => &HookSet {
-        version: "1.02",
-        patch_sets: v102::PATCHES,
-        addresses: d2::v102::ADDRESSES,
-        base_addresses: d2::v102::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0003_0000) => &HookSet {
-        version: "1.03",
-        patch_sets: v103::PATCHES,
-        addresses: d2::v103::ADDRESSES,
-        base_addresses: d2::v103::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0004_0001) => &HookSet {
-        version: "1.04b",
-        patch_sets: v104b::PATCHES,
-        addresses: d2::v104b::ADDRESSES,
-        base_addresses: d2::v104b::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0004_0002) => &HookSet {
-        version: "1.04c",
-        // Uses the same dll files a 1.04b
-        patch_sets: v104b::PATCHES,
-        addresses: d2::v104b::ADDRESSES,
-        base_addresses: d2::v104b::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0005_0000) => &HookSet {
-        version: "1.05",
-        patch_sets: v105::PATCHES,
-        addresses: d2::v105::ADDRESSES,
-        base_addresses: d2::v105::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0005_0001) => &HookSet {
-        version: "1.05b",
-        // Uses the same dll files a 1.05
-        patch_sets: v105::PATCHES,
-        addresses: d2::v105::ADDRESSES,
-        base_addresses: d2::v105::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
+      (0x0001_0000, 0x0002_0000) => &v102::HOOKS,
+      (0x0001_0000, 0x0003_0000) => &v103::HOOKS,
+      (0x0001_0000, 0x0004_0001) => &v104b::HOOKS,
+      (0x0001_0000, 0x0004_0002) => &v104c::HOOKS,
+      (0x0001_0000, 0x0005_0000) => &v105::HOOKS,
+      (0x0001_0000, 0x0005_0001) => &v105b::HOOKS,
       (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x73645dbfe51df9ae) => &HookSet {
-          version: "1.06",
-          patch_sets: v106::PATCHES,
-          addresses: d2::v106::ADDRESSES,
-          base_addresses: d2::v106::BASE_ADDRESSES,
-          load_modules: d2::Modules::load_split_modules,
-        },
-        Some(0x62fea87b064aec9e) => &HookSet {
-          version: "1.06b",
-          patch_sets: v106b::PATCHES,
-          addresses: d2::v106b::ADDRESSES,
-          base_addresses: d2::v106b::BASE_ADDRESSES,
-          load_modules: d2::Modules::load_split_modules,
-        },
+        Some(0x73645dbfe51df9ae) => &v106::HOOKS,
+        Some(0x62fea87b064aec9e) => &v106b::HOOKS,
         _ => Self::UNKNOWN,
       },
-      (0x0001_0000, 0x0007_0000) => &HookSet {
-        version: "1.07",
-        patch_sets: v107::PATCHES,
-        addresses: d2::v107::ADDRESSES,
-        base_addresses: d2::v107::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0008_001c) => &HookSet {
-        version: "1.08",
-        patch_sets: v108::PATCHES,
-        addresses: d2::v108::ADDRESSES,
-        base_addresses: d2::v108::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0009_0013) => &HookSet {
-        version: "1.09",
-        patch_sets: v109::PATCHES,
-        addresses: d2::v109::ADDRESSES,
-        base_addresses: d2::v109::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0009_0014) => &HookSet {
-        version: "1.09b",
-        // Uses the same dll files a 1.09
-        patch_sets: v109::PATCHES,
-        addresses: d2::v109::ADDRESSES,
-        base_addresses: d2::v109::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x0009_0016) => &HookSet {
-        version: "1.09d",
-        patch_sets: v109d::PATCHES,
-        addresses: d2::v109d::ADDRESSES,
-        base_addresses: d2::v109d::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
+      (0x0001_0000, 0x0007_0000) => &v107::HOOKS,
+      (0x0001_0000, 0x0008_001c) => &v108::HOOKS,
+      (0x0001_0000, 0x0009_0013) => &v109::HOOKS,
+      (0x0001_0000, 0x0009_0014) => &v109b::HOOKS,
+      (0x0001_0000, 0x0009_0016) => &v109d::HOOKS,
       // (0x0001_0000, 0x000a_0009) => "1.10b",
       // (0x0001_0000, 0x000a_000a) => "1.10s",
-      (0x0001_0000, 0x000a_0027) => &HookSet {
-        version: "1.10",
-        patch_sets: v110::PATCHES,
-        addresses: d2::v110::ADDRESSES,
-        base_addresses: d2::v110::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x000b_002d) => &HookSet {
-        version: "1.11",
-        patch_sets: v111::PATCHES,
-        addresses: d2::v111::ADDRESSES,
-        base_addresses: d2::v111::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x000b_002e) => &HookSet {
-        version: "1.11b",
-        patch_sets: v111b::PATCHES,
-        addresses: d2::v111b::ADDRESSES,
-        base_addresses: d2::v111b::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x000c_0031) => &HookSet {
-        version: "1.12",
-        patch_sets: v112::PATCHES,
-        addresses: d2::v112::ADDRESSES,
-        base_addresses: d2::v112::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
+      (0x0001_0000, 0x000a_0027) => &v110::HOOKS,
+      (0x0001_0000, 0x000b_002d) => &v111::HOOKS,
+      (0x0001_0000, 0x000b_002e) => &v111b::HOOKS,
+      (0x0001_0000, 0x000c_0031) => &v112::HOOKS,
       // (0x0001_0000, 0x000d_0037) => "1.13a",
-      (0x0001_0000, 0x000d_003c) => &HookSet {
-        version: "1.13c",
-        patch_sets: v113c::PATCHES,
-        addresses: d2::v113c::ADDRESSES,
-        base_addresses: d2::v113c::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_0000, 0x000d_0040) => &HookSet {
-        version: "1.13d",
-        patch_sets: v113d::PATCHES,
-        addresses: d2::v113d::ADDRESSES,
-        base_addresses: d2::v113d::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_split_modules,
-      },
-      (0x0001_000e, 0x0000_0040) => &HookSet {
-        version: "1.14a",
-        patch_sets: v114a::PATCHES,
-        addresses: d2::v114a::ADDRESSES,
-        base_addresses: d2::v114a::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_combined_module,
-      },
-      (0x0001_000e, 0x0001_0044) => &HookSet {
-        version: "1.14b",
-        patch_sets: v114b::PATCHES,
-        addresses: d2::v114b::ADDRESSES,
-        base_addresses: d2::v114b::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_combined_module,
-      },
-      (0x0001_000e, 0x0002_0046) => &HookSet {
-        version: "1.14c",
-        patch_sets: v114c::PATCHES,
-        addresses: d2::v114c::ADDRESSES,
-        base_addresses: d2::v114c::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_combined_module,
-      },
-      (0x0001_000e, 0x0003_0047) => &HookSet {
-        version: "1.14d",
-        patch_sets: v114d::PATCHES,
-        addresses: d2::v114d::ADDRESSES,
-        base_addresses: d2::v114d::BASE_ADDRESSES,
-        load_modules: d2::Modules::load_combined_module,
-      },
+      (0x0001_0000, 0x000d_003c) => &v113c::HOOKS,
+      (0x0001_0000, 0x000d_0040) => &v113d::HOOKS,
+      (0x0001_000e, 0x0000_0040) => &v114a::HOOKS,
+      (0x0001_000e, 0x0001_0044) => &v114b::HOOKS,
+      (0x0001_000e, 0x0002_0046) => &v114c::HOOKS,
+      (0x0001_000e, 0x0003_0047) => &v114d::HOOKS,
       _ => Self::UNKNOWN,
     }
   }
@@ -354,31 +188,17 @@ unsafe extern "system" fn win_proc(
 ) -> LRESULT {
   match msg {
     WM_ACTIVATE => {
-      if let Some(mut instance_lock) = D2FPS.try_lock() {
-        let instance = &mut *instance_lock;
-        if wparam != 0 {
-          timeBeginPeriod(1);
-          instance
-            .render_timer
-            .switch_rate(&instance.perf_freq, instance.frame_rate);
-        } else {
-          timeEndPeriod(1);
-          instance
-            .render_timer
-            .switch_rate(&instance.perf_freq, instance.bg_frame_rate);
-        }
-      }
+      INSTANCE.precision_timer.enable(wparam != 0);
+      INSTANCE.render_fps.copy_from_relaxed(if wparam != 0 {
+        &INSTANCE.game_fps
+      } else {
+        &INSTANCE.config.bg_fps
+      });
     }
-    WM_SIZE => {
-      if let Some(mut instance) = D2FPS.try_lock() {
-        instance.is_window_hidden = wparam == SIZE_MINIMIZED as usize;
-      }
-    }
-    WM_WINDOWPOSCHANGED => {
-      if let Some(mut instance) = D2FPS.try_lock() {
-        instance.frame_rate_from_window(hwnd);
-      }
-    }
+    WM_SIZE => INSTANCE
+      .is_window_hidden
+      .store(wparam == SIZE_MINIMIZED as usize, Relaxed),
+    WM_WINDOWPOSCHANGED => INSTANCE.frame_rate_from_window(hwnd),
     _ => {}
   }
 
@@ -414,75 +234,47 @@ impl HookManager {
     }
   }
 
-  pub(crate) fn attach(&mut self, config: &mut Config) {
-    let hook_set = match unsafe { read_file_version(GAME_EXE) } {
-      Ok(version) => HookSet::from_game_file_version(version),
+  pub fn attach(&mut self) {
+    let hooks = match unsafe { read_file_version(GAME_EXE) } {
+      Ok(version) => Hooks::from_game_file_version(version),
       Err(_) => {
         log!("Error detecting game version");
-        config.enable_smoothing = false;
+        INSTANCE.config.features.store_relaxed(Features::empty());
         return;
       }
     };
-    log!("Detected game version: {}", hook_set.version);
+    log!("Detected game version: {}", hooks.version);
 
-    let Some(modules) = (hook_set.load_modules)() else {
+    let Some(modules) = (hooks.load_modules)() else {
       log!("Disabling all features: failed to load game modules");
-      config.enable_smoothing = false;
+      INSTANCE.config.features.store_relaxed(Features::empty());
       return;
     };
-    if unsafe { self.accessor.load(&modules, &hook_set.addresses).is_err() } {
+    if unsafe { self.accessor.load(&modules, &hooks.addresses).is_err() } {
       log!("Disabling all features: failed to load game addresses");
-      config.enable_smoothing = false;
+      INSTANCE.config.features.store_relaxed(Features::empty());
       return;
     }
 
-    if hook_set.patch_sets.menu_fps.is_empty() {
-      log!("Disabling menu frame rate unlock: unsupported version");
-    } else if unsafe {
-      apply_patch_set(
-        &modules,
-        &hook_set.base_addresses,
-        hook_set.patch_sets.menu_fps,
-      )
-      .is_err()
-    } {
-      log!("Disabling menu frame rate unlock: failed to apply patches");
-    }
-
-    let mut game_fps = true;
-    if hook_set.patch_sets.game_fps.is_empty() {
-      log!("Disabling game frame rate unlock: unsupported version");
-      game_fps = false;
-    } else if unsafe {
-      apply_patch_set(
-        &modules,
-        &hook_set.base_addresses,
-        hook_set.patch_sets.game_fps,
-      )
-      .is_err()
-    } {
-      log!("Disabling game frame rate unlock: failed to apply patches");
-      game_fps = false;
-    }
-
-    if config.enable_smoothing {
-      if hook_set.patch_sets.game_smoothing.is_empty() {
-        log!("Disabling game motion smoothing: unsupported version");
-        config.enable_smoothing = false;
-      } else if !game_fps {
-        log!("Disabling game motion smoothing: game frame rate must be unlocked");
-        config.enable_smoothing = false;
-      } else if unsafe {
-        apply_patch_set(
-          &modules,
-          &hook_set.base_addresses,
-          hook_set.patch_sets.game_smoothing,
-        )
-        .is_err()
-      } {
-        log!("Failed to apply game motion smoothing patches, disabling feature");
-        config.enable_smoothing = false;
+    for (feature, patches) in hooks
+      .patches
+      .iter()
+      .filter(|(f, _)| INSTANCE.config.features.load_relaxed().intersects(f.as_flag()))
+    {
+      if !INSTANCE.config.features.load_relaxed().contains(feature.prereqs()) {
+        log!(
+          "Disabling feature `{feature}`: missing prerequisite features {}",
+          feature.prereqs().difference(INSTANCE.config.features.load_relaxed()),
+        );
+      } else if patches.is_empty() {
+        log!("Disabling feature `{feature}`: unsupported version");
+      } else if unsafe { apply_patch_set(&modules, &hooks.base_addresses, patches).is_err() } {
+        log!("Disabling feature `{feature}`: failed to apply patches");
+      } else {
+        log!("Applied feature `{feature}`");
+        continue;
       }
+      INSTANCE.config.features.remove_relaxed(feature.as_flag());
     }
   }
 }
@@ -524,7 +316,7 @@ trait Entity: d2::LinkedList {
   fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>);
 }
 
-impl D2Fps {
+impl InstanceSync {
   fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
     self
       .entity_tracker
@@ -561,8 +353,8 @@ impl D2Fps {
         GetTickCount()
       };
       if self.game_update_time_ms < cur_time_ms {
-        self.game_update_time = self.perf_freq.ms_to_sample(
-          self.perf_freq.sample_to_ms(time as u64)
+        self.game_update_time = INSTANCE.perf_freq.ms_to_sample(
+          INSTANCE.perf_freq.sample_to_ms(time as u64)
             - (cur_time_ms - self.game_update_time_ms) as u64,
         );
       } else {
@@ -597,7 +389,7 @@ impl D2Fps {
   }
 
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
-    let frame_len = self.perf_freq.ms_to_sample(40) as i64;
+    let frame_len = INSTANCE.perf_freq.ms_to_sample(40) as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
@@ -651,24 +443,24 @@ impl D2Fps {
 }
 
 extern "stdcall" fn entity_iso_xpos<E: Entity>(e: &E) -> i32 {
-  D2FPS.lock().entity_iso_pos(e).x
+  INSTANCE.sync.lock().entity_iso_pos(e).x
 }
 extern "stdcall" fn entity_iso_ypos<E: Entity>(e: &E) -> i32 {
-  D2FPS.lock().entity_iso_pos(e).y
+  INSTANCE.sync.lock().entity_iso_pos(e).y
 }
 
 extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> d2::FixedU16 {
-  D2FPS.lock().entity_linear_pos(e).x
+  INSTANCE.sync.lock().entity_linear_pos(e).x
 }
 extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FixedU16 {
-  D2FPS.lock().entity_linear_pos(e).y
+  INSTANCE.sync.lock().entity_linear_pos(e).y
 }
 
 unsafe extern "C" fn draw_game<E: Entity>() {
-  let mut instance_lock = D2FPS.lock();
-  let instance = &mut *instance_lock;
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
 
-  let Some(player) = instance.hooks.accessor.player::<E>() else {
+  let Some(player) = sync_instance.hooks.accessor.player::<E>() else {
     return;
   };
   if !player.as_ref().has_room() {
@@ -677,43 +469,47 @@ unsafe extern "C" fn draw_game<E: Entity>() {
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);
-  if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
-    let enable_smoothing = instance.frame_rate != GAME_FPS && instance.config.enable_smoothing;
+  if sync_instance
+    .render_timer
+    .update_time(time as u64, INSTANCE.render_fps.load_relaxed())
+  {
+    let enable_smoothing =
+      INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
     let prev_update_count = replace(
-      &mut instance.client_update_count,
-      instance.hooks.accessor.client_loop_globals.as_ref().updates,
+      &mut sync_instance.client_update_count,
+      sync_instance.hooks.accessor.client_loop_globals.as_ref().updates,
     );
 
     if enable_smoothing {
-      if instance.update_game_time(time) {
-        instance.update_entites_from_tables::<E>();
+      if sync_instance.update_game_time(time) {
+        sync_instance.update_entites_from_tables::<E>();
       } else {
-        instance.update_entites_from_tables_no_delta::<E>();
+        sync_instance.update_entites_from_tables_no_delta::<E>();
       }
-      instance.update_entity_positions::<E>();
+      sync_instance.update_entity_positions::<E>();
 
-      let prev_player_pos = instance.player_pos;
-      instance.player_pos = instance.entity_iso_pos(player.as_ref());
+      let prev_player_pos = sync_instance.player_pos;
+      sync_instance.player_pos = sync_instance.entity_iso_pos(player.as_ref());
 
-      if instance.client_update_count == prev_update_count {
-        instance.update_env_images(prev_player_pos);
+      if sync_instance.client_update_count == prev_update_count {
+        sync_instance.update_env_images(prev_player_pos);
       }
     } else {
-      instance.unit_offset = d2::FixedI16::default();
-      instance.player_pos = player.as_ref().iso_pos();
+      sync_instance.unit_offset = d2::FixedI16::default();
+      sync_instance.player_pos = player.as_ref().iso_pos();
     }
 
-    let draw = instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
-    let unit_offset = take(&mut instance.unit_offset);
-    drop(instance_lock);
+    let draw = sync_instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
+    let unit_offset = take(&mut sync_instance.unit_offset);
+    drop(lock);
     draw(0);
 
-    let mut instance_lock = D2FPS.lock();
-    let instance = &mut *instance_lock;
+    let mut lock = INSTANCE.sync.lock();
+    let sync_instance = &mut *lock;
 
-    instance.unit_offset = unit_offset;
-    instance.hooks.accessor.client_loop_globals.as_mut().frames_drawn += 1;
-    instance
+    sync_instance.unit_offset = unit_offset;
+    sync_instance.hooks.accessor.client_loop_globals.as_mut().frames_drawn += 1;
+    sync_instance
       .hooks
       .accessor
       .client_loop_globals
@@ -722,24 +518,24 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       .frames_drawn += 1;
 
     if enable_smoothing {
-      instance.reset_entity_positions::<E>();
+      sync_instance.reset_entity_positions::<E>();
     }
   }
 }
 
 unsafe extern "C" fn draw_game_paused() {
-  let mut instance_lock = crate::D2FPS.lock();
-  let instance = &mut *instance_lock;
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
 
   let mut cur_time = 0i64;
   QueryPerformanceCounter(&mut cur_time);
 
-  if instance
+  if sync_instance
     .render_timer
-    .update_time(cur_time as u64, &instance.perf_freq)
+    .update_time(cur_time as u64, INSTANCE.render_fps.load_relaxed())
   {
-    let draw = instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
-    drop(instance_lock);
+    let draw = sync_instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
+    drop(lock);
     draw(0);
   }
 }
@@ -748,46 +544,51 @@ unsafe extern "fastcall" fn draw_menu(
   callback: Option<extern "stdcall" fn(u32)>,
   call_count: &mut u32,
 ) {
-  let mut instance_lock = D2FPS.lock();
-  let instance = &mut *instance_lock;
-  if instance.hooks.window_hook.attach(&instance.hooks.accessor) && instance.config.fps.is_none() {
-    let hwnd = (instance.hooks.accessor.get_hwnd)();
-    instance.frame_rate_from_window(hwnd);
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
+  if sync_instance.hooks.window_hook.attach(&sync_instance.hooks.accessor)
+    && INSTANCE.config.fps.load_relaxed().num == 0
+  {
+    let hwnd = (sync_instance.hooks.accessor.get_hwnd)();
+    INSTANCE.frame_rate_from_window(hwnd);
   }
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);
 
-  if instance.render_timer.update_time(time as u64, &instance.perf_freq) {
-    if instance.menu_timer.update_time(
-      instance.render_timer.last_update(),
-      &instance.perf_freq,
+  if sync_instance
+    .render_timer
+    .update_time(time as u64, INSTANCE.render_fps.load_relaxed())
+  {
+    if sync_instance.menu_timer.update_time(
+      sync_instance.render_timer.last_update(),
       transmute(callback),
     ) {
-      instance.menu_timer_updated = true;
+      INSTANCE.menu_timer_updated.store(true, Relaxed);
       if let Some(callback) = callback {
         callback(*call_count);
         *call_count += 1;
       }
+    } else {
+      INSTANCE.menu_timer_updated.store(false, Relaxed);
     }
 
-    let draw = instance.hooks.accessor.draw_menu;
-    drop(instance_lock);
+    let draw = sync_instance.hooks.accessor.draw_menu;
+    drop(lock);
     draw();
 
-    instance_lock = D2FPS.lock();
-    instance_lock.menu_timer_updated = false;
+    lock = INSTANCE.sync.lock();
   }
 
-  let instance = &mut *instance_lock;
+  let sync_instance = &mut *lock;
   QueryPerformanceCounter(&mut time);
-  let sleep_len = (instance
+  let sleep_len = (INSTANCE
     .perf_freq
-    .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64))
+    .sample_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
     as u32)
     .saturating_sub(1)
     .min(10);
-  let sleep_len = if instance.is_window_hidden {
+  let sleep_len = if INSTANCE.is_window_hidden.load(Relaxed) {
     10
   } else {
     sleep_len
@@ -796,16 +597,22 @@ unsafe extern "fastcall" fn draw_menu(
 }
 
 unsafe extern "C" fn game_loop_sleep_hook() {
-  let instance = D2FPS.lock();
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
+
   let mut time = 0;
   QueryPerformanceCounter(&mut time);
-  let len = (instance
+  let len = (INSTANCE
     .perf_freq
-    .sample_to_ms(instance.render_timer.next_update().saturating_sub(time as u64))
+    .sample_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
     as u32)
     .saturating_sub(1);
-  let len = if instance.is_window_hidden { 10 } else { len };
-  let limit = if instance.hooks.accessor.game_type.as_ref().is_host() {
+  let len = if INSTANCE.is_window_hidden.load(Relaxed) {
+    10
+  } else {
+    len
+  };
+  let limit = if sync_instance.hooks.accessor.game_type.as_ref().is_host() {
     2
   } else {
     10
@@ -814,16 +621,18 @@ unsafe extern "C" fn game_loop_sleep_hook() {
 }
 
 unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -> u32 {
-  if D2FPS.lock().menu_timer_updated {
+  if INSTANCE.menu_timer_updated.load(Relaxed) {
     *frame += rate;
   }
   *frame
 }
 
 unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) -> usize {
-  let mut instance = D2FPS.lock();
-  if let Some(pos) = instance.entity_tracker.get(UnitId { kind, id }) {
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
+
+  if let Some(pos) = sync_instance.entity_tracker.get(UnitId { kind, id }) {
     pos.teleport = true;
   }
-  instance.hooks.accessor.apply_pos_change
+  sync_instance.hooks.accessor.apply_pos_change
 }

@@ -1,9 +1,10 @@
 use core::{
   fmt,
   mem::{size_of, zeroed},
-  num::{NonZeroU32, NonZeroU64},
+  num::NonZeroU32,
   ptr::null_mut,
   str::FromStr,
+  sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
 };
 use gcd::Gcd;
 use std::{
@@ -21,6 +22,7 @@ use windows_sys::{
     },
     Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HMODULE},
     Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFOEXW},
+    Media::{timeBeginPeriod, timeEndPeriod},
     Storage::FileSystem::{
       GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
     },
@@ -40,6 +42,11 @@ pub struct Ratio {
   pub den: NonZeroU32,
 }
 impl Ratio {
+  pub const ZERO: Self = Self {
+    num: 0,
+    den: unsafe { NonZeroU32::new_unchecked(1) },
+  };
+
   pub const fn new(num: u32, den: NonZeroU32) -> Self {
     Self { num, den }
   }
@@ -81,40 +88,89 @@ impl fmt::Debug for Ratio {
   }
 }
 
-#[derive(Clone, Copy)]
+pub struct AtomicRatio {
+  ratio: AtomicU64,
+}
+impl AtomicRatio {
+  #[allow(clippy::declare_interior_mutable_const)]
+  pub const ZERO: Self = Self::new(Ratio::ZERO);
+
+  pub const fn new(r: Ratio) -> Self {
+    let x = r.num as u64 | ((r.den.get() as u64) << 32);
+    Self { ratio: AtomicU64::new(x) }
+  }
+
+  pub fn load_relaxed(&self) -> Ratio {
+    let x = self.ratio.load(Relaxed);
+    let n = x as u32;
+    let d = (x >> 32) as u32;
+    Ratio::new(n, unsafe { NonZeroU32::new_unchecked(d) })
+  }
+
+  pub fn store_relaxed(&self, r: Ratio) {
+    let x = r.num as u64 | ((r.den.get() as u64) << 32);
+    self.ratio.store(x, Relaxed);
+  }
+
+  pub fn copy_from_relaxed(&self, other: &Self) {
+    self.ratio.store(other.ratio.load(Relaxed), Relaxed);
+  }
+}
+
 pub struct PerfFreq {
-  for_s: NonZeroU64,
-  for_ms: NonZeroU64,
+  for_s: AtomicU64,
+  for_ms: AtomicU64,
 }
 impl PerfFreq {
   pub const fn uninit() -> Self {
     Self {
-      for_s: unsafe { NonZeroU64::new_unchecked(1000) },
-      for_ms: unsafe { NonZeroU64::new_unchecked(1) },
+      for_s: AtomicU64::new(1000),
+      for_ms: AtomicU64::new(1),
     }
   }
 
-  pub fn init(&mut self) -> bool {
+  pub fn init(&self) -> bool {
     let mut freq = 0i64;
     if unsafe { QueryPerformanceFrequency(&mut freq) } == 0 || freq < 1000 {
       return false;
     }
-    self.for_s = NonZeroU64::new(freq as u64).unwrap();
-    self.for_ms = NonZeroU64::new(freq as u64 / 1000).unwrap();
+    self.for_s.store(freq as u64, Relaxed);
+    self.for_ms.store(freq as u64 / 1000, Relaxed);
 
     true
   }
 
   pub fn s_to_sample(&self, s: u64) -> u64 {
-    s * self.for_s.get()
+    s * self.for_s.load(Relaxed)
   }
 
   pub fn sample_to_ms(&self, sample: u64) -> u64 {
-    sample / self.for_ms.get()
+    sample / self.for_ms.load(Relaxed)
   }
 
   pub fn ms_to_sample(&self, ms: u64) -> u64 {
-    ms * self.for_ms.get()
+    ms * self.for_ms.load(Relaxed)
+  }
+}
+
+pub struct PrecisionTimer {
+  enabled: AtomicBool,
+}
+impl PrecisionTimer {
+  pub const fn new() -> Self {
+    Self { enabled: AtomicBool::new(false) }
+  }
+
+  pub fn enable(&self, enabled: bool) {
+    match (self.enabled.swap(enabled, Relaxed), enabled) {
+      (true, true) | (false, false) => (),
+      (false, true) => unsafe {
+        timeBeginPeriod(1);
+      },
+      (true, false) => unsafe {
+        timeEndPeriod(1);
+      },
+    }
   }
 }
 

@@ -75,13 +75,13 @@ impl Index<Module> for Modules {
   type Output = HMODULE;
 
   fn index(&self, index: Module) -> &Self::Output {
-    match index {
-      Module::GameExe | Module::Client => &self.modules[0],
-      Module::Common => &self.modules[1],
-      Module::Game => &self.modules[2],
-      Module::Gfx => &self.modules[3],
-      Module::Win => &self.modules[4],
-    }
+    &self.modules[match index {
+      Module::GameExe | Module::Client => 0,
+      Module::Common => 1,
+      Module::Game => 2,
+      Module::Gfx => 3,
+      Module::Win => 4,
+    }]
   }
 }
 
