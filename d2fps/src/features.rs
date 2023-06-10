@@ -51,6 +51,7 @@ bitflags! {
   pub struct Features: u32 {
     const MenuFps = 1;
     const GameFps = 2;
+    const Fps = 3;
     const MotionSmoothing = 4;
   }
 }
@@ -121,6 +122,10 @@ impl AtomicFeatures {
 
   pub fn motion_smoothing(&self) -> bool {
     self.load_relaxed().intersects(Features::MotionSmoothing)
+  }
+
+  pub fn fps(&self) -> bool {
+    self.load_relaxed().intersects(Features::Fps)
   }
 }
 

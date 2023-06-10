@@ -1,9 +1,14 @@
 use crate::{
-  hooks::HookManager,
+  config::Config,
+  hooks::GameAccessor,
   limiter::{MenuAnimRateLimiter, VariableRateLimiter},
-  util::{log_loaded_modules, PerfFreq, Ratio},
+  tracker::EntityTracker,
+  util::{
+    log_loaded_modules, message_box_error, monitor_refresh_rate, AtomicRatio, PerfFreq,
+    PrecisionTimer, Ratio,
+  },
+  window::WindowHook,
 };
-use config::Config;
 use core::{
   ffi::c_void,
   num::NonZeroU32,
@@ -12,8 +17,6 @@ use core::{
 use d2interface::{FixedI16, IsoPos};
 use parking_lot::Mutex;
 use std::panic::set_hook;
-use tracker::EntityTracker;
-use util::{message_box_error, monitor_refresh_rate, AtomicRatio, PrecisionTimer};
 use windows_sys::Win32::{
   Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
   Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST},
@@ -41,11 +44,12 @@ mod limiter;
 mod logger;
 mod tracker;
 mod util;
+mod window;
 
 const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
 
 struct InstanceSync {
-  hooks: HookManager,
+  accessor: GameAccessor,
   entity_tracker: EntityTracker,
   render_timer: VariableRateLimiter,
   menu_timer: MenuAnimRateLimiter,
@@ -66,6 +70,7 @@ struct Instance {
   is_window_hidden: AtomicBool,
   perf_freq: PerfFreq,
   menu_timer_updated: AtomicBool,
+  window_hook: WindowHook,
 }
 impl Instance {
   unsafe fn frame_rate_from_window(&self, hwnd: HWND) {
@@ -83,7 +88,7 @@ impl Instance {
 }
 static INSTANCE: Instance = Instance {
   sync: Mutex::new(InstanceSync {
-    hooks: HookManager::new(),
+    accessor: GameAccessor::new(),
     entity_tracker: EntityTracker::new(),
     render_timer: VariableRateLimiter::new(),
     menu_timer: MenuAnimRateLimiter::new(),
@@ -102,6 +107,7 @@ static INSTANCE: Instance = Instance {
   is_window_hidden: AtomicBool::new(false),
   perf_freq: PerfFreq::uninit(),
   menu_timer_updated: AtomicBool::new(false),
+  window_hook: WindowHook::new(),
 };
 
 #[no_mangle]
@@ -171,7 +177,6 @@ pub extern "C" fn attach_hooks() {
 
       log!("Attaching D2fps...");
       INSTANCE.config.load_config();
-      INSTANCE.precision_timer.enable(true);
       let config_fps = INSTANCE.config.fps.load_relaxed();
       let game_fps = if config_fps.num == 0 {
         GAME_FPS
@@ -180,7 +185,12 @@ pub extern "C" fn attach_hooks() {
       };
       INSTANCE.game_fps.store_relaxed(game_fps);
       INSTANCE.render_fps.store_relaxed(game_fps);
-      sync_instance.hooks.attach();
+      sync_instance.attach();
+
+      if INSTANCE.config.features.fps() {
+        INSTANCE.precision_timer.enable(true);
+      }
+
       log_loaded_modules();
 
       INSTANCE.is_attached.store(true, Relaxed);

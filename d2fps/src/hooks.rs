@@ -13,15 +13,11 @@ use d2interface as d2;
 use windows_sys::{
   w,
   Win32::{
-    Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+    Foundation::HWND,
     Media::timeGetTime,
     System::{
       LibraryLoader::GetModuleHandleW, Performance::QueryPerformanceCounter,
       SystemInformation::GetTickCount, Threading::Sleep,
-    },
-    UI::{
-      Shell::{DefSubclassProc, SetWindowSubclass},
-      WindowsAndMessaging::{SIZE_MINIMIZED, WM_ACTIVATE, WM_SIZE, WM_WINDOWPOSCHANGED},
     },
   },
 };
@@ -125,7 +121,7 @@ pub struct GameAccessor {
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
-  const fn new() -> Self {
+  pub const fn new() -> Self {
     Self {
       player: NonNull::dangling(),
       env_effects: NonNull::dangling(),
@@ -178,62 +174,7 @@ impl GameAccessor {
   }
 }
 
-unsafe extern "system" fn win_proc(
-  hwnd: HWND,
-  msg: u32,
-  wparam: WPARAM,
-  lparam: LPARAM,
-  _: usize,
-  _: usize,
-) -> LRESULT {
-  match msg {
-    WM_ACTIVATE => {
-      INSTANCE.precision_timer.enable(wparam != 0);
-      INSTANCE.render_fps.copy_from_relaxed(if wparam != 0 {
-        &INSTANCE.game_fps
-      } else {
-        &INSTANCE.config.bg_fps
-      });
-    }
-    WM_SIZE => INSTANCE
-      .is_window_hidden
-      .store(wparam == SIZE_MINIMIZED as usize, Relaxed),
-    WM_WINDOWPOSCHANGED => INSTANCE.frame_rate_from_window(hwnd),
-    _ => {}
-  }
-
-  DefSubclassProc(hwnd, msg, wparam, lparam)
-}
-
-struct WindowHook(bool);
-impl WindowHook {
-  const ID: usize = 59384;
-
-  pub unsafe fn attach(&mut self, accessor: &GameAccessor) -> bool {
-    if !self.0 {
-      let hwnd = (accessor.get_hwnd)();
-      if hwnd != 0 {
-        self.0 = true;
-        SetWindowSubclass(hwnd, Some(win_proc), Self::ID, 0);
-        return true;
-      }
-    }
-    false
-  }
-}
-
-pub struct HookManager {
-  accessor: GameAccessor,
-  window_hook: WindowHook,
-}
-impl HookManager {
-  pub const fn new() -> Self {
-    Self {
-      accessor: GameAccessor::new(),
-      window_hook: WindowHook(false),
-    }
-  }
-
+impl InstanceSync {
   pub fn attach(&mut self) {
     let hooks = match unsafe { read_file_version(GAME_EXE) } {
       Ok(version) => Hooks::from_game_file_version(version),
@@ -339,12 +280,12 @@ impl InstanceSync {
   }
 
   unsafe fn update_game_time(&mut self, time: i64) -> bool {
-    let is_sp = self.hooks.accessor.game_type.as_ref().is_sp();
+    let is_sp = self.accessor.game_type.as_ref().is_sp();
     let prev_update_time = self.game_update_time_ms;
     self.game_update_time_ms = if is_sp {
-      *self.hooks.accessor.server_update_time.as_ptr()
+      *self.accessor.server_update_time.as_ptr()
     } else {
-      self.hooks.accessor.client_loop_globals.as_ref().last_update
+      self.accessor.client_loop_globals.as_ref().last_update
     };
     if self.game_update_time_ms != prev_update_time {
       let cur_time_ms = if is_sp {
@@ -369,14 +310,14 @@ impl InstanceSync {
   }
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
-    self.hooks.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
+    self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
       self.entity_tracker.insert_or_update(e.unit_id(), e.linear_pos());
     });
     self.entity_tracker.clear_unused();
   }
 
   unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
-    self.hooks.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
+    self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
       if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
         let epos = e.linear_pos();
         if pos.real != epos && pos.teleport {
@@ -396,43 +337,33 @@ impl InstanceSync {
     let fract = (offset << 16) / frame_len;
     self.unit_offset = d2::FixedI16::from_repr(fract as i32);
 
-    self
-      .hooks
-      .accessor
-      .active_entities::<T>()
-      .as_mut()
-      .for_each_dy_mut(|e| {
-        if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
-          e.set_pos(pos.for_time(self.unit_offset));
-        }
-      });
+    self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
+      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+        e.set_pos(pos.for_time(self.unit_offset));
+      }
+    });
   }
 
   unsafe fn reset_entity_positions<T: Entity>(&mut self) {
-    self
-      .hooks
-      .accessor
-      .active_entities::<T>()
-      .as_mut()
-      .for_each_dy_mut(|e| {
-        if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
-          e.set_pos(pos.real);
-        }
-      });
+    self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
+      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+        e.set_pos(pos.real);
+      }
+    });
   }
 
   unsafe fn update_env_images(&mut self, prev_pos: d2::IsoPos<i32>) {
-    if (self.hooks.accessor.in_perspective)() == 0 {
+    if (self.accessor.in_perspective)() == 0 {
       let dx = prev_pos.x.wrapping_sub(self.player_pos.x) as u32;
       let dy = prev_pos.y.wrapping_sub(self.player_pos.y) as u32;
 
-      if let Some(mut splashes) = self.hooks.accessor.env_effects.as_mut().splashes {
+      if let Some(mut splashes) = self.accessor.env_effects.as_mut().splashes {
         for splash in splashes.as_mut().as_mut_slice() {
           splash.pos.x = splash.pos.x.wrapping_add(dx);
           splash.pos.y = splash.pos.y.wrapping_add(dy);
         }
       }
-      if let Some(mut bubbles) = self.hooks.accessor.env_effects.as_mut().bubbles {
+      if let Some(mut bubbles) = self.accessor.env_effects.as_mut().bubbles {
         for bubble in bubbles.as_mut().as_mut_slice() {
           bubble.pos.x = bubble.pos.x.wrapping_add(dx);
           bubble.pos.y = bubble.pos.y.wrapping_add(dy);
@@ -460,7 +391,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
 
-  let Some(player) = sync_instance.hooks.accessor.player::<E>() else {
+  let Some(player) = sync_instance.accessor.player::<E>() else {
     return;
   };
   if !player.as_ref().has_room() {
@@ -477,7 +408,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
     let prev_update_count = replace(
       &mut sync_instance.client_update_count,
-      sync_instance.hooks.accessor.client_loop_globals.as_ref().updates,
+      sync_instance.accessor.client_loop_globals.as_ref().updates,
     );
 
     if enable_smoothing {
@@ -499,7 +430,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       sync_instance.player_pos = player.as_ref().iso_pos();
     }
 
-    let draw = sync_instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
+    let draw = sync_instance.accessor.client_loop_globals.as_ref().draw_fn;
     let unit_offset = take(&mut sync_instance.unit_offset);
     drop(lock);
     draw(0);
@@ -508,9 +439,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     let sync_instance = &mut *lock;
 
     sync_instance.unit_offset = unit_offset;
-    sync_instance.hooks.accessor.client_loop_globals.as_mut().frames_drawn += 1;
+    sync_instance.accessor.client_loop_globals.as_mut().frames_drawn += 1;
     sync_instance
-      .hooks
       .accessor
       .client_loop_globals
       .as_mut()
@@ -534,7 +464,7 @@ unsafe extern "C" fn draw_game_paused() {
     .render_timer
     .update_time(cur_time as u64, INSTANCE.render_fps.load_relaxed())
   {
-    let draw = sync_instance.hooks.accessor.client_loop_globals.as_ref().draw_fn;
+    let draw = sync_instance.accessor.client_loop_globals.as_ref().draw_fn;
     drop(lock);
     draw(0);
   }
@@ -546,10 +476,10 @@ unsafe extern "fastcall" fn draw_menu(
 ) {
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
-  if sync_instance.hooks.window_hook.attach(&sync_instance.hooks.accessor)
+  if INSTANCE.window_hook.attach(&sync_instance.accessor)
     && INSTANCE.config.fps.load_relaxed().num == 0
   {
-    let hwnd = (sync_instance.hooks.accessor.get_hwnd)();
+    let hwnd = (sync_instance.accessor.get_hwnd)();
     INSTANCE.frame_rate_from_window(hwnd);
   }
 
@@ -573,7 +503,7 @@ unsafe extern "fastcall" fn draw_menu(
       INSTANCE.menu_timer_updated.store(false, Relaxed);
     }
 
-    let draw = sync_instance.hooks.accessor.draw_menu;
+    let draw = sync_instance.accessor.draw_menu;
     drop(lock);
     draw();
 
@@ -612,7 +542,7 @@ unsafe extern "C" fn game_loop_sleep_hook() {
   } else {
     len
   };
-  let limit = if sync_instance.hooks.accessor.game_type.as_ref().is_host() {
+  let limit = if sync_instance.accessor.game_type.as_ref().is_host() {
     2
   } else {
     10
@@ -634,5 +564,5 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
   if let Some(pos) = sync_instance.entity_tracker.get(UnitId { kind, id }) {
     pos.teleport = true;
   }
-  sync_instance.hooks.accessor.apply_pos_change
+  sync_instance.accessor.apply_pos_change
 }
