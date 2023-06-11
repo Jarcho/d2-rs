@@ -1,15 +1,16 @@
 use crate::{
   features::{FeaturePatches, Features, ModulePatches},
-  tracker::UnitId,
   util::{hash_module_file, read_file_version, FileVersion},
   InstanceSync, GAME_FPS, INSTANCE,
 };
 use core::{
+  hash::Hash,
   mem::{replace, take, transmute},
   ptr::NonNull,
   sync::atomic::Ordering::Relaxed,
 };
 use d2interface as d2;
+use std::collections::hash_map::Entry;
 use windows_sys::{
   w,
   Win32::{
@@ -249,6 +250,55 @@ unsafe fn apply_patch_set(
   Ok(())
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UnitId {
+  pub kind: d2::EntityKind,
+  pub id: u32,
+}
+impl UnitId {
+  pub const fn new(kind: d2::EntityKind, id: u32) -> Self {
+    Self { kind, id }
+  }
+}
+
+#[derive(Clone, Copy)]
+pub struct Position {
+  pub real: d2::LinearPos<d2::FixedU16>,
+  pub delta: d2::LinearPos<d2::FixedI16>,
+  pub teleport: bool,
+  pub active: bool,
+}
+impl Position {
+  pub fn for_time(&self, fract: d2::FixedI16) -> d2::LinearPos<d2::FixedU16> {
+    let x = ((self.delta.x.repr() as i64 * fract.repr() as i64) >> 16) as u32;
+    let y = ((self.delta.y.repr() as i64 * fract.repr() as i64) >> 16) as u32;
+    let x = self.real.x.repr().wrapping_add(x);
+    let y = self.real.y.repr().wrapping_add(y);
+    d2::LinearPos::new(d2::FixedU16::from_repr(x), d2::FixedU16::from_repr(y))
+  }
+
+  fn update_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
+    let dx = pos.x.repr().wrapping_sub(self.real.x.repr()) as i32;
+    let dy = pos.y.repr().wrapping_sub(self.real.y.repr()) as i32;
+    self.real = pos;
+    self.delta = if self.teleport {
+      d2::LinearPos::default()
+    } else {
+      d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy))
+    };
+    self.teleport = false;
+  }
+
+  fn new(pos: d2::LinearPos<d2::FixedU16>) -> Self {
+    Self {
+      real: pos,
+      delta: d2::LinearPos::default(),
+      teleport: false,
+      active: true,
+    }
+  }
+}
+
 trait Entity: d2::LinkedList {
   fn unit_id(&self) -> UnitId;
   fn has_room(&self) -> bool;
@@ -261,7 +311,9 @@ impl InstanceSync {
   fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
     self
       .entity_tracker
-      .get(e.unit_id())
+      .as_mut()
+      .unwrap()
+      .get(&e.unit_id())
       .map(|pos| pos.for_time(self.unit_offset))
   }
 
@@ -310,15 +362,29 @@ impl InstanceSync {
   }
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
+    let tracker = self.entity_tracker.as_mut().unwrap();
     self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
-      self.entity_tracker.insert_or_update(e.unit_id(), e.linear_pos());
+      match tracker.entry(e.unit_id()) {
+        Entry::Occupied(mut x) => {
+          x.get_mut().update_pos(e.linear_pos());
+          x.get_mut().active = true;
+        }
+        Entry::Vacant(x) => {
+          x.insert(Position::new(e.linear_pos()));
+        }
+      }
     });
-    self.entity_tracker.clear_unused();
+    tracker.drain_filter(|_, v| {
+      let active = v.active;
+      v.active = false;
+      !active
+    });
   }
 
   unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
+    let tracker = self.entity_tracker.as_mut().unwrap();
     self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
-      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+      if let Some(pos) = tracker.get_mut(&e.unit_id()) {
         let epos = e.linear_pos();
         if pos.real != epos && pos.teleport {
           pos.delta = d2::LinearPos::default();
@@ -337,16 +403,18 @@ impl InstanceSync {
     let fract = (offset << 16) / frame_len;
     self.unit_offset = d2::FixedI16::from_repr(fract as i32);
 
+    let tracker = self.entity_tracker.as_ref().unwrap();
     self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
-      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+      if let Some(pos) = tracker.get(&e.unit_id()) {
         e.set_pos(pos.for_time(self.unit_offset));
       }
     });
   }
 
   unsafe fn reset_entity_positions<T: Entity>(&mut self) {
+    let tracker = self.entity_tracker.as_ref().unwrap();
     self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
-      if let Some(pos) = self.entity_tracker.get(e.unit_id()) {
+      if let Some(pos) = tracker.get(&e.unit_id()) {
         e.set_pos(pos.real);
       }
     });
@@ -561,7 +629,12 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
 
-  if let Some(pos) = sync_instance.entity_tracker.get(UnitId { kind, id }) {
+  if let Some(pos) = sync_instance
+    .entity_tracker
+    .as_mut()
+    .unwrap()
+    .get_mut(&UnitId { kind, id })
+  {
     pos.teleport = true;
   }
   sync_instance.accessor.apply_pos_change

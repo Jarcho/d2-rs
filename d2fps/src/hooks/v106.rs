@@ -2,9 +2,8 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks,
+    entity_linear_ypos, game_loop_sleep_hook, Hooks, UnitId,
   },
-  tracker::UnitId,
 };
 use bin_patch::{patch_source, Patch};
 use d2interface::{

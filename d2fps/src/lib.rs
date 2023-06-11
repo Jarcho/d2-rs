@@ -1,8 +1,9 @@
+#![feature(hash_drain_filter)]
+
 use crate::{
   config::Config,
-  hooks::GameAccessor,
+  hooks::{GameAccessor, Position, UnitId},
   limiter::{MenuAnimRateLimiter, VariableRateLimiter},
-  tracker::EntityTracker,
   util::{
     log_loaded_modules, message_box_error, monitor_refresh_rate, AtomicRatio, PerfFreq,
     PrecisionTimer, Ratio,
@@ -15,6 +16,7 @@ use core::{
   sync::atomic::{AtomicBool, AtomicIsize, Ordering::Relaxed},
 };
 use d2interface::{FixedI16, IsoPos};
+use fxhash::FxHashMap as HashMap;
 use parking_lot::Mutex;
 use std::panic::set_hook;
 use windows_sys::Win32::{
@@ -42,7 +44,6 @@ mod features;
 mod hooks;
 mod limiter;
 mod logger;
-mod tracker;
 mod util;
 mod window;
 
@@ -50,7 +51,7 @@ const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
 
 struct InstanceSync {
   accessor: GameAccessor,
-  entity_tracker: EntityTracker,
+  entity_tracker: Option<HashMap<UnitId, Position>>,
   render_timer: VariableRateLimiter,
   menu_timer: MenuAnimRateLimiter,
   game_update_time_ms: u32,
@@ -89,7 +90,7 @@ impl Instance {
 static INSTANCE: Instance = Instance {
   sync: Mutex::new(InstanceSync {
     accessor: GameAccessor::new(),
-    entity_tracker: EntityTracker::new(),
+    entity_tracker: None,
     render_timer: VariableRateLimiter::new(),
     menu_timer: MenuAnimRateLimiter::new(),
     game_update_time_ms: 0,
@@ -185,6 +186,10 @@ pub extern "C" fn attach_hooks() {
       };
       INSTANCE.game_fps.store_relaxed(game_fps);
       INSTANCE.render_fps.store_relaxed(game_fps);
+      sync_instance.entity_tracker = Some(HashMap::with_capacity_and_hasher(
+        2048,
+        fxhash::FxBuildHasher::default(),
+      ));
       sync_instance.attach();
 
       if INSTANCE.config.features.fps() {
