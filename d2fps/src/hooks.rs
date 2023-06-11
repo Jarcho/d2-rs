@@ -308,6 +308,12 @@ trait Entity: d2::LinkedList {
 }
 
 impl InstanceSync {
+  unsafe fn hook_window(&self) {
+    if INSTANCE.window_hook.attach(&self.accessor) && INSTANCE.config.fps.load_relaxed().num == 0 {
+      INSTANCE.frame_rate_from_window((self.accessor.get_hwnd)());
+    }
+  }
+
   fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
     self
       .entity_tracker
@@ -458,6 +464,7 @@ extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FixedU16 {
 unsafe extern "C" fn draw_game<E: Entity>() {
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
+  sync_instance.hook_window();
 
   let Some(player) = sync_instance.accessor.player::<E>() else {
     return;
@@ -544,12 +551,7 @@ unsafe extern "fastcall" fn draw_menu(
 ) {
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
-  if INSTANCE.window_hook.attach(&sync_instance.accessor)
-    && INSTANCE.config.fps.load_relaxed().num == 0
-  {
-    let hwnd = (sync_instance.accessor.get_hwnd)();
-    INSTANCE.frame_rate_from_window(hwnd);
-  }
+  sync_instance.hook_window();
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);
