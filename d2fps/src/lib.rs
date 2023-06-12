@@ -161,7 +161,7 @@ pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn attach_hooks() {
+unsafe extern "stdcall" fn Init() {
   let mut is_attached;
   loop {
     is_attached = INSTANCE.is_attached.load(Relaxed);
@@ -203,4 +203,10 @@ pub extern "C" fn attach_hooks() {
 
     return;
   }
+}
+
+#[no_mangle]
+unsafe extern "stdcall" fn InitD2Mod(_: u32) -> u32 {
+  Init();
+  0
 }

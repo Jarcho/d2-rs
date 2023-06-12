@@ -1,4 +1,5 @@
 LIBRARY d2fps
 EXPORTS
 _DllMain@12
-attach_hooks
+_Init@0
+_Init@4=_InitD2Mod@4
