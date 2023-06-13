@@ -17,7 +17,7 @@ unsafe extern "system" fn win_proc(
   _: usize,
 ) -> LRESULT {
   match msg {
-    WM_ACTIVATE => {
+    WM_ACTIVATE if INSTANCE.config.bg_fps.load_relaxed().num != 0 => {
       INSTANCE.precision_timer.enable(wparam != 0);
       INSTANCE.render_fps.copy_from_relaxed(if wparam != 0 {
         &INSTANCE.game_fps

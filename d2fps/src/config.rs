@@ -14,7 +14,7 @@ impl Config {
   pub const fn new() -> Self {
     Self {
       fps: AtomicRatio::ZERO,
-      bg_fps: AtomicRatio::ZERO,
+      bg_fps: AtomicRatio::new(GAME_FPS),
       features: AtomicFeatures::ALL,
     }
   }
@@ -90,10 +90,6 @@ impl Config {
           }
         }
       }
-    }
-
-    if self.bg_fps.load_relaxed().num == 0 {
-      self.bg_fps.store_relaxed(GAME_FPS);
     }
 
     log!(
