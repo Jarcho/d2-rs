@@ -25,10 +25,10 @@ impl Config {
         .lines()
         .enumerate()
         .map(|(i, x)| (i + 1, x.trim_start()))
-        .filter(|&(_, x)| !(x.is_empty() || x.as_bytes()[0] == b'#'))
+        .filter(|&(_, x)| !(x.is_empty() || x.as_bytes()[0] == b';'))
       {
         if let Some((k, v)) = line.split_once('=') {
-          let v = v.split_once('#').map_or(v, |(x, _)| x);
+          let v = v.split_once(';').map_or(v, |(x, _)| x);
           let v = v.trim();
           match k.trim_end() {
             "fps" => match v.parse() {
