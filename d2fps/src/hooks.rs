@@ -242,20 +242,21 @@ unsafe fn try_apply_patch_set(
   base_addresses: &d2::BaseAddresses,
   mod_patches: &[ModulePatches],
 ) -> Result<(), ()> {
-  let mut success = true;
-
-  for m in mod_patches {
-    let d2mod = modules[m.module];
-    let reloc_dist = d2mod.wrapping_sub(base_addresses[m.module] as isize);
-    for p in m.patches {
-      if !p.has_expected(d2mod, reloc_dist) {
-        success = false;
-        log!("Failed to apply patch at: {}+{:#x}", m.module, p.offset);
+  if INSTANCE.config.integrity_checks.load(Relaxed) {
+    let mut success = true;
+    for m in mod_patches {
+      let d2mod = modules[m.module];
+      let reloc_dist = d2mod.wrapping_sub(base_addresses[m.module] as isize);
+      for p in m.patches {
+        if !p.has_expected(d2mod, reloc_dist) {
+          success = false;
+          log!("Failed to apply patch at: {}+{:#x}", m.module, p.offset);
+        }
       }
     }
-  }
-  if !success {
-    return Err(());
+    if !success {
+      return Err(());
+    }
   }
   apply_patch_set(modules, mod_patches);
   Ok(())

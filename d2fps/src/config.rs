@@ -11,6 +11,7 @@ pub(crate) struct Config {
   pub bg_fps: AtomicRatio,
   pub features: AtomicFeatures,
   pub reapply_patches: AtomicBool,
+  pub integrity_checks: AtomicBool,
 }
 impl Config {
   pub const fn new() -> Self {
@@ -19,6 +20,7 @@ impl Config {
       bg_fps: AtomicRatio::new(GAME_FPS),
       features: AtomicFeatures::ALL,
       reapply_patches: AtomicBool::new(true),
+      integrity_checks: AtomicBool::new(true),
     }
   }
 
@@ -56,6 +58,10 @@ impl Config {
             },
             "reapply-patches" => match v.parse() {
               Ok(v) => self.reapply_patches.store(v, Relaxed),
+              Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
+            },
+            "integrity-checks" => match v.parse() {
+              Ok(v) => self.integrity_checks.store(v, Relaxed),
               Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
             },
 
@@ -100,11 +106,17 @@ impl Config {
     }
 
     log!(
-      "Loaded config:\n  fps: {}\n  bg-fps: {}\n  features: {}\n  reapply-patches: {}",
+      "Loaded config:\
+      \n  fps: {}\
+      \n  bg-fps: {}\
+      \n  features: {}\
+      \n  reapply-patches: {}\
+      \n  integrity-checks: {}",
       self.fps.load_relaxed(),
       self.bg_fps.load_relaxed(),
       self.features.load_relaxed(),
       self.reapply_patches.load(Relaxed),
+      self.integrity_checks.load(Relaxed),
     );
   }
 }
