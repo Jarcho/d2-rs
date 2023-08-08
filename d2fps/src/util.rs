@@ -66,10 +66,27 @@ impl FromStr for Ratio {
         let den = NonZeroU32::new(den).ok_or(())?;
         Ok(Ratio { num, den }.reduced())
       }
-      None => Ok(Ratio {
-        num: s.parse().map_err(|_| ())?,
-        den: NonZeroU32::new(1).ok_or(())?,
-      }),
+      None => match s.split_once('.') {
+        Some((whole, fract)) => {
+          let mut num: u64 = whole.parse().map_err(|_| ())?;
+          let mut fract: u64 = fract.parse().map_err(|_| ())?;
+          let mut den = 1u64;
+          while fract != 0 {
+            den = den.checked_mul(10).ok_or(())?;
+            num = num.checked_mul(10).ok_or(())?.checked_add(fract % 10).ok_or(())?;
+            fract /= 10;
+          }
+          let d = num.gcd_binary(den);
+          Ok(Ratio {
+            num: (num / d).try_into().map_err(|_| ())?,
+            den: NonZeroU32::new((den / d).try_into().map_err(|_| ())?).ok_or(())?,
+          })
+        }
+        None => Ok(Ratio {
+          num: s.parse().map_err(|_| ())?,
+          den: NonZeroU32::new(1).ok_or(())?,
+        }),
+      },
     }
   }
 }
