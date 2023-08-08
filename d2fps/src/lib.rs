@@ -1,5 +1,6 @@
 use crate::{
   config::Config,
+  features::FeaturePatches,
   hooks::{GameAccessor, Position, UnitId},
   limiter::{MenuAnimRateLimiter, VariableRateLimiter},
   util::{
@@ -13,7 +14,7 @@ use core::{
   num::NonZeroU32,
   sync::atomic::{AtomicBool, AtomicIsize, Ordering::Relaxed},
 };
-use d2interface::{FixedI16, IsoPos};
+use d2interface as d2;
 use fxhash::FxHashMap as HashMap;
 use parking_lot::Mutex;
 use std::panic::set_hook;
@@ -55,8 +56,9 @@ struct InstanceSync {
   game_update_time_ms: u32,
   game_update_time: u64,
   client_update_count: u32,
-  player_pos: IsoPos<i32>,
-  unit_offset: FixedI16,
+  player_pos: d2::IsoPos<i32>,
+  unit_offset: d2::FixedI16,
+  reapply_patches: Option<(&'static FeaturePatches, d2::Modules)>,
 }
 struct Instance {
   sync: Mutex<InstanceSync>,
@@ -94,8 +96,9 @@ static INSTANCE: Instance = Instance {
     game_update_time_ms: 0,
     game_update_time: 0,
     client_update_count: 0,
-    player_pos: IsoPos::new(0, 0),
-    unit_offset: FixedI16::from_repr(0),
+    player_pos: d2::IsoPos::new(0, 0),
+    unit_offset: d2::FixedI16::from_repr(0),
+    reapply_patches: None,
   }),
   config: Config::new(),
   game_fps: AtomicRatio::new(GAME_FPS),

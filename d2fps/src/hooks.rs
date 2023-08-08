@@ -210,7 +210,7 @@ impl InstanceSync {
         );
       } else if patches.is_empty() {
         log!("Disabling feature `{feature}`: unsupported version");
-      } else if unsafe { apply_patch_set(&modules, &hooks.base_addresses, patches).is_err() } {
+      } else if unsafe { try_apply_patch_set(&modules, &hooks.base_addresses, patches).is_err() } {
         log!("Disabling feature `{feature}`: failed to apply patches");
       } else {
         log!("Applied feature `{feature}`");
@@ -218,10 +218,26 @@ impl InstanceSync {
       }
       INSTANCE.config.features.remove_relaxed(feature.as_flag());
     }
+
+    if INSTANCE.config.reapply_patches.load(Relaxed) {
+      self.reapply_patches = Some((&hooks.patches, modules));
+    }
+  }
+
+  fn reapply_patches(&mut self) {
+    if let Some((patches, modules)) = self.reapply_patches.take() {
+      log!("Reapplying all patches");
+      let features = INSTANCE.config.features.load_relaxed();
+      for (_, patches) in patches.iter().filter(|(f, _)| features.intersects(f.as_flag())) {
+        unsafe {
+          apply_patch_set(&modules, patches);
+        }
+      }
+    }
   }
 }
 
-unsafe fn apply_patch_set(
+unsafe fn try_apply_patch_set(
   modules: &d2::Modules,
   base_addresses: &d2::BaseAddresses,
   mod_patches: &[ModulePatches],
@@ -241,13 +257,17 @@ unsafe fn apply_patch_set(
   if !success {
     return Err(());
   }
+  apply_patch_set(modules, mod_patches);
+  Ok(())
+}
+
+unsafe fn apply_patch_set(modules: &d2::Modules, mod_patches: &[ModulePatches]) {
   for m in mod_patches {
     let d2mod = modules[m.module];
     for p in m.patches {
       p.apply(d2mod)
     }
   }
-  Ok(())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -548,6 +568,7 @@ unsafe extern "fastcall" fn draw_menu(
   let mut lock = INSTANCE.sync.lock();
   let sync_instance = &mut *lock;
   sync_instance.hook_window();
+  sync_instance.reapply_patches();
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);

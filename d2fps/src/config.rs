@@ -3,12 +3,14 @@ use crate::{
   util::AtomicRatio,
   GAME_FPS,
 };
+use core::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::{env, fs};
 
 pub(crate) struct Config {
   pub fps: AtomicRatio,
   pub bg_fps: AtomicRatio,
   pub features: AtomicFeatures,
+  pub reapply_patches: AtomicBool,
 }
 impl Config {
   pub const fn new() -> Self {
@@ -16,6 +18,7 @@ impl Config {
       fps: AtomicRatio::ZERO,
       bg_fps: AtomicRatio::new(GAME_FPS),
       features: AtomicFeatures::ALL,
+      reapply_patches: AtomicBool::new(true),
     }
   }
 
@@ -49,6 +52,10 @@ impl Config {
             },
             "motion-smoothing" => match v.parse() {
               Ok(v) => self.features.set_relaxed(Features::MotionSmoothing, v),
+              Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
+            },
+            "reapply-patches" => match v.parse() {
+              Ok(v) => self.reapply_patches.store(v, Relaxed),
               Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
             },
 
@@ -93,10 +100,11 @@ impl Config {
     }
 
     log!(
-      "Loaded config:\n  fps: {}\n  bg-fps: {}\n  features: {}",
+      "Loaded config:\n  fps: {}\n  bg-fps: {}\n  features: {}\n  reapply-patches: {}",
       self.fps.load_relaxed(),
       self.bg_fps.load_relaxed(),
       self.features.load_relaxed(),
+      self.reapply_patches.load(Relaxed),
     );
   }
 }
