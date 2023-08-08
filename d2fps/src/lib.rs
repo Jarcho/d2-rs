@@ -1,5 +1,3 @@
-#![feature(hash_drain_filter)]
-
 use crate::{
   config::Config,
   hooks::{GameAccessor, Position, UnitId},

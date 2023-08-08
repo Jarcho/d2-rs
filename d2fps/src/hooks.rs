@@ -380,11 +380,7 @@ impl InstanceSync {
         }
       }
     });
-    tracker.drain_filter(|_, v| {
-      let active = v.active;
-      v.active = false;
-      !active
-    });
+    tracker.retain(|_, v| take(&mut v.active));
   }
 
   unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
