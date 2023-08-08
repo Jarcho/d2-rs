@@ -17,9 +17,8 @@ impl MenuAnimRateLimiter {
 
     if time >= self.next_update {
       let count = time * u64::from(GAME_FPS.num)
-        / INSTANCE.perf_freq.s_to_sample(u64::from(GAME_FPS.den.get()));
-      self.next_update = INSTANCE.perf_freq.s_to_sample(u64::from(GAME_FPS.den.get()))
-        * (count + 1)
+        / INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get()));
+      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get())) * (count + 1)
         / u64::from(GAME_FPS.num);
       true
     } else {
@@ -41,19 +40,17 @@ impl VariableRateLimiter {
   pub fn update_time(&mut self, time: u64, fps: Ratio) -> bool {
     if replace(&mut self.fps, fps) != fps {
       let count = self.last_update * u64::from(self.fps.num)
-        / INSTANCE.perf_freq.s_to_sample(u64::from(self.fps.den.get()));
-      self.next_update = INSTANCE.perf_freq.s_to_sample(u64::from(self.fps.den.get()))
-        * (count + 1)
+        / INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get()));
+      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * (count + 1)
         / u64::from(self.fps.num);
     }
 
     if time >= self.next_update {
       let count = time * u64::from(self.fps.num)
-        / INSTANCE.perf_freq.s_to_sample(u64::from(self.fps.den.get()));
-      self.last_update = INSTANCE.perf_freq.s_to_sample(u64::from(self.fps.den.get())) * count
+        / INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get()));
+      self.last_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * count
         / u64::from(self.fps.num);
-      self.next_update = INSTANCE.perf_freq.s_to_sample(u64::from(self.fps.den.get()))
-        * (count + 1)
+      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * (count + 1)
         / u64::from(self.fps.num);
       true
     } else {

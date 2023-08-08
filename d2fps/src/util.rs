@@ -140,15 +140,15 @@ impl PerfFreq {
     true
   }
 
-  pub fn s_to_sample(&self, s: u64) -> u64 {
+  pub fn s_to_ticks(&self, s: u64) -> u64 {
     s * self.for_s.load(Relaxed)
   }
 
-  pub fn sample_to_ms(&self, sample: u64) -> u64 {
+  pub fn ticks_to_ms(&self, sample: u64) -> u64 {
     sample / self.for_ms.load(Relaxed)
   }
 
-  pub fn ms_to_sample(&self, ms: u64) -> u64 {
+  pub fn ms_to_ticks(&self, ms: u64) -> u64 {
     ms * self.for_ms.load(Relaxed)
   }
 }

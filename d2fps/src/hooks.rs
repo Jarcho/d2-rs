@@ -372,8 +372,8 @@ impl InstanceSync {
         GetTickCount()
       };
       if self.game_update_time_ms < cur_time_ms {
-        self.game_update_time = INSTANCE.perf_freq.ms_to_sample(
-          INSTANCE.perf_freq.sample_to_ms(time as u64)
+        self.game_update_time = INSTANCE.perf_freq.ms_to_ticks(
+          INSTANCE.perf_freq.ticks_to_ms(time as u64)
             - (cur_time_ms - self.game_update_time_ms) as u64,
         );
       } else {
@@ -418,7 +418,7 @@ impl InstanceSync {
   }
 
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
-    let frame_len = INSTANCE.perf_freq.ms_to_sample(40) as i64;
+    let frame_len = INSTANCE.perf_freq.ms_to_ticks(40) as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
@@ -601,7 +601,7 @@ unsafe extern "fastcall" fn draw_menu(
   QueryPerformanceCounter(&mut time);
   let sleep_len = (INSTANCE
     .perf_freq
-    .sample_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
+    .ticks_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
     as u32)
     .saturating_sub(1)
     .min(10);
@@ -621,7 +621,7 @@ unsafe extern "C" fn game_loop_sleep_hook() {
   QueryPerformanceCounter(&mut time);
   let len = (INSTANCE
     .perf_freq
-    .sample_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
+    .ticks_to_ms(sync_instance.render_timer.next_update().saturating_sub(time as u64))
     as u32)
     .saturating_sub(1);
   let len = if INSTANCE.is_window_hidden.load(Relaxed) {
