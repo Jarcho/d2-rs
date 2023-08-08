@@ -89,15 +89,15 @@ impl Config {
             },
             "-fmenu-fps" => match v.parse() {
               Ok(v) => self.features.set_relaxed(Features::MenuFps, v),
-              Err(_) => log!("Error parsing argument `pmenu-fps`: unknown value `{v}`"),
+              Err(_) => log!("Error parsing argument `fmenu-fps`: unknown value `{v}`"),
             },
             "-fgame-fps" => match v.parse() {
               Ok(v) => self.features.set_relaxed(Features::GameFps, v),
-              Err(_) => log!("Error parsing argument `pgame-fps`: unknown value `{v}`"),
+              Err(_) => log!("Error parsing argument `fgame-fps`: unknown value `{v}`"),
             },
             "-fmotion-smoothing" => match v.parse() {
               Ok(v) => self.features.set_relaxed(Features::MotionSmoothing, v),
-              Err(_) => log!("Error parsing argument `pmotion-smoothing`: unknown value `{v}`"),
+              Err(_) => log!("Error parsing argument `fmotion-smoothing`: unknown value `{v}`"),
             },
             _ => {}
           }
