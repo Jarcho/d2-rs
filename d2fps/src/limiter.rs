@@ -16,10 +16,11 @@ impl MenuAnimRateLimiter {
     }
 
     if time >= self.next_update {
-      let count = time * u64::from(GAME_FPS.num)
-        / INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get()));
-      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get())) * (count + 1)
-        / u64::from(GAME_FPS.num);
+      let count = u128::from(time) * u128::from(GAME_FPS.num)
+        / u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get())));
+      self.next_update = (u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get())))
+        * (count + 1)
+        / u128::from(GAME_FPS.num)) as u64;
       true
     } else {
       false
@@ -39,19 +40,22 @@ impl VariableRateLimiter {
 
   pub fn update_time(&mut self, time: u64, fps: Ratio) -> bool {
     if replace(&mut self.fps, fps) != fps {
-      let count = self.last_update * u64::from(self.fps.num)
-        / INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get()));
-      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * (count + 1)
-        / u64::from(self.fps.num);
+      let count = u128::from(self.last_update) * u128::from(self.fps.num)
+        / u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())));
+      self.next_update = (u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())))
+        * (count + 1)
+        / u128::from(self.fps.num)) as u64;
     }
 
     if time >= self.next_update {
-      let count = time * u64::from(self.fps.num)
-        / INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get()));
-      self.last_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * count
-        / u64::from(self.fps.num);
-      self.next_update = INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())) * (count + 1)
-        / u64::from(self.fps.num);
+      let count = u128::from(time) * u128::from(self.fps.num)
+        / u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())));
+      self.last_update = (u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())))
+        * count
+        / u128::from(self.fps.num)) as u64;
+      self.next_update = (u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(self.fps.den.get())))
+        * (count + 1)
+        / u128::from(self.fps.num)) as u64;
       true
     } else {
       false
