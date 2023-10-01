@@ -24,42 +24,42 @@ pub(super) const HOOKS: Hooks = Hooks {
       &[
         // Draw menu framerate
         Patch::call_c(0xfa606, patch_source!("
-          ff 15 $60c26c00
-          8b f0
-          2b f3
-          ff 15 $60c26c00
-          81 fe e8 03 00 00
-          8b d8
-          76 05
-          be e8 03 00 00
-          2b fe
-          85 ff
-          7f 25
-          83 c7 28
-          81 ff 18 fc ff ff
-          7d 02
-          33 ff
-          8b 45 08
-          85 c0
-          74 0c
-          8b 75 fc
+          ff15 $60c26c00
+          8bf0
+          2bf3
+          ff15 $60c26c00
+          81fee8030000
+          8bd8
+          7605
+          bee8030000
+          2bfe
+          85ff
+          7f25
+          83c728
+          81ff18fcffff
+          7d02
+          33ff
+          8b4508
+          85c0
+          740c
+          8b75fc
           56
-          ff d0
-          83 c6 01
-          89 75 fc
-          e8 90 f2 ff ff
+          ffd0
+          83c601
+          8975fc
+          e890f2ffff
         "), draw_menu_114d_asm_stub),
         // Menu char frame rate
         Patch::call_c(0x103ddd, patch_source!("
-          8b 47 10
-          01 47 08
-          8b 47 08
+          8b4710
+          014708
+          8b4708
         "), super::v114a::update_menu_char_frame_114a_asm_stub),
         // Menu sleep patch
         Patch::nop(0xfa65f, patch_source!("
           8bc7
           7605
-          b8 14000000
+          b814000000
           833d $44dc7200 00
           7402
           33c0
@@ -73,34 +73,34 @@ pub(super) const HOOKS: Hooks = Hooks {
       &[
         // Game loop sleep patch
         Patch::call_c(0x51c2a, patch_source!("
-          83 3d $e0f77000 00
-          75 17
+          833d $e0f77000 00
+          7517
           a1 $10067a00
-          83 f8 06
-          74 0d
-          83 f8 08
-          74 08
-          6a 0a
-          ff 15 $58c26c00
+          83f806
+          740d
+          83f808
+          7408
+          6a0a
+          ff15 $58c26c00
         "), game_loop_sleep_hook),
         // Draw paused game framerate
-        Patch::call_c(0x4f017, patch_source!("ff 15 $84047a00"), draw_game_paused),
+        Patch::call_c(0x4f017, patch_source!("ff15 $84047a00"), draw_game_paused),
         // Draw game framerate & entity sync
         Patch::call_c(0x4f278, patch_source!("
-          39 1d $04077a00
-          75 24
-          e8 1b 54 01 00
-          85 c0
-          74 27
-          33 c9
-          ff 15 $84047a00
-          b8 01 00 00 00
-          01 05 $94047a00
-          01 05 $ac047a00
-          eb 0c
-          39 5d fc
-          74 07
-          83 05 $b4047a00 01
+          391d $04077a00
+          7524
+          e81b540100
+          85c0
+          7427
+          33c9
+          ff15 $84047a00
+          b801000000
+          0105 $94047a00
+          0105 $ac047a00
+          eb0c
+          395dfc
+          7407
+          8305 $b4047a00 01
         "), draw_game::<Entity>),
       ],
     )],
@@ -108,17 +108,17 @@ pub(super) const HOOKS: Hooks = Hooks {
       d2::Module::GameExe,
       &[
         // Animated entity mouse detection refinement
-        Patch::call_std1(0x6414a, patch_source!("e8 01c51b00"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0x6416c, patch_source!("e8 3fc51b00"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0x6414a, patch_source!("e801c51b00"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x6416c, patch_source!("e83fc51b00"), entity_iso_ypos::<Entity>),
         // Course entity mouse detection
-        Patch::call_std1(0x669d2, patch_source!("e8 799c1b00"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0x669da, patch_source!("e8 d19c1b00"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0x669d2, patch_source!("e8799c1b00"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0x669da, patch_source!("e8d19c1b00"), entity_iso_ypos::<Entity>),
         // Npc mouse over perspective
-        Patch::call_std1(0xdb6a6, patch_source!("e8 054d1400"), entity_linear_xpos::<Entity>),
-        Patch::call_std1(0xdb69f, patch_source!("e8 6c4d1400"), entity_linear_ypos::<Entity>),
+        Patch::call_std1(0xdb6a6, patch_source!("e8054d1400"), entity_linear_xpos::<Entity>),
+        Patch::call_std1(0xdb69f, patch_source!("e86c4d1400"), entity_linear_ypos::<Entity>),
         // Npc mouse over
-        Patch::call_std1(0xdb6e9, patch_source!("e8 624f1400"), entity_iso_xpos::<Entity>),
-        Patch::call_std1(0xdb6fb, patch_source!("e8 b04f1400"), entity_iso_ypos::<Entity>),
+        Patch::call_std1(0xdb6e9, patch_source!("e8624f1400"), entity_iso_xpos::<Entity>),
+        Patch::call_std1(0xdb6fb, patch_source!("e8b04f1400"), entity_iso_ypos::<Entity>),
         // Intercept teleport call
         Patch::call_c(0x250a3c, patch_source!("
           8bc6

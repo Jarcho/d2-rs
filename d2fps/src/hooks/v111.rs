@@ -28,15 +28,15 @@ pub(super) const HOOKS: Hooks = Hooks {
           8bf0
           2bf3
           ffd5
-          81fe e8030000
+          81fee8030000
           8bd8
           7605
-          be e8030000
+          bee8030000
           2bfe
           85ff
           7f26
           83c728
-          81ff 18fcffff
+          81ff18fcffff
           7d02
           33ff
           8b442434
@@ -47,7 +47,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           ffd0
           46
           89742410
-          e8 a1fdffff
+          e8a1fdffff
         "), crate::hooks::v110::draw_menu_110_asm_stub),
         // Menu char frame rate
         Patch::call_c(0x17b66, patch_source!("
@@ -61,7 +61,7 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::nop(0xc66e, patch_source!("
           8bc7
           7605
-          b8 14000000
+          b814000000
           8b0d $f0fa8f6f
           85c9
           7402
@@ -80,9 +80,9 @@ pub(super) const HOOKS: Hooks = Hooks {
           85c0
           7517
           a1 $bcbfbc6f
-          83f8 06
+          83f806
           740d
-          83f8 08
+          83f808
           7408
           6a0a
           ff15 $64efb76f
@@ -97,7 +97,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           3bc3
           7438
           50
-          e8 4628f8ff
+          e84628f8ff
           3bc3
           742e
           33c9

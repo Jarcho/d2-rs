@@ -25,15 +25,15 @@ pub(super) const HOOKS: Hooks = Hooks {
           8bf0
           2bf3
           ffd5
-          81fe e8030000
+          81fee8030000
           8bd8
           7605
-          be e8030000
+          bee8030000
           2bfe
           85ff
           7f28
           83c728
-          81ff 18fcffff
+          81ff18fcffff
           7d02
           33ff
           8b442434
@@ -44,7 +44,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           ffd0
           83c601
           89742410
-          e8 20f3ffff
+          e820f3ffff
         "), super::v110::draw_menu_110_asm_stub),
         // Menu char frame rate
         Patch::call_c(0x3f92c, patch_source!("
@@ -56,7 +56,7 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::nop(0x3dabf, patch_source!("
           8bc7
           7605
-          b8 14000000
+          b814000000
           833d $e0927000 00
           7402
           33c0
