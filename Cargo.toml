@@ -9,3 +9,4 @@ panic = "abort"
 debug = true
 panic = "abort"
 lto = "thin"
+codegen-units = 1
