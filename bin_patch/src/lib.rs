@@ -1,16 +1,35 @@
-use core::{
-  ffi::c_void,
-  mem::{transmute, MaybeUninit},
-  ptr::null_mut,
-  slice,
-};
+use core::{ffi::c_void, mem::transmute, ptr::null_mut, slice};
 use windows_sys::Win32::{
   Foundation::HMODULE,
   System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE},
 };
-use xxhash_rust::xxh3::xxh3_64;
 
 pub use bin_patch_mac::patch_source;
+
+struct Uint2Iter<'a> {
+  iter: slice::Iter<'a, u32>,
+  cur: u32,
+  remain: u8,
+}
+impl<'a> Uint2Iter<'a> {
+  fn new(slice: &'a [u32]) -> Self {
+    Self { iter: slice.iter(), cur: 0, remain: 0 }
+  }
+}
+impl Iterator for Uint2Iter<'_> {
+  type Item = u8;
+  fn next(&mut self) -> Option<Self::Item> {
+    self.remain = if self.remain == 0 {
+      self.cur = *self.iter.next()?;
+      15
+    } else {
+      self.remain - 1
+    };
+    let res = self.cur as u8 & 3;
+    self.cur >>= 2;
+    Some(res)
+  }
+}
 
 struct MemUnlock {
   prev: u32,
@@ -39,8 +58,8 @@ impl Drop for MemUnlock {
 pub struct Patch {
   pub offset: usize,
   len: u16,
-  hash: u64,
-  relocs: &'static [u16],
+  hash: u32,
+  control_stream: &'static [u32],
   target: Option<unsafe extern "C" fn()>,
 }
 impl Patch {
@@ -48,14 +67,14 @@ impl Patch {
   /// function taking zero arguments.
   pub const fn call_c<R>(
     offset: usize,
-    (len, hash, relocs): (u16, u64, &'static [u16]),
+    (len, hash, control_stream): (u16, u32, &'static [u32]),
     target: unsafe extern "C" fn() -> R,
   ) -> Self {
     Self {
       offset,
       len,
       hash,
-      relocs,
+      control_stream,
       target: Some(unsafe { transmute(target) }),
     }
   }
@@ -64,22 +83,22 @@ impl Patch {
   /// `stdcall` function taking one argument.
   pub const fn call_std1<T1, R>(
     offset: usize,
-    (len, hash, relocs): (u16, u64, &'static [u16]),
+    (len, hash, control_stream): (u16, u32, &'static [u32]),
     target: unsafe extern "stdcall" fn(T1) -> R,
   ) -> Self {
     Self {
       offset,
       len,
       hash,
-      relocs,
+      control_stream,
       target: Some(unsafe { transmute(target) }),
     }
   }
 
   /// Create a patch which replaces the referenced code with code that does
   /// nothing.
-  pub const fn nop(offset: usize, (len, hash, relocs): (u16, u64, &'static [u16])) -> Self {
-    Self { offset, len, hash, relocs, target: None }
+  pub const fn nop(offset: usize, (len, hash, control_stream): (u16, u32, &'static [u32])) -> Self {
+    Self { offset, len, hash, control_stream, target: None }
   }
 
   /// Checks if the memory at the patch location contains the expected bytes.
@@ -96,26 +115,36 @@ impl Patch {
       return false;
     };
 
-    let mut reloc_buf = [MaybeUninit::<u8>::uninit(); u16::MAX as usize];
-    let slice = slice::from_raw_parts(address.cast::<u8>(), self.len.into());
-    let slice = if reloc_dist == 0 || self.relocs.is_empty() {
-      slice
-    } else {
-      reloc_buf
-        .as_mut_ptr()
-        .cast::<u8>()
-        .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
-      for &reloc in self.relocs {
-        let Some(p) = reloc_buf.get_mut(reloc as usize..reloc as usize + 4) else {
-          return false;
-        };
-        let p = p.as_mut_ptr().cast::<i32>();
-        p.write_unaligned(p.read_unaligned().wrapping_sub(reloc_dist));
-      }
-      slice::from_raw_parts(reloc_buf.as_ptr().cast::<u8>(), slice.len())
-    };
+    let mut bytes = slice::from_raw_parts(address.cast::<u8>(), self.len.into()).iter();
+    let mut control_stream = Uint2Iter::new(self.control_stream);
+    let mut hash = 0x01000193u32;
 
-    xxh3_64(slice) == self.hash
+    loop {
+      let control = control_stream.next().unwrap_or(0);
+      assert!(control < 3);
+      if control == 2 {
+        let (head, tail) = bytes.as_slice().split_at(4);
+        bytes = tail.iter();
+        let buf = head
+          .as_ptr()
+          .cast::<i32>()
+          .read_unaligned()
+          .wrapping_sub(reloc_dist)
+          .to_ne_bytes();
+        for x in buf {
+          hash = (hash ^ x as u32).wrapping_mul(0x01000193u32);
+        }
+      } else {
+        let next = match bytes.next() {
+          Some(&x) => x as u32,
+          None => break,
+        };
+        let x = if control == 1 { 0 } else { next };
+        hash = (hash ^ x).wrapping_mul(0x01000193u32);
+      }
+    }
+
+    hash == self.hash
   }
 
   /// Applies the patch to the given base with the given relocation applied.

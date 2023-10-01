@@ -1,11 +1,15 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-  draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-  entity_linear_ypos, game_loop_sleep_hook, Hooks,
-}};
+    draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
+    entity_linear_ypos, game_loop_sleep_hook, Hooks,
+  },
+};
 use bin_patch::{patch_source, Patch};
-use d2interface::{self as d2, v106b::{Entity, ADDRESSES, BASE_ADDRESSES}};
+use d2interface::{
+  self as d2,
+  v106b::{Entity, ADDRESSES, BASE_ADDRESSES},
+};
 
 #[rustfmt::skip]
 pub(super) const HOOKS: Hooks = Hooks {

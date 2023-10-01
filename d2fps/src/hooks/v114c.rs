@@ -57,10 +57,10 @@ pub(super) const HOOKS: Hooks = Hooks {
         // Menu sleep patch
         Patch::nop(0xf7cdf, patch_source!("
           8bc7
-          7605
+          76xx
           b814000000
           833d $58b27200 00
-          7402
+          xx02
           33c0
           50
           ff15 $2cd26c00
