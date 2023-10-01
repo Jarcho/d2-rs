@@ -84,8 +84,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           740d
           83f808
           7408
-          6a0a
-          ff15 $64efb76f
+          xxxx
+          xxxxxxxxxxxx
         "), game_loop_sleep_hook),
         // Draw paused game framerate
         Patch::call_c(0x897c5, patch_source!("ff15 $84b3ba6f"), draw_game_paused),

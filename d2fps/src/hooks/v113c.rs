@@ -34,7 +34,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           2bfe
           85ff
           7f26
-          83c728
+          xxxxxx
           81ff18fcffff
           7d02
           33ff
@@ -65,8 +65,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           85c9
           xx02
           33c0
-          50
-          ff15 $c8b28f6f
+          xx
+          xxxxxxxxxxxx
         ")),
       ],
     )],
@@ -82,7 +82,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           83f806
           740d
           83f808
-          7408
+          xx08
           6a0a
           ff15 $a0efb76f
         "), game_loop_sleep_hook),
@@ -90,8 +90,8 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0x44bc5, patch_source!("ff15 $e497bc6f"), draw_game_paused),
         // Draw game framerate & entity sync
         Patch::call_c(0x44e51, patch_source!("
-          391d $9034bd6f
-          7535
+          xxxxxxxxxxxx
+          xxxx
           a1 $fcbbbc6f
           3bc3
           7438

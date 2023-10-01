@@ -83,8 +83,8 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0x9448, patch_source!("ff15 $541bbb6f"), draw_game_paused),
         // Draw game framerate & entity sync
         Patch::call_c(0x9b6f, patch_source!("
-          392d $e01dbb6f
-          752b
+          xxxxxxxxxxxx
+          xxxx
           e8244d0800
           85c0
           742e

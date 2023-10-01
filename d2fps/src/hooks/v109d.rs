@@ -36,7 +36,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           2bc3
           6a00
           1bcd
-          6a19
+          6axx
           51
           50
           e84b610000
@@ -82,8 +82,8 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0x9438, patch_source!("ff15 $b409bb6f"), draw_game_paused),
         // Draw game framerate & entity sync
         Patch::call_c(0x9b5f, patch_source!("
-          392d $400cbb6f
-          752b
+          xxxxxxxxxxxx
+          xxxx
           e8b4400800
           85c0
           742e

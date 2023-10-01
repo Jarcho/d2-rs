@@ -32,7 +32,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           2bfe
           85ff
           7f28
-          83c728
+          xxxxxx
           81ff18fcffff
           7d02
           33ff
@@ -55,10 +55,10 @@ pub(super) const HOOKS: Hooks = Hooks {
         // Menu sleep patch
         Patch::nop(0x3dabf, patch_source!("
           8bc7
-          7605
+          76xx
           b814000000
           833d $e0927000 00
-          7402
+          xx02
           33c0
           50
           ff15 $98d16c00
@@ -77,8 +77,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           740d
           83f808
           7408
-          6a0a
-          ff15 $98d16c00
+          xxxx
+          xxxxxxxxxxxx
         "), game_loop_sleep_hook),
         // Draw paused game framerate
         Patch::call_c(0x53958, patch_source!("ff15 $24e08200"), draw_game_paused),
