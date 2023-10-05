@@ -87,14 +87,14 @@ impl AtomicFeatures {
   }
 
   pub fn set_relaxed(&self, x: Features, enable: bool) {
-    let load_mask = !(x.bits() & !(enable as u32).wrapping_sub(1));
-    let store_bits = x.bits() & (!(enable as u32)).wrapping_add(1);
+    let load_mask = !x.bits();
+    let bits = x.bits() & !(enable as u32).wrapping_sub(1);
 
     loop {
       let x = self.0.load(Relaxed);
       if self
         .0
-        .compare_exchange_weak(x, (x & load_mask) | store_bits, Relaxed, Relaxed)
+        .compare_exchange_weak(x, (x & load_mask) | bits, Relaxed, Relaxed)
         .is_ok()
       {
         break;
