@@ -72,6 +72,7 @@ struct Instance {
   perf_freq: PerfFreq,
   menu_timer_updated: AtomicBool,
   window_hook: WindowHook,
+  client_updated: AtomicBool,
 }
 impl Instance {
   unsafe fn frame_rate_from_window(&self, hwnd: HWND) {
@@ -110,6 +111,7 @@ static INSTANCE: Instance = Instance {
   perf_freq: PerfFreq::uninit(),
   menu_timer_updated: AtomicBool::new(false),
   window_hook: WindowHook::new(),
+  client_updated: AtomicBool::new(true),
 };
 
 #[no_mangle]

@@ -54,13 +54,18 @@ impl Drop for MemUnlock {
   }
 }
 
+enum PatchData {
+  Target(unsafe extern "C" fn()),
+  Raw(&'static [u8]),
+}
+
 /// A code patch which can be applied to a loaded module.
 pub struct Patch {
   pub offset: usize,
   len: u16,
   hash: u32,
   control_stream: &'static [u32],
-  target: Option<unsafe extern "C" fn()>,
+  data: PatchData,
 }
 impl Patch {
   /// Create a patch which replaces the referenced code with a call to a `cdecl`
@@ -75,7 +80,7 @@ impl Patch {
       len,
       hash,
       control_stream,
-      target: Some(unsafe { transmute(target) }),
+      data: PatchData::Target(unsafe { transmute(target) }),
     }
   }
 
@@ -91,14 +96,35 @@ impl Patch {
       len,
       hash,
       control_stream,
-      target: Some(unsafe { transmute(target) }),
+      data: PatchData::Target(unsafe { transmute(target) }),
     }
   }
 
   /// Create a patch which replaces the referenced code with code that does
   /// nothing.
   pub const fn nop(offset: usize, (len, hash, control_stream): (u16, u32, &'static [u32])) -> Self {
-    Self { offset, len, hash, control_stream, target: None }
+    Self {
+      offset,
+      len,
+      hash,
+      control_stream,
+      data: PatchData::Raw(&[]),
+    }
+  }
+
+  /// Create a patch which replaces the referenced code with the given code.
+  pub const fn raw(
+    offset: usize,
+    (len, hash, control_stream): (u16, u32, &'static [u32]),
+    data: &'static [u8],
+  ) -> Self {
+    Self {
+      offset,
+      len,
+      hash,
+      control_stream,
+      data: PatchData::Raw(data),
+    }
   }
 
   /// Checks if the memory at the patch location contains the expected bytes.
@@ -160,18 +186,26 @@ impl Patch {
 
     let mut slice = slice::from_raw_parts_mut(address as *mut u8, self.len.into());
 
-    // Write the call instruction.
-    if let Some(target) = self.target {
-      let (head, tail) = slice.split_at_mut(5);
-      head[0] = 0xe8;
-      head
-        .as_mut_ptr()
-        .offset(1)
-        .cast::<i32>()
-        .write_unaligned(((target as usize).wrapping_sub(address as usize + 5)) as i32);
-      slice = tail;
+    // Write the patch data.
+    match self.data {
+      PatchData::Target(target) => {
+        let (head, tail) = slice.split_at_mut(5);
+        head[0] = 0xe8;
+        head
+          .as_mut_ptr()
+          .offset(1)
+          .cast::<i32>()
+          .write_unaligned(((target as usize).wrapping_sub(address as usize + 5)) as i32);
+        slice = tail;
+      }
+      PatchData::Raw(data) => {
+        let (head, tail) = slice.split_at_mut(data.len());
+        head.copy_from_slice(data);
+        slice = tail;
+      }
     }
 
+    // Fill the remaining data with NOPs.
     if slice.len() > 129 {
       slice[0] = 0xe9;
       slice[1..]

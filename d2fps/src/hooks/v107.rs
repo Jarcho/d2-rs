@@ -101,6 +101,10 @@ pub(super) const HOOKS: Hooks = Hooks {
           7406
           ff05 $8490be6f
         "), draw_game::<Entity>),
+        // Draw cursor framerate
+        Patch::call_c(0xbf308, patch_source!("
+          39a8 $6081bd6f
+        "), super::v100::should_update_cursor_100_asm_stub),
       ],
     )],
     &[

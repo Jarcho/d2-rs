@@ -2,8 +2,8 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame, Hooks,
-    UnitId,
+    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, should_update_cursor,
+    update_menu_char_frame, Hooks, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -103,6 +103,10 @@ pub(super) const HOOKS: Hooks = Hooks {
           7406
           ff05 $24ec1210
         "), draw_game::<Entity>),
+        // Draw cursor framerate
+        Patch::call_c(0xc9dd8, patch_source!("
+          39a8 $28b01110
+        "), should_update_cursor_100_asm_stub),
       ],
     )],
     &[
@@ -215,4 +219,18 @@ global_asm! {
 }
 extern "C" {
   pub fn intercept_teleport_100_asm_stub();
+}
+
+global_asm! {
+  ".global _should_update_cursor_100_asm_stub",
+  "_should_update_cursor_100_asm_stub:",
+  "push eax",
+  "call {}",
+  "test eax, eax",
+  "pop eax",
+  "ret",
+  sym should_update_cursor,
+}
+extern "C" {
+  pub fn should_update_cursor_100_asm_stub();
 }

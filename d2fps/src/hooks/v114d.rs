@@ -102,6 +102,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           7407
           8305 $b4047a00 01
         "), draw_game::<Entity>),
+        // Cursor animation speed
+        Patch::raw(0x6836d, patch_source!("10"), &[0x28]),
       ],
     )],
     &[ModulePatches::new(

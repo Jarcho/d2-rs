@@ -9,6 +9,7 @@ use core::{
   ptr::NonNull,
   sync::atomic::Ordering::Relaxed,
 };
+use d2::CursorId;
 use d2interface as d2;
 use std::collections::hash_map::Entry;
 use windows_sys::{
@@ -119,6 +120,7 @@ pub struct GameAccessor {
   pub in_perspective: unsafe extern "stdcall" fn() -> u32,
   pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
   pub draw_menu: unsafe extern "stdcall" fn(),
+  pub cursor_table: NonNull<[d2::Cursor; 7]>,
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
@@ -149,6 +151,7 @@ impl GameAccessor {
         }
         f
       },
+      cursor_table: NonNull::dangling(),
     }
   }
 
@@ -163,6 +166,7 @@ impl GameAccessor {
     self.in_perspective = addresses.in_perspective(modules.gfx()).ok_or(())?;
     self.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
     self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
+    self.cursor_table = addresses.cursor_table(modules.client()).into();
     Ok(())
   }
 
@@ -502,6 +506,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       &mut sync_instance.client_update_count,
       sync_instance.accessor.client_loop_globals.as_ref().updates,
     );
+    let client_updated = sync_instance.client_update_count != prev_update_count;
+    INSTANCE.client_updated.store(client_updated, Relaxed);
 
     if enable_smoothing {
       if sync_instance.update_game_time(time) {
@@ -514,7 +520,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = sync_instance.entity_iso_pos(player.as_ref());
 
-      if sync_instance.client_update_count == prev_update_count {
+      if !client_updated {
         sync_instance.update_env_images(prev_player_pos);
       }
     } else {
@@ -658,4 +664,9 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
     pos.teleport = true;
   }
   sync_instance.accessor.apply_pos_change
+}
+
+unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
+  INSTANCE.client_updated.load(Relaxed)
+    && INSTANCE.sync.lock().accessor.cursor_table.as_ref()[cursor.0 as usize].is_anim != 0
 }
