@@ -41,8 +41,9 @@ pub mod v114d;
 
 pub use crate::{
   common::{
-    ActId, ActIdS, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals, ClientPingTimer,
-    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameType, InRoom, LinkedList,
+    ActId, ActIdS, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals, ClientPingTimer, Cursor,
+    CursorId, CursorState, EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor,
+    GameType, InRoom, LinkedList, Rand,
   },
   coord::{FixedI16, FixedPoint, FixedU16, FixedU3, FixedU8, IsoPos, LinearPos, Size, UnknownPos},
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},

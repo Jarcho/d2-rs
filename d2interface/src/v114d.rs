@@ -1,6 +1,8 @@
 use crate::{module::Ordinal::Address, Addresses};
 
-pub use crate::v114c::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos, BASE_ADDRESSES};
+pub use crate::v114c::{
+  DyPos, Entity, EntityTable, EntityTables, GameCursor, Room, StaticPos, BASE_ADDRESSES,
+};
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x3a6a70,
@@ -14,4 +16,6 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Address(0xf59a0),
   server_update_time: 0x483d58,
   draw_menu: Address(0xf98e0),
+  cursor_table: 0x312010,
+  game_cursor: 0x3a6abc,
 };

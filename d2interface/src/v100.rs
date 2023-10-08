@@ -1,11 +1,12 @@
 use crate::{
   module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos,
-  LinkedList,
+  LinkedList, Rand,
 };
 use core::ptr::NonNull;
 
 pub type EntityTables = crate::EntityTables<Entity>;
 pub type EntityTable = crate::EntityTable<Entity>;
+pub type GameCursor = crate::GameCursor<Entity>;
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x1451b8,
@@ -19,6 +20,8 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Ordinal(10029),
   server_update_time: 0xbe75c,
   draw_menu: Ordinal(10015),
+  cursor_table: 0x11b028,
+  game_cursor: 0x168170,
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x10000000,
@@ -60,7 +63,9 @@ pub struct Entity {
   pub kind: EntityKind,
   pub class_id: u32,
   pub id: u32,
-  pub _padding1: [u32; 10],
+  pub _padding1: [u32; 7],
+  pub rand: Rand,
+  pub seed: u32,
   pub pos: EntityPos,
   pub _padding2: [u32; 51],
   pub next_entity: Option<NonNull<Entity>>,

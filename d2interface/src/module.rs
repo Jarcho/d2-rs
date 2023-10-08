@@ -1,4 +1,4 @@
-use crate::{common::ClientLoopGlobals, ClientEnvEffects, GameType};
+use crate::{ClientEnvEffects, ClientLoopGlobals, Cursor, GameType};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
 use windows_sys::{
   w,
@@ -145,7 +145,7 @@ macro_rules! decl_addresses {
 decl_addresses! {
   /// Pointer to the current player. May exist even when not in-game.
   Client::player: NonNull<Option<NonNull<()>>>,
-  /// The array containing the active splash effects (Acts 1&3 rain).
+  /// The arrays containing the environment effects data.
   Client::env_effects: NonNull<ClientEnvEffects>,
   /// The type of game the client is currently running. Only meaningful if a
   /// game is running.
@@ -164,6 +164,10 @@ decl_addresses! {
   Game::server_update_time: NonNull<u32>,
   /// Draw the game's current menu.
   #ordinal Win::draw_menu: unsafe extern "stdcall" fn(),
+  /// The cursor definition table.
+  Client::cursor_table: &'static [Cursor; 7],
+  /// The in-game cursor's state
+  Client::game_cursor: NonNull<()>,
 }
 
 #[derive(Clone, Copy)]

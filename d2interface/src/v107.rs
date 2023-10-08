@@ -1,13 +1,13 @@
 use crate::{
-  common, module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos,
-  LinearPos,
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, Rand,
 };
 use core::ptr::NonNull;
 
 pub use crate::v100::StaticPos;
 
-pub type EntityTables = common::EntityTables<Entity>;
-pub type EntityTable = common::EntityTable<Entity>;
+pub type EntityTables = crate::EntityTables<Entity>;
+pub type EntityTable = crate::EntityTable<Entity>;
+pub type GameCursor = crate::GameCursor<Entity>;
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x12f2a0,
@@ -21,6 +21,8 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Ordinal(10027),
   server_update_time: 0xed75c,
   draw_menu: Ordinal(10019),
+  cursor_table: 0x108160,
+  game_cursor: 0x1340d8,
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x6fad0000,
@@ -65,7 +67,9 @@ pub struct Entity {
   pub kind: EntityKind,
   pub class_id: u32,
   pub id: u32,
-  pub _padding1: [u32; 11],
+  pub _padding1: [u32; 8],
+  pub rand: Rand,
+  pub seed: u32,
   pub pos: EntityPos,
   pub _padding2: [u32; 10],
   pub gfx_info: u32,
@@ -75,7 +79,7 @@ pub struct Entity {
   pub _padding4: [u32; 30],
   pub next_entity: Option<NonNull<Entity>>,
 }
-impl common::LinkedList for Entity {
+impl crate::LinkedList for Entity {
   fn next(&self) -> Option<NonNull<Self>> {
     self.next_entity
   }

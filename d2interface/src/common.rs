@@ -1,4 +1,4 @@
-use crate::UnknownPos;
+use crate::{FixedU8, UnknownPos};
 use core::{iter, ops, ptr::NonNull, slice};
 
 decl_enum! { EntityKind(u32) {
@@ -226,7 +226,7 @@ pub struct ClientLoopGlobals {
   pub draw_fn_id: u32,
   /// The current active draw function.
   pub draw_fn: unsafe extern "fastcall" fn(u32),
-  pub mem_pool: u32,
+  pub mem_pool: *mut (),
   /// The time the client was last stepped while the game was not paused.
   pub last_step: u32,
   /// The time the client state was last updated.
@@ -241,4 +241,72 @@ pub struct ClientLoopGlobals {
   pub fps_timer: ClientFpsTimer,
   /// The time of the loading screen update.
   pub last_loading_update: u32,
+}
+
+#[repr(C)]
+pub struct Rand([u32; 2]);
+impl Default for Rand {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+impl Rand {
+  pub const fn new() -> Self {
+    Self([1, 0x29a])
+  }
+
+  pub const fn with_seed(seed: u32) -> Self {
+    Self([seed, 0x29a])
+  }
+
+  #[allow(clippy::should_implement_trait)]
+  pub fn next(&mut self) -> u32 {
+    let (x, o) = self.0[0].overflowing_mul(0x6ac690c5);
+    self.0[1] = self.0[1].wrapping_add(o.into());
+    self.0[0] = x.wrapping_add(self.0[1]);
+    self.0[0]
+  }
+}
+
+#[repr(C)]
+pub struct Cursor {
+  pub is_anim: u32,
+  pub repeat_anim: u32,
+  pub frame_count: u32,
+  pub anim_speed: FixedU8,
+  /// Should this cursor use the mouse down animation.
+  pub use_mouse_down_anim: u32,
+  pub draw_fn: extern "C" fn(),
+  /// Name of the file without the path or extension.
+  pub file_name: &'static u8,
+}
+
+decl_enum! { CursorId(u32) {
+  Menu = 0,
+  Grasp = 1,
+  ToIdleActive = 2,
+  Idle = 3,
+  MouseDown = 4,
+  Active = 5,
+  Static = 6,
+}}
+
+decl_enum! { CursorState(u32) {
+  Active = 1,
+  ToIdle = 2,
+  ToActive = 3,
+  Idle = 4,
+  MouseDown = 5,
+  Static = 6,
+}}
+
+#[repr(C)]
+pub struct GameCursor<E = ()> {
+  pub item: Option<NonNull<E>>,
+  pub dc6_files: [usize; 7],
+  pub id: CursorId,
+  pub frame: FixedU8,
+  pub _padding: u32,
+  pub last_move_time: u32,
+  pub state: CursorState,
 }

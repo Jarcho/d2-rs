@@ -1,13 +1,14 @@
 use crate::{
-  common, module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos,
-  LinearPos, LinkedList, Size,
+  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos, LinearPos,
+  LinkedList, Rand, Size,
 };
 use core::ptr::NonNull;
 
 pub use crate::v109d::BASE_ADDRESSES;
 
-pub type EntityTables = common::EntityTables<Entity>;
-pub type EntityTable = common::EntityTable<Entity>;
+pub type EntityTables = crate::EntityTables<Entity>;
+pub type EntityTable = crate::EntityTable<Entity>;
+pub type GameCursor = crate::GameCursor<Entity>;
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x11c200,
@@ -21,6 +22,8 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Ordinal(10027),
   server_update_time: 0x115844,
   draw_menu: Ordinal(10019),
+  cursor_table: 0xf6b58,
+  game_cursor: 0x121aa4,
 };
 
 #[repr(C)]
@@ -64,12 +67,14 @@ pub union EntityPos {
 pub struct Entity {
   pub kind: EntityKind,
   pub class_id: u32,
-  pub mem_pool: u32,
+  pub mem_pool: *mut (),
   pub id: u32,
-  pub mode: u32,
+  pub state: u32,
   pub data: u32,
   pub act_id: u32,
-  pub _padding1: [u32; 4],
+  pub act: *mut (),
+  pub rand: Rand,
+  pub seed: u32,
   pub pos: EntityPos,
   pub _padding2: [u32; 5],
   pub frame: FixedU8,
@@ -81,6 +86,7 @@ pub struct Entity {
   pub _padding5: [u32; 30],
   pub next_entity: Option<NonNull<Entity>>,
   pub next_in_room: Option<NonNull<Entity>>,
+  pub _padding6: [u32; 2],
 }
 impl LinkedList for Entity {
   fn next(&self) -> Option<NonNull<Self>> {

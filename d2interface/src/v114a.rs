@@ -1,4 +1,6 @@
-use crate::{module::Ordinal::Address, Addresses, BaseAddresses};
+use core::ptr::NonNull;
+
+use crate::{module::Ordinal::Address, Addresses, BaseAddresses, CursorId, CursorState, FixedU8};
 
 pub use crate::v113d::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
@@ -14,6 +16,8 @@ pub const ADDRESSES: Addresses = Addresses {
   hwnd: Address(0x5b50),
   server_update_time: 0x497d38,
   draw_menu: Address(0x3cdd0),
+  cursor_table: 0,
+  game_cursor: 0,
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x00400000,
@@ -22,3 +26,15 @@ pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   gfx: 0x00400000,
   win: 0x00400000,
 };
+
+#[repr(C)]
+pub struct GameCursor {
+  pub item: Option<NonNull<Entity>>,
+  pub dc6_files: [usize; 7],
+  pub id: CursorId,
+  pub frame: FixedU8,
+  pub _padding: u32,
+  pub last_move_time: u32,
+  pub last_update_time: u32,
+  pub state: CursorState,
+}
