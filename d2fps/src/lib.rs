@@ -52,28 +52,57 @@ const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
 struct InstanceSync {
   accessor: GameAccessor,
   entity_tracker: Option<HashMap<UnitId, Position>>,
+  /// Timer for the renderer, both in-game and in-menu.
   render_timer: VariableRateLimiter,
+  /// Timer for the character animations in the menu screens.
   menu_anim_timer: FixedRateLimiter,
+  /// The last time the game state was updated. Used to detect game state changes.
   game_update_time_ms: u32,
+  /// The last time the game state was update. Used as the base time to determine
+  /// how much movement the renderer should apply. Different from the previous
+  /// field as `GetTickCount` and `QueryPerformanceCounter` are different clocks.
   game_update_time: u64,
+  /// The number of times the client state has been updated. Used to detect when
+  /// environment effects are updated.
   client_update_count: u32,
+  /// The player's last rendered position. Used to adjust the screen position of
+  /// certain environment effects.
   player_pos: d2::IsoPos<i32>,
-  unit_offset: d2::FixedI16,
+  /// The amount of a unit's detected movement to apply. Used to adjust a unit's
+  /// position for cursor detection outside the rendering code.
+  unit_movement_fract: d2::FixedI16,
+  /// Patches to reapply once the menu is loaded. Helps compatibility with other
+  /// mods that patch code without validating the patch location's data.
   reapply_patches: Option<(&'static FeaturePatches, d2::Modules)>,
 }
 struct Instance {
   sync: Mutex<InstanceSync>,
   config: Config,
-  game_fps: AtomicRatio,
+  /// The fps to render at while the game window is active.
+  active_fps: AtomicRatio,
+  /// The fps we are currently rendering at.
   render_fps: AtomicRatio,
+  /// Handle to the monitor on which the window was last seen.
   current_monitor: AtomicIsize,
+  /// Whether we've attempted to attached to the game.
   is_attached: AtomicBool,
+  /// Manages whether sleep calls should use a high precision timer.
   precision_timer: PrecisionTimer,
+  /// Whether the game's window is currently hidden. Sleep lengths will be
+  /// longer if it is.
   is_window_hidden: AtomicBool,
+  /// Performance counter related constants.
   perf_freq: PerfFreq,
+  /// Whether the menu character's animation should advance this frame.
   update_menu_char_anim: AtomicBool,
+  /// Manages hooking into the game's window procedure. This has to be delayed
+  /// as the window may not exist when the library is attached.
   window_hook: WindowHook,
+  /// Whether the client state has been updated immediately before the current
+  /// frame. Used to know when to step the cursor's animation.
   client_updated: AtomicBool,
+  /// The ratio between the time since the previous frame draw, and the game's
+  /// update rate.
   update_time_fract: AtomicF64,
 }
 impl Instance {
@@ -83,7 +112,7 @@ impl Instance {
       if self.current_monitor.swap(mon, Relaxed) != mon {
         if let Some(rate) = monitor_refresh_rate(mon) {
           log!("Detected monitor fps: {rate}");
-          self.game_fps.store_relaxed(rate);
+          self.active_fps.store_relaxed(rate);
           self.render_fps.store_relaxed(rate);
         }
       }
@@ -100,11 +129,11 @@ static INSTANCE: Instance = Instance {
     game_update_time: 0,
     client_update_count: 0,
     player_pos: d2::IsoPos::new(0, 0),
-    unit_offset: d2::FixedI16::from_repr(0),
+    unit_movement_fract: d2::FixedI16::from_repr(0),
     reapply_patches: None,
   }),
   config: Config::new(),
-  game_fps: AtomicRatio::new(GAME_FPS),
+  active_fps: AtomicRatio::new(GAME_FPS),
   render_fps: AtomicRatio::new(GAME_FPS),
   current_monitor: AtomicIsize::new(0),
   is_attached: AtomicBool::new(false),
@@ -190,10 +219,10 @@ unsafe extern "stdcall" fn Init() {
       } else {
         config_fps
       };
-      INSTANCE.game_fps.store_relaxed(game_fps);
+      INSTANCE.active_fps.store_relaxed(game_fps);
       INSTANCE.render_fps.store_relaxed(game_fps);
       sync_instance.entity_tracker = Some(HashMap::with_capacity_and_hasher(
-        2048,
+        2048, // Should be more than enough to store active units
         fxhash::FxBuildHasher::default(),
       ));
       sync_instance.attach();

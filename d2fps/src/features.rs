@@ -129,6 +129,7 @@ impl AtomicFeatures {
   }
 }
 
+/// A set of patches for the given module.
 pub struct ModulePatches {
   pub module: d2::Module,
   pub patches: &'static [Patch],
@@ -139,6 +140,7 @@ impl ModulePatches {
   }
 }
 
+/// The set of all patches used for a specific game version, separated by feature.
 pub struct FeaturePatches([&'static [ModulePatches]; 3]);
 impl FeaturePatches {
   pub const fn empty() -> Self {

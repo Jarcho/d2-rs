@@ -356,7 +356,7 @@ impl InstanceSync {
       .as_mut()
       .unwrap()
       .get(&e.unit_id())
-      .map(|pos| pos.for_time(self.unit_offset))
+      .map(|pos| pos.for_time(self.unit_movement_fract))
   }
 
   fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FixedU16> {
@@ -375,12 +375,14 @@ impl InstanceSync {
 
   unsafe fn update_game_time(&mut self, time: i64) -> bool {
     let is_sp = self.accessor.game_type().is_sp();
-    let prev_update_time = self.game_update_time_ms;
-    self.game_update_time_ms = if is_sp {
-      *self.accessor.server_update_time
-    } else {
-      (*self.accessor.client_loop_globals).last_update
-    };
+    let prev_update_time = replace(
+      &mut self.game_update_time_ms,
+      if is_sp {
+        *self.accessor.server_update_time
+      } else {
+        (*self.accessor.client_loop_globals).last_update
+      },
+    );
     if self.game_update_time_ms != prev_update_time {
       let cur_time_ms = if is_sp {
         timeGetTime() & 0x7FFFFFFF
@@ -440,12 +442,12 @@ impl InstanceSync {
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
     let fract = (offset << 16) / frame_len;
-    self.unit_offset = d2::FixedI16::from_repr(fract as i32);
+    self.unit_movement_fract = d2::FixedI16::from_repr(fract as i32);
 
     let tracker = self.entity_tracker.as_ref().unwrap();
     self.accessor.active_entities::<T>().for_each_dy_mut(|e| {
       if let Some(pos) = tracker.get(&e.unit_id()) {
-        e.set_pos(pos.for_time(self.unit_offset));
+        e.set_pos(pos.for_time(self.unit_movement_fract));
       }
     });
   }
@@ -543,19 +545,23 @@ unsafe extern "C" fn draw_game<E: Entity>() {
         sync_instance.update_env_images(prev_player_pos);
       }
     } else {
-      sync_instance.unit_offset = d2::FixedI16::default();
+      sync_instance.unit_movement_fract = d2::FixedI16::default();
       sync_instance.player_pos = player.iso_pos();
     }
 
     let draw = (*sync_instance.accessor.client_loop_globals).draw_fn;
-    let unit_offset = take(&mut sync_instance.unit_offset);
+    // Set the movement fraction to zero for rendering. Otherwise, a unit's
+    // position will be double adjusted for cursor detection. Once from the
+    // edited positions earlier, and once when accessing the position in the
+    // cursor detection code.
+    let unit_movement_fract = take(&mut sync_instance.unit_movement_fract);
     drop(lock);
     draw(0);
 
     let mut lock = INSTANCE.sync.lock();
     let sync_instance = &mut *lock;
 
-    sync_instance.unit_offset = unit_offset;
+    sync_instance.unit_movement_fract = unit_movement_fract;
     (*sync_instance.accessor.client_loop_globals).frames_drawn += 1;
     (*sync_instance.accessor.client_loop_globals).fps_timer.frames_drawn += 1;
 
