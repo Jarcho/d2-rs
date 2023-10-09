@@ -5,7 +5,7 @@ use crate::{
 };
 use core::{
   hash::Hash,
-  mem::{replace, take, transmute},
+  mem::{replace, take},
   ptr::{null, null_mut, NonNull},
   sync::atomic::Ordering::Relaxed,
 };
@@ -598,17 +598,17 @@ unsafe extern "fastcall" fn draw_menu(
     .render_timer
     .update_time(time as u64, INSTANCE.render_fps.load_relaxed())
   {
-    if sync_instance.menu_timer.update_time(
-      sync_instance.render_timer.last_update(),
-      transmute(callback),
-    ) {
-      INSTANCE.menu_timer_updated.store(true, Relaxed);
+    if sync_instance
+      .menu_anim_timer
+      .update_time(sync_instance.render_timer.last_update())
+    {
+      INSTANCE.update_menu_char_anim.store(true, Relaxed);
       if let Some(callback) = callback {
         callback(*call_count);
         *call_count += 1;
       }
     } else {
-      INSTANCE.menu_timer_updated.store(false, Relaxed);
+      INSTANCE.update_menu_char_anim.store(false, Relaxed);
     }
 
     let draw = sync_instance.accessor.draw_menu;
@@ -659,7 +659,7 @@ unsafe extern "C" fn game_loop_sleep_hook() {
 }
 
 unsafe extern "fastcall" fn update_menu_char_frame(rate: u32, frame: &mut u32) -> u32 {
-  if INSTANCE.menu_timer_updated.load(Relaxed) {
+  if INSTANCE.update_menu_char_anim.load(Relaxed) {
     *frame += rate;
   }
   *frame

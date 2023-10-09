@@ -1,20 +1,15 @@
 use crate::{Ratio, GAME_FPS, INSTANCE};
 use core::mem::replace;
 
-pub(crate) struct MenuAnimRateLimiter {
+pub(crate) struct FixedRateLimiter {
   next_update: u64,
-  menu_fn: usize,
 }
-impl MenuAnimRateLimiter {
+impl FixedRateLimiter {
   pub const fn new() -> Self {
-    Self { next_update: 0, menu_fn: 0 }
+    Self { next_update: 0 }
   }
 
-  pub fn update_time(&mut self, time: u64, menu_fn: usize) -> bool {
-    if replace(&mut self.menu_fn, menu_fn) != menu_fn {
-      self.next_update = 0;
-    }
-
+  pub fn update_time(&mut self, time: u64) -> bool {
     if time >= self.next_update {
       let count = u128::from(time) * u128::from(GAME_FPS.num)
         / u128::from(INSTANCE.perf_freq.s_to_ticks(u64::from(GAME_FPS.den.get())));
