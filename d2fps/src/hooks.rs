@@ -29,15 +29,12 @@ mod v101;
 mod v102;
 mod v103;
 mod v104b;
-mod v104c;
 mod v105;
-mod v105b;
 mod v106;
 mod v106b;
 mod v107;
 mod v108;
 mod v109;
-mod v109b;
 mod v109d;
 mod v110;
 mod v111;
@@ -53,7 +50,6 @@ mod v114d;
 const GAME_EXE: *const u16 = w!("game.exe");
 
 struct Hooks {
-  version: &'static str,
   patches: FeaturePatches,
   addresses: d2::Addresses,
   base_addresses: d2::BaseAddresses,
@@ -61,50 +57,49 @@ struct Hooks {
 }
 impl Hooks {
   const UNKNOWN: &Hooks = &Hooks {
-    version: "unknown",
     patches: FeaturePatches::empty(),
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
     load_modules: d2::Modules::load_split_modules,
   };
 
-  fn from_game_file_version(version: FileVersion) -> &'static Hooks {
+  fn from_game_file_version(version: FileVersion) -> (&'static str, &'static Hooks) {
     match (version.ms, version.ls) {
       (0x0001_0000, 0x0000_0001) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x5215437ecc8b67b9) => &v100::HOOKS,
-        Some(0x1b093efaa009e78b) => &v101::HOOKS,
-        _ => Self::UNKNOWN,
+        Some(0x5215437ecc8b67b9) => ("v1.00", &v100::HOOKS),
+        Some(0x1b093efaa009e78b) => ("v1.01", &v101::HOOKS),
+        _ => ("unknown", Self::UNKNOWN),
       },
-      (0x0001_0000, 0x0002_0000) => &v102::HOOKS,
-      (0x0001_0000, 0x0003_0000) => &v103::HOOKS,
-      (0x0001_0000, 0x0004_0001) => &v104b::HOOKS,
-      (0x0001_0000, 0x0004_0002) => &v104c::HOOKS,
-      (0x0001_0000, 0x0005_0000) => &v105::HOOKS,
-      (0x0001_0000, 0x0005_0001) => &v105b::HOOKS,
+      (0x0001_0000, 0x0002_0000) => ("v1.02", &v102::HOOKS),
+      (0x0001_0000, 0x0003_0000) => ("v1.03", &v103::HOOKS),
+      (0x0001_0000, 0x0004_0001) => ("v1.04b", &v104b::HOOKS),
+      (0x0001_0000, 0x0004_0002) => ("v1.04c", &v104b::HOOKS),
+      (0x0001_0000, 0x0005_0000) => ("v1.05", &v105::HOOKS),
+      (0x0001_0000, 0x0005_0001) => ("v1.05b", &v105::HOOKS),
       (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x73645dbfe51df9ae) => &v106::HOOKS,
-        Some(0x62fea87b064aec9e) => &v106b::HOOKS,
-        _ => Self::UNKNOWN,
+        Some(0x73645dbfe51df9ae) => ("v1.06", &v106::HOOKS),
+        Some(0x62fea87b064aec9e) => ("v1.06b", &v106b::HOOKS),
+        _ => ("unknown", Self::UNKNOWN),
       },
-      (0x0001_0000, 0x0007_0000) => &v107::HOOKS,
-      (0x0001_0000, 0x0008_001c) => &v108::HOOKS,
-      (0x0001_0000, 0x0009_0013) => &v109::HOOKS,
-      (0x0001_0000, 0x0009_0014) => &v109b::HOOKS,
-      (0x0001_0000, 0x0009_0016) => &v109d::HOOKS,
-      // (0x0001_0000, 0x000a_0009) => "1.10b",
-      // (0x0001_0000, 0x000a_000a) => "1.10s",
-      (0x0001_0000, 0x000a_0027) => &v110::HOOKS,
-      (0x0001_0000, 0x000b_002d) => &v111::HOOKS,
-      (0x0001_0000, 0x000b_002e) => &v111b::HOOKS,
-      (0x0001_0000, 0x000c_0031) => &v112::HOOKS,
-      // (0x0001_0000, 0x000d_0037) => "1.13a",
-      (0x0001_0000, 0x000d_003c) => &v113c::HOOKS,
-      (0x0001_0000, 0x000d_0040) => &v113d::HOOKS,
-      (0x0001_000e, 0x0000_0040) => &v114a::HOOKS,
-      (0x0001_000e, 0x0001_0044) => &v114b::HOOKS,
-      (0x0001_000e, 0x0002_0046) => &v114c::HOOKS,
-      (0x0001_000e, 0x0003_0047) => &v114d::HOOKS,
-      _ => Self::UNKNOWN,
+      (0x0001_0000, 0x0007_0000) => ("v1.07", &v107::HOOKS),
+      (0x0001_0000, 0x0008_001c) => ("v1.08", &v108::HOOKS),
+      (0x0001_0000, 0x0009_0013) => ("v1.09", &v109::HOOKS),
+      (0x0001_0000, 0x0009_0014) => ("v1.09b", &v109::HOOKS),
+      (0x0001_0000, 0x0009_0016) => ("v1.09d", &v109d::HOOKS),
+      // (0x0001_0000, 0x000a_0009) => ("1.10b", &v110b::HOOKS),
+      // (0x0001_0000, 0x000a_000a) => ("1.10s", &v110s::HOOKS),
+      (0x0001_0000, 0x000a_0027) => ("v1.10", &v110::HOOKS),
+      (0x0001_0000, 0x000b_002d) => ("v1.11", &v111::HOOKS),
+      (0x0001_0000, 0x000b_002e) => ("v1.11b", &v111b::HOOKS),
+      (0x0001_0000, 0x000c_0031) => ("v1.12", &v112::HOOKS),
+      // (0x0001_0000, 0x000d_0037) => ("1.13a", &v113a::HOOKS),
+      (0x0001_0000, 0x000d_003c) => ("v1.13c", &v113c::HOOKS),
+      (0x0001_0000, 0x000d_0040) => ("v1.13d", &v113d::HOOKS),
+      (0x0001_000e, 0x0000_0040) => ("v1.14a", &v114a::HOOKS),
+      (0x0001_000e, 0x0001_0044) => ("v1.14b", &v114b::HOOKS),
+      (0x0001_000e, 0x0002_0046) => ("v1.14c", &v114c::HOOKS),
+      (0x0001_000e, 0x0003_0047) => ("v1.14d", &v114d::HOOKS),
+      _ => ("unknown", Self::UNKNOWN),
     }
   }
 }
@@ -192,7 +187,7 @@ impl GameAccessor {
 
 impl InstanceSync {
   pub fn attach(&mut self) {
-    let hooks = match unsafe { read_file_version(GAME_EXE) } {
+    let (version, hooks) = match unsafe { read_file_version(GAME_EXE) } {
       Ok(version) => Hooks::from_game_file_version(version),
       Err(_) => {
         log!("Error detecting game version");
@@ -200,7 +195,7 @@ impl InstanceSync {
         return;
       }
     };
-    log!("Detected game version: {}", hooks.version);
+    log!("Detected game version: {}", version);
 
     let Some(modules) = (hooks.load_modules)() else {
       log!("Disabling all features: failed to load game modules");

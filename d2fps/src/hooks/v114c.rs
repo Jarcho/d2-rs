@@ -13,7 +13,6 @@ use super::{entity_iso_xpos, entity_iso_ypos, entity_linear_xpos, entity_linear_
 
 #[rustfmt::skip]
 pub(super) const HOOKS: Hooks = Hooks {
-  version: "1.14c",
   addresses: ADDRESSES,
   base_addresses: BASE_ADDRESSES,
   load_modules: d2::Modules::load_combined_module,

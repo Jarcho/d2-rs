@@ -13,7 +13,6 @@ use d2interface::{
 
 #[rustfmt::skip]
 pub(super) const HOOKS: Hooks = Hooks {
-  version: "1.03",
   addresses: ADDRESSES,
   base_addresses: BASE_ADDRESSES,
   load_modules: d2::Modules::load_split_modules,
