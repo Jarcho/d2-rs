@@ -137,12 +137,14 @@ impl AtomicRatio {
 pub struct PerfFreq {
   for_s: AtomicU64,
   for_ms: AtomicU64,
+  game_frame_time: AtomicU64,
 }
 impl PerfFreq {
   pub const fn uninit() -> Self {
     Self {
       for_s: AtomicU64::new(1000),
       for_ms: AtomicU64::new(1),
+      game_frame_time: AtomicU64::new(40),
     }
   }
 
@@ -153,6 +155,8 @@ impl PerfFreq {
     }
     self.for_s.store(freq as u64, Relaxed);
     self.for_ms.store(freq as u64 / 1000, Relaxed);
+    let time = self.ms_to_ticks(40);
+    self.game_frame_time.store(time, Relaxed);
 
     true
   }
@@ -167,6 +171,10 @@ impl PerfFreq {
 
   pub fn ms_to_ticks(&self, ms: u64) -> u64 {
     ms * self.for_ms.load(Relaxed)
+  }
+
+  pub fn game_frame_time(&self) -> u64 {
+    self.game_frame_time.load(Relaxed)
   }
 }
 

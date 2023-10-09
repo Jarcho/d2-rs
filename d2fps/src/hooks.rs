@@ -6,7 +6,7 @@ use crate::{
 use core::{
   hash::Hash,
   mem::{replace, take, transmute},
-  ptr::NonNull,
+  ptr::{null, null_mut, NonNull},
   sync::atomic::Ordering::Relaxed,
 };
 use d2::CursorId;
@@ -110,29 +110,29 @@ impl Hooks {
 }
 
 pub struct GameAccessor {
-  pub player: NonNull<Option<NonNull<()>>>,
-  pub env_effects: NonNull<d2::ClientEnvEffects>,
-  pub game_type: NonNull<d2::GameType>,
-  pub active_entities: NonNull<()>,
-  pub client_loop_globals: NonNull<d2::ClientLoopGlobals>,
+  pub player: *mut Option<NonNull<()>>,
+  pub env_effects: *mut d2::ClientEnvEffects,
+  pub game_type: *mut d2::GameType,
+  pub active_entities: *mut (),
+  pub client_loop_globals: *mut d2::ClientLoopGlobals,
   pub apply_pos_change: usize,
-  pub server_update_time: NonNull<u32>,
+  pub server_update_time: *mut u32,
   pub in_perspective: unsafe extern "stdcall" fn() -> u32,
   pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
   pub draw_menu: unsafe extern "stdcall" fn(),
-  pub cursor_table: NonNull<[d2::Cursor; 7]>,
+  pub cursor_table: *const [d2::Cursor; 7],
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
   pub const fn new() -> Self {
     Self {
-      player: NonNull::dangling(),
-      env_effects: NonNull::dangling(),
-      game_type: NonNull::dangling(),
-      active_entities: NonNull::dangling(),
-      client_loop_globals: NonNull::dangling(),
+      player: null_mut(),
+      env_effects: null_mut(),
+      game_type: null_mut(),
+      active_entities: null_mut(),
+      client_loop_globals: null_mut(),
       apply_pos_change: 0,
-      server_update_time: NonNull::dangling(),
+      server_update_time: null_mut(),
       in_perspective: {
         extern "stdcall" fn f() -> u32 {
           panic!()
@@ -151,31 +151,39 @@ impl GameAccessor {
         }
         f
       },
-      cursor_table: NonNull::dangling(),
+      cursor_table: null(),
     }
   }
 
   unsafe fn load(&mut self, modules: &d2::Modules, addresses: &d2::Addresses) -> Result<(), ()> {
-    self.player = addresses.player(modules.client());
-    self.env_effects = addresses.env_effects(modules.client());
-    self.game_type = addresses.game_type(modules.client());
-    self.active_entities = addresses.active_entities(modules.client());
-    self.client_loop_globals = addresses.client_loop_globals(modules.client());
+    self.player = addresses.player(modules.client()).as_ptr();
+    self.env_effects = addresses.env_effects(modules.client()).as_ptr();
+    self.game_type = addresses.game_type(modules.client()).as_ptr();
+    self.active_entities = addresses.active_entities(modules.client()).as_ptr();
+    self.client_loop_globals = addresses.client_loop_globals(modules.client()).as_ptr();
     self.apply_pos_change = addresses.apply_pos_change(modules.common());
-    self.server_update_time = addresses.server_update_time(modules.game());
+    self.server_update_time = addresses.server_update_time(modules.game()).as_ptr();
     self.in_perspective = addresses.in_perspective(modules.gfx()).ok_or(())?;
     self.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
     self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
-    self.cursor_table = addresses.cursor_table(modules.client()).into();
+    self.cursor_table = addresses.cursor_table(modules.client());
     Ok(())
   }
 
-  pub unsafe fn player<T>(&self) -> Option<NonNull<T>> {
-    *self.player.cast().as_ptr()
+  pub unsafe fn player<'a, T>(&self) -> Option<&'a mut T> {
+    (*self.player).map(|x| &mut *x.cast().as_ptr())
   }
 
-  pub unsafe fn active_entities<T>(&self) -> NonNull<d2::EntityTables<T>> {
-    self.active_entities.cast()
+  pub unsafe fn active_entities<'a, T>(&self) -> &'a mut d2::EntityTables<T> {
+    &mut *self.active_entities.cast()
+  }
+
+  pub unsafe fn game_type(&self) -> d2::GameType {
+    *self.game_type
+  }
+
+  pub unsafe fn cursor_table(&self) -> &'static [d2::Cursor; 7] {
+    &*self.cursor_table
   }
 }
 
@@ -348,14 +356,14 @@ impl InstanceSync {
       .map(|pos| pos.for_time(self.unit_offset))
   }
 
-  fn entity_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FixedU16> {
+  fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FixedU16> {
     match self.entity_adjusted_pos(e) {
       Some(pos) => pos,
       None => e.linear_pos(),
     }
   }
 
-  fn entity_iso_pos(&mut self, e: &impl Entity) -> d2::IsoPos<i32> {
+  fn entity_adjusted_iso_pos(&mut self, e: &impl Entity) -> d2::IsoPos<i32> {
     match self.entity_adjusted_pos(e) {
       Some(pos) => d2::IsoPos::from(pos),
       None => e.iso_pos(),
@@ -363,12 +371,12 @@ impl InstanceSync {
   }
 
   unsafe fn update_game_time(&mut self, time: i64) -> bool {
-    let is_sp = self.accessor.game_type.as_ref().is_sp();
+    let is_sp = self.accessor.game_type().is_sp();
     let prev_update_time = self.game_update_time_ms;
     self.game_update_time_ms = if is_sp {
-      *self.accessor.server_update_time.as_ptr()
+      *self.accessor.server_update_time
     } else {
-      self.accessor.client_loop_globals.as_ref().last_update
+      (*self.accessor.client_loop_globals).last_update
     };
     if self.game_update_time_ms != prev_update_time {
       let cur_time_ms = if is_sp {
@@ -394,8 +402,10 @@ impl InstanceSync {
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
     let tracker = self.entity_tracker.as_mut().unwrap();
-    self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
-      match tracker.entry(e.unit_id()) {
+    self
+      .accessor
+      .active_entities::<T>()
+      .for_each_dy(|e| match tracker.entry(e.unit_id()) {
         Entry::Occupied(mut x) => {
           x.get_mut().update_pos(e.linear_pos());
           x.get_mut().active = true;
@@ -403,14 +413,13 @@ impl InstanceSync {
         Entry::Vacant(x) => {
           x.insert(Position::new(e.linear_pos()));
         }
-      }
-    });
+      });
     tracker.retain(|_, v| take(&mut v.active));
   }
 
   unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
     let tracker = self.entity_tracker.as_mut().unwrap();
-    self.accessor.active_entities::<T>().as_mut().for_each_dy(|e| {
+    self.accessor.active_entities::<T>().for_each_dy(|e| {
       if let Some(pos) = tracker.get_mut(&e.unit_id()) {
         let epos = e.linear_pos();
         if pos.real != epos && pos.teleport {
@@ -423,7 +432,7 @@ impl InstanceSync {
   }
 
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
-    let frame_len = INSTANCE.perf_freq.ms_to_ticks(40) as i64;
+    let frame_len = INSTANCE.perf_freq.game_frame_time() as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
@@ -431,7 +440,7 @@ impl InstanceSync {
     self.unit_offset = d2::FixedI16::from_repr(fract as i32);
 
     let tracker = self.entity_tracker.as_ref().unwrap();
-    self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
+    self.accessor.active_entities::<T>().for_each_dy_mut(|e| {
       if let Some(pos) = tracker.get(&e.unit_id()) {
         e.set_pos(pos.for_time(self.unit_offset));
       }
@@ -440,7 +449,7 @@ impl InstanceSync {
 
   unsafe fn reset_entity_positions<T: Entity>(&mut self) {
     let tracker = self.entity_tracker.as_ref().unwrap();
-    self.accessor.active_entities::<T>().as_mut().for_each_dy_mut(|e| {
+    self.accessor.active_entities::<T>().for_each_dy_mut(|e| {
       if let Some(pos) = tracker.get(&e.unit_id()) {
         e.set_pos(pos.real);
       }
@@ -452,13 +461,13 @@ impl InstanceSync {
       let dx = prev_pos.x.wrapping_sub(self.player_pos.x) as u32;
       let dy = prev_pos.y.wrapping_sub(self.player_pos.y) as u32;
 
-      if let Some(mut splashes) = self.accessor.env_effects.as_mut().splashes {
+      if let Some(mut splashes) = (*self.accessor.env_effects).splashes {
         for splash in splashes.as_mut().as_mut_slice() {
           splash.pos.x = splash.pos.x.wrapping_add(dx);
           splash.pos.y = splash.pos.y.wrapping_add(dy);
         }
       }
-      if let Some(mut bubbles) = self.accessor.env_effects.as_mut().bubbles {
+      if let Some(mut bubbles) = (*self.accessor.env_effects).bubbles {
         for bubble in bubbles.as_mut().as_mut_slice() {
           bubble.pos.x = bubble.pos.x.wrapping_add(dx);
           bubble.pos.y = bubble.pos.y.wrapping_add(dy);
@@ -469,17 +478,17 @@ impl InstanceSync {
 }
 
 extern "stdcall" fn entity_iso_xpos<E: Entity>(e: &E) -> i32 {
-  INSTANCE.sync.lock().entity_iso_pos(e).x
+  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).x
 }
 extern "stdcall" fn entity_iso_ypos<E: Entity>(e: &E) -> i32 {
-  INSTANCE.sync.lock().entity_iso_pos(e).y
+  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).y
 }
 
 extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> d2::FixedU16 {
-  INSTANCE.sync.lock().entity_linear_pos(e).x
+  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).x
 }
 extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FixedU16 {
-  INSTANCE.sync.lock().entity_linear_pos(e).y
+  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).y
 }
 
 unsafe extern "C" fn draw_game<E: Entity>() {
@@ -490,7 +499,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   let Some(player) = sync_instance.accessor.player::<E>() else {
     return;
   };
-  if !player.as_ref().has_room() {
+  if !player.has_room() {
     return;
   }
 
@@ -504,7 +513,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
     let prev_update_count = replace(
       &mut sync_instance.client_update_count,
-      sync_instance.accessor.client_loop_globals.as_ref().updates,
+      (*sync_instance.accessor.client_loop_globals).updates,
     );
     let client_updated = sync_instance.client_update_count != prev_update_count;
     INSTANCE.client_updated.store(client_updated, Relaxed);
@@ -518,17 +527,17 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       sync_instance.update_entity_positions::<E>();
 
       let prev_player_pos = sync_instance.player_pos;
-      sync_instance.player_pos = sync_instance.entity_iso_pos(player.as_ref());
+      sync_instance.player_pos = sync_instance.entity_adjusted_iso_pos(player);
 
       if !client_updated {
         sync_instance.update_env_images(prev_player_pos);
       }
     } else {
       sync_instance.unit_offset = d2::FixedI16::default();
-      sync_instance.player_pos = player.as_ref().iso_pos();
+      sync_instance.player_pos = player.iso_pos();
     }
 
-    let draw = sync_instance.accessor.client_loop_globals.as_ref().draw_fn;
+    let draw = (*sync_instance.accessor.client_loop_globals).draw_fn;
     let unit_offset = take(&mut sync_instance.unit_offset);
     drop(lock);
     draw(0);
@@ -537,13 +546,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     let sync_instance = &mut *lock;
 
     sync_instance.unit_offset = unit_offset;
-    sync_instance.accessor.client_loop_globals.as_mut().frames_drawn += 1;
-    sync_instance
-      .accessor
-      .client_loop_globals
-      .as_mut()
-      .fps_timer
-      .frames_drawn += 1;
+    (*sync_instance.accessor.client_loop_globals).frames_drawn += 1;
+    (*sync_instance.accessor.client_loop_globals).fps_timer.frames_drawn += 1;
 
     if enable_smoothing {
       sync_instance.reset_entity_positions::<E>();
@@ -562,7 +566,7 @@ unsafe extern "C" fn draw_game_paused() {
     .render_timer
     .update_time(cur_time as u64, INSTANCE.render_fps.load_relaxed())
   {
-    let draw = sync_instance.accessor.client_loop_globals.as_ref().draw_fn;
+    let draw = (*sync_instance.accessor.client_loop_globals).draw_fn;
     drop(lock);
     draw(0);
   }
@@ -636,7 +640,7 @@ unsafe extern "C" fn game_loop_sleep_hook() {
   } else {
     len
   };
-  let limit = if sync_instance.accessor.game_type.as_ref().is_host() {
+  let limit = if sync_instance.accessor.game_type().is_host() {
     2
   } else {
     10
@@ -668,5 +672,5 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
 
 unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
   INSTANCE.client_updated.load(Relaxed)
-    && INSTANCE.sync.lock().accessor.cursor_table.as_ref()[cursor.0 as usize].is_anim != 0
+    && INSTANCE.sync.lock().accessor.cursor_table()[cursor.0 as usize].is_anim != 0
 }
