@@ -22,6 +22,7 @@ pub const ADDRESSES: Addresses = Addresses {
   draw_menu: Ordinal(10015),
   cursor_table: 0x11b028,
   game_cursor: 0x168170,
+  summit_cloud_x_pos: 0,
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x10000000,

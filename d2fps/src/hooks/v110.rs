@@ -2,8 +2,8 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, update_menu_char_frame, Hooks,
-    UnitId,
+    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, summit_cloud_move_amount,
+    update_menu_char_frame, Hooks, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -117,6 +117,11 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0xb77e8, patch_source!("
           39a8 $586bb96f
         "), super::v100::should_update_cursor_100_asm_stub),
+        // Summit cloud move speed
+        Patch::call_c(0x17b75, patch_source!("
+          03d8
+          81c170010000
+        "), summit_cloud_move_amount_110_asm_stub),
       ],
     )],
     &[
@@ -227,4 +232,20 @@ global_asm! {
 }
 extern "C" {
   pub fn intercept_teleport_110_asm_stub();
+}
+
+global_asm! {
+  ".global _summit_cloud_move_amount_110_asm_stub",
+  "_summit_cloud_move_amount_110_asm_stub:",
+  "add ecx, 0x170",
+  "push ecx",
+  "mov ecx, eax",
+  "call {}",
+  "add ebx, eax",
+  "pop ecx",
+  "ret",
+  sym summit_cloud_move_amount,
+}
+extern "C" {
+  pub fn summit_cloud_move_amount_110_asm_stub();
 }

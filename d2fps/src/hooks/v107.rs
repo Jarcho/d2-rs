@@ -2,10 +2,11 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks, UnitId,
+    entity_linear_ypos, game_loop_sleep_hook, summit_cloud_move_amount, Hooks, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
+use core::arch::global_asm;
 use d2interface::{
   self as d2,
   v107::{Entity, ADDRESSES, BASE_ADDRESSES},
@@ -105,6 +106,11 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0xbf308, patch_source!("
           39a8 $6081bd6f
         "), super::v100::should_update_cursor_100_asm_stub),
+        // Summit cloud move speed
+        Patch::call_c(0x16f86, patch_source!("
+          03e9
+          81c270010000
+        "), summit_cloud_move_amount_107_asm_stub),
       ],
     )],
     &[
@@ -173,4 +179,19 @@ impl super::Entity for Entity {
       }
     }
   }
+}
+
+global_asm! {
+  ".global _summit_cloud_move_amount_107_asm_stub",
+  "_summit_cloud_move_amount_107_asm_stub:",
+  "add edx, 0x170",
+  "push edx",
+  "call {}",
+  "add ebp, eax",
+  "pop edx",
+  "ret",
+  sym summit_cloud_move_amount,
+}
+extern "C" {
+  pub fn summit_cloud_move_amount_107_asm_stub();
 }

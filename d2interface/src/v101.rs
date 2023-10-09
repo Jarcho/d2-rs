@@ -18,4 +18,5 @@ pub const ADDRESSES: Addresses = Addresses {
   draw_menu: Ordinal(10015),
   cursor_table: 0x11ae00,
   game_cursor: 0x168148,
+  summit_cloud_x_pos: 0,
 };

@@ -3,7 +3,7 @@ use crate::{
   hooks::{
     draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
     entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, should_update_cursor,
-    update_menu_char_frame, Hooks,
+    summit_cloud_move_amount, update_menu_char_frame, Hooks,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -120,6 +120,12 @@ pub(super) const HOOKS: Hooks = Hooks {
           8b88 $f036ba6f
           85c9
         "), should_update_cursor_111_asm_stub),
+        // Summit cloud move speed
+        Patch::call_c(0x5bc8c, patch_source!("
+          03da
+          8bc3
+          3bc7
+        "), summit_cloud_move_amount_111_asm_stub),
       ],
     )],
     &[
@@ -190,4 +196,21 @@ global_asm! {
 }
 extern "C" {
   pub fn should_update_cursor_111_asm_stub();
+}
+
+global_asm! {
+  ".global _summit_cloud_move_amount_111_asm_stub",
+  "_summit_cloud_move_amount_111_asm_stub:",
+  "push ecx",
+  "mov ecx, edx",
+  "call {}",
+  "add eax, ebx",
+  "mov ebx, eax",
+  "cmp eax, edi",
+  "pop ecx",
+  "ret",
+  sym summit_cloud_move_amount,
+}
+extern "C" {
+  pub fn summit_cloud_move_amount_111_asm_stub();
 }

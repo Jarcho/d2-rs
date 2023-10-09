@@ -102,6 +102,10 @@ pub(super) const HOOKS: Hooks = Hooks {
         "), draw_game::<Entity>),
         // Cursor animation speed
         Patch::raw(0x63b7d, patch_source!("10"), &[0x28]),
+        // Summit cloud move speed
+        Patch::call_c(0x7260c, patch_source!("
+          0197 $70cc7a00
+        "), super::v114a::move_summit_cloud_114a_asm_stub),
       ],
     )],
     &[ModulePatches::new(

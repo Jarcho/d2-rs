@@ -1,4 +1,4 @@
-use crate::{ClientEnvEffects, ClientLoopGlobals, Cursor, GameType};
+use crate::{ClientEnvEffects, ClientLoopGlobals, Cursor, FixedI4, GameType};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
 use windows_sys::{
   w,
@@ -168,6 +168,8 @@ decl_addresses! {
   Client::cursor_table: &'static [Cursor; 7],
   /// The in-game cursor's state
   Client::game_cursor: NonNull<()>,
+  /// The x-positions of the clouds in the Arreat Summit.
+  Client::summit_cloud_x_pos: NonNull<[FixedI4; 10]>
 }
 
 #[derive(Clone, Copy)]

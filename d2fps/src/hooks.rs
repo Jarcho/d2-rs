@@ -121,6 +121,7 @@ pub struct GameAccessor {
   pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
   pub draw_menu: unsafe extern "stdcall" fn(),
   pub cursor_table: *const [d2::Cursor; 7],
+  pub summit_cloud_x_pos: *mut [d2::FixedI4; 10],
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
@@ -152,6 +153,7 @@ impl GameAccessor {
         f
       },
       cursor_table: null(),
+      summit_cloud_x_pos: null_mut(),
     }
   }
 
@@ -167,6 +169,7 @@ impl GameAccessor {
     self.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
     self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
     self.cursor_table = addresses.cursor_table(modules.client());
+    self.summit_cloud_x_pos = addresses.summit_cloud_x_pos(modules.client()).as_ptr();
     Ok(())
   }
 
@@ -505,10 +508,17 @@ unsafe extern "C" fn draw_game<E: Entity>() {
 
   let mut time = 0i64;
   QueryPerformanceCounter(&mut time);
+  let last_update = sync_instance.render_timer.last_update();
   if sync_instance
     .render_timer
     .update_time(time as u64, INSTANCE.render_fps.load_relaxed())
   {
+    let frame_len = INSTANCE.perf_freq.game_frame_time() as i64;
+    let time_delta = (sync_instance.render_timer.last_update() - last_update) as i64;
+    INSTANCE
+      .update_time_fract
+      .store(time_delta as f64 / frame_len as f64, Relaxed);
+
     let enable_smoothing =
       INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
     let prev_update_count = replace(
@@ -673,4 +683,8 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
 unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
   INSTANCE.client_updated.load(Relaxed)
     && INSTANCE.sync.lock().accessor.cursor_table()[cursor.0 as usize].is_anim != 0
+}
+
+extern "fastcall" fn summit_cloud_move_amount(x: d2::FixedU4) -> d2::FixedU4 {
+  (f64::from(x) * INSTANCE.update_time_fract.load(Relaxed)).into()
 }

@@ -43,11 +43,37 @@ where
     }
   }
 }
+impl<const N: u8> From<FixedPoint<u32, N>> for f64 {
+  fn from(x: FixedPoint<u32, N>) -> Self {
+    x.0 as f64 / 2u32.pow(N as u32) as f64
+  }
+}
+impl<const N: u8> From<f64> for FixedPoint<u32, N> {
+  fn from(x: f64) -> Self {
+    Self((x * 2u32.pow(N as u32) as f64) as u32)
+  }
+}
+impl<const N: u8> From<FixedPoint<i32, N>> for f64 {
+  fn from(x: FixedPoint<i32, N>) -> Self {
+    x.0 as f64 / 2u32.pow(N as u32) as f64
+  }
+}
+impl<const N: u8> From<f64> for FixedPoint<i32, N> {
+  fn from(x: f64) -> Self {
+    Self((x * 2u32.pow(N as u32) as f64) as i32)
+  }
+}
 impl<T: ops::Add<Output = T>, const N: u8> ops::Add for FixedPoint<T, N> {
   type Output = Self;
   #[inline]
   fn add(self, rhs: Self) -> Self::Output {
     Self(self.0 + rhs.0)
+  }
+}
+impl<T: ops::AddAssign, const N: u8> ops::AddAssign for FixedPoint<T, N> {
+  #[inline]
+  fn add_assign(&mut self, rhs: Self) {
+    self.0 += rhs.0
   }
 }
 impl<T: ops::Sub<Output = T>, const N: u8> ops::Sub for FixedPoint<T, N> {
@@ -90,8 +116,11 @@ where
 
 pub type FixedU16 = FixedPoint<u32, 16>;
 pub type FixedU8 = FixedPoint<u32, 8>;
+pub type FixedU4 = FixedPoint<u32, 4>;
 pub type FixedU3 = FixedPoint<u32, 3>;
+
 pub type FixedI16 = FixedPoint<i32, 16>;
+pub type FixedI4 = FixedPoint<i32, 4>;
 
 /// The linear coordinate system.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

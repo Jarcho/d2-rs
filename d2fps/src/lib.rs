@@ -9,6 +9,7 @@ use crate::{
   },
   window::WindowHook,
 };
+use atomic_float::AtomicF64;
 use core::{
   ffi::c_void,
   num::NonZeroU32,
@@ -73,6 +74,7 @@ struct Instance {
   menu_timer_updated: AtomicBool,
   window_hook: WindowHook,
   client_updated: AtomicBool,
+  update_time_fract: AtomicF64,
 }
 impl Instance {
   unsafe fn frame_rate_from_window(&self, hwnd: HWND) {
@@ -112,6 +114,7 @@ static INSTANCE: Instance = Instance {
   menu_timer_updated: AtomicBool::new(false),
   window_hook: WindowHook::new(),
   client_updated: AtomicBool::new(true),
+  update_time_fract: AtomicF64::new(0.0),
 };
 
 #[no_mangle]

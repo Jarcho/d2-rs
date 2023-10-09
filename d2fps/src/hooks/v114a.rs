@@ -1,9 +1,11 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, Hooks},
+  INSTANCE,
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
+use core::sync::atomic::Ordering::Relaxed;
 use d2interface::{
   self as d2,
   v114a::{Entity, ADDRESSES, BASE_ADDRESSES},
@@ -115,4 +117,23 @@ global_asm! {
 }
 extern "C" {
   pub fn update_menu_char_frame_114a_asm_stub();
+}
+
+unsafe extern "fastcall" fn move_summit_cloud(i: usize, amount: d2::FixedU4) {
+  (*INSTANCE.sync.lock().accessor.summit_cloud_x_pos)[i / 4] +=
+    d2::FixedI4::from(f64::from(amount) * INSTANCE.update_time_fract.load(Relaxed));
+}
+
+global_asm! {
+  ".global _move_summit_cloud_114a_asm_stub",
+  "_move_summit_cloud_114a_asm_stub:",
+  "push ecx",
+  "mov ecx, edi",
+  "call {}",
+  "pop ecx",
+  "ret",
+  sym move_summit_cloud,
+}
+extern "C" {
+  pub fn move_summit_cloud_114a_asm_stub();
 }

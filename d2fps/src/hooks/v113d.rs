@@ -118,6 +118,12 @@ pub(super) const HOOKS: Hooks = Hooks {
           8b88 $309aba6f
           85c9
         "), super::v111::should_update_cursor_111_asm_stub),
+        // Summit cloud move speed
+        Patch::call_c(0xb5a6c, patch_source!("
+          03da
+          8bc3
+          3bc7
+        "), super::v111::summit_cloud_move_amount_111_asm_stub),
       ],
     )],
     &[

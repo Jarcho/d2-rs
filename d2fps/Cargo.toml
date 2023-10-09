@@ -17,6 +17,7 @@ crossbeam-channel = "0.5.8"
 parking_lot = "0.12.1"
 bitflags = "2.3.1"
 fxhash = "0.2.1"
+atomic_float = "0.1.0"
 
 [dependencies.bin_patch]
 path = "../bin_patch"

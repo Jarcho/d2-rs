@@ -45,6 +45,9 @@ pub use crate::{
     CursorId, CursorState, EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor,
     GameType, InRoom, LinkedList, Rand,
   },
-  coord::{FixedI16, FixedPoint, FixedU16, FixedU3, FixedU8, IsoPos, LinearPos, Size, UnknownPos},
+  coord::{
+    FixedI16, FixedI4, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos, LinearPos, Size,
+    UnknownPos,
+  },
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };
