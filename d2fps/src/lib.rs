@@ -9,6 +9,7 @@ use crate::{
   },
   window::WindowHook,
 };
+use arcane::ArcaneBg;
 use atomic_float::AtomicF64;
 use core::{
   ffi::c_void,
@@ -18,7 +19,8 @@ use core::{
 use d2interface as d2;
 use fxhash::FxHashMap as HashMap;
 use parking_lot::Mutex;
-use std::panic::set_hook;
+use rand::SeedableRng;
+use std::{panic::set_hook, sync::atomic::AtomicU64};
 use windows_sys::Win32::{
   Foundation::{BOOL, FALSE, HMODULE, HWND, TRUE},
   Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST},
@@ -26,6 +28,7 @@ use windows_sys::Win32::{
     LibraryLoader::{
       GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
     },
+    Performance::QueryPerformanceCounter,
     SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
   },
 };
@@ -39,6 +42,7 @@ macro_rules! log {
   }
 }
 
+mod arcane;
 mod config;
 mod features;
 mod hooks;
@@ -49,6 +53,12 @@ mod window;
 
 const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
 
+type Rng = rand_xoshiro::Xoshiro128Plus;
+
+struct InstanceDelayed {
+  arcane_bg: ArcaneBg,
+  rng: Rng,
+}
 struct InstanceSync {
   accessor: GameAccessor,
   entity_tracker: Option<HashMap<UnitId, Position>>,
@@ -74,6 +84,7 @@ struct InstanceSync {
   /// Patches to reapply once the menu is loaded. Helps compatibility with other
   /// mods that patch code without validating the patch location's data.
   reapply_patches: Option<(&'static FeaturePatches, d2::Modules)>,
+  delayed: Option<InstanceDelayed>,
 }
 struct Instance {
   sync: Mutex<InstanceSync>,
@@ -104,6 +115,8 @@ struct Instance {
   /// The ratio between the time since the previous frame draw, and the game's
   /// update rate.
   update_time_fract: AtomicF64,
+  /// The number of QPC ticks that have occurred since the previous drawn frame.
+  update_ticks: AtomicU64,
 }
 impl Instance {
   unsafe fn frame_rate_from_window(&self, hwnd: HWND) {
@@ -131,6 +144,7 @@ static INSTANCE: Instance = Instance {
     player_pos: d2::IsoPos::new(0, 0),
     unit_movement_fract: d2::FixedI16::from_repr(0),
     reapply_patches: None,
+    delayed: None,
   }),
   config: Config::new(),
   active_fps: AtomicRatio::new(GAME_FPS),
@@ -144,6 +158,7 @@ static INSTANCE: Instance = Instance {
   window_hook: WindowHook::new(),
   client_updated: AtomicBool::new(true),
   update_time_fract: AtomicF64::new(0.0),
+  update_ticks: AtomicU64::new(0),
 };
 
 #[no_mangle]
@@ -226,6 +241,13 @@ unsafe extern "stdcall" fn Init() {
         fxhash::FxBuildHasher::default(),
       ));
       sync_instance.attach();
+
+      let mut time = 0;
+      QueryPerformanceCounter(&mut time);
+      sync_instance.delayed = Some(InstanceDelayed {
+        arcane_bg: ArcaneBg::new(),
+        rng: Rng::seed_from_u64(time as u64),
+      });
 
       if INSTANCE.config.features.fps() {
         INSTANCE.precision_timer.enable(true);

@@ -1,6 +1,9 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
-  hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, intercept_teleport, Hooks},
+  hooks::{
+    draw_arcane_bg, draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, Hooks,
+  },
 };
 use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
@@ -8,8 +11,6 @@ use d2interface::{
   self as d2,
   v114c::{Entity, ADDRESSES, BASE_ADDRESSES},
 };
-
-use super::{entity_iso_xpos, entity_iso_ypos, entity_linear_xpos, entity_linear_ypos};
 
 #[rustfmt::skip]
 pub(super) const HOOKS: Hooks = Hooks {
@@ -127,6 +128,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           8bc6
           e8f7f0ffff
         "), intercept_teleport_114c_asm_stub),
+        // Arcane background
+        Patch::call_c(0x729c5, patch_source!("e806f6ffff"), draw_arcane_bg),
       ],
     )],
   )

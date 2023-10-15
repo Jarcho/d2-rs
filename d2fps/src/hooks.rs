@@ -63,48 +63,49 @@ impl Hooks {
     load_modules: d2::Modules::load_split_modules,
   };
 
-  fn from_game_file_version(version: FileVersion) -> (&'static str, &'static Hooks) {
+  fn from_game_file_version(version: FileVersion) -> (&'static str, &'static Hooks, bool) {
     match (version.ms, version.ls) {
       (0x0001_0000, 0x0000_0001) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x5215437ecc8b67b9) => ("v1.00", &v100::HOOKS),
-        Some(0x1b093efaa009e78b) => ("v1.01", &v101::HOOKS),
-        _ => ("unknown", Self::UNKNOWN),
+        Some(0x5215437ecc8b67b9) => ("v1.00", &v100::HOOKS, false),
+        Some(0x1b093efaa009e78b) => ("v1.01", &v101::HOOKS, false),
+        _ => ("unknown", Self::UNKNOWN, false),
       },
-      (0x0001_0000, 0x0002_0000) => ("v1.02", &v102::HOOKS),
-      (0x0001_0000, 0x0003_0000) => ("v1.03", &v103::HOOKS),
-      (0x0001_0000, 0x0004_0001) => ("v1.04b", &v104b::HOOKS),
-      (0x0001_0000, 0x0004_0002) => ("v1.04c", &v104b::HOOKS),
-      (0x0001_0000, 0x0005_0000) => ("v1.05", &v105::HOOKS),
-      (0x0001_0000, 0x0005_0001) => ("v1.05b", &v105::HOOKS),
+      (0x0001_0000, 0x0002_0000) => ("v1.02", &v102::HOOKS, false),
+      (0x0001_0000, 0x0003_0000) => ("v1.03", &v103::HOOKS, false),
+      (0x0001_0000, 0x0004_0001) => ("v1.04b", &v104b::HOOKS, false),
+      (0x0001_0000, 0x0004_0002) => ("v1.04c", &v104b::HOOKS, false),
+      (0x0001_0000, 0x0005_0000) => ("v1.05", &v105::HOOKS, false),
+      (0x0001_0000, 0x0005_0001) => ("v1.05b", &v105::HOOKS, false),
       (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x73645dbfe51df9ae) => ("v1.06", &v106::HOOKS),
-        Some(0x62fea87b064aec9e) => ("v1.06b", &v106b::HOOKS),
-        _ => ("unknown", Self::UNKNOWN),
+        Some(0x73645dbfe51df9ae) => ("v1.06", &v106::HOOKS, false),
+        Some(0x62fea87b064aec9e) => ("v1.06b", &v106b::HOOKS, false),
+        _ => ("unknown", Self::UNKNOWN, false),
       },
-      (0x0001_0000, 0x0007_0000) => ("v1.07", &v107::HOOKS),
-      (0x0001_0000, 0x0008_001c) => ("v1.08", &v108::HOOKS),
-      (0x0001_0000, 0x0009_0013) => ("v1.09", &v109::HOOKS),
-      (0x0001_0000, 0x0009_0014) => ("v1.09b", &v109::HOOKS),
-      (0x0001_0000, 0x0009_0016) => ("v1.09d", &v109d::HOOKS),
-      // (0x0001_0000, 0x000a_0009) => ("1.10b", &v110b::HOOKS),
-      // (0x0001_0000, 0x000a_000a) => ("1.10s", &v110s::HOOKS),
-      (0x0001_0000, 0x000a_0027) => ("v1.10", &v110::HOOKS),
-      (0x0001_0000, 0x000b_002d) => ("v1.11", &v111::HOOKS),
-      (0x0001_0000, 0x000b_002e) => ("v1.11b", &v111b::HOOKS),
-      (0x0001_0000, 0x000c_0031) => ("v1.12", &v112::HOOKS),
-      // (0x0001_0000, 0x000d_0037) => ("1.13a", &v113a::HOOKS),
-      (0x0001_0000, 0x000d_003c) => ("v1.13c", &v113c::HOOKS),
-      (0x0001_0000, 0x000d_0040) => ("v1.13d", &v113d::HOOKS),
-      (0x0001_000e, 0x0000_0040) => ("v1.14a", &v114a::HOOKS),
-      (0x0001_000e, 0x0001_0044) => ("v1.14b", &v114b::HOOKS),
-      (0x0001_000e, 0x0002_0046) => ("v1.14c", &v114c::HOOKS),
-      (0x0001_000e, 0x0003_0047) => ("v1.14d", &v114d::HOOKS),
-      _ => ("unknown", Self::UNKNOWN),
+      (0x0001_0000, 0x0007_0000) => ("v1.07", &v107::HOOKS, true),
+      (0x0001_0000, 0x0008_001c) => ("v1.08", &v108::HOOKS, true),
+      (0x0001_0000, 0x0009_0013) => ("v1.09", &v109::HOOKS, true),
+      (0x0001_0000, 0x0009_0014) => ("v1.09b", &v109::HOOKS, true),
+      (0x0001_0000, 0x0009_0016) => ("v1.09d", &v109d::HOOKS, true),
+      // (0x0001_0000, 0x000a_0009) => ("1.10b", &v110b::HOOKS, true),
+      // (0x0001_0000, 0x000a_000a) => ("1.10s", &v110s::HOOKS, true),
+      (0x0001_0000, 0x000a_0027) => ("v1.10", &v110::HOOKS, true),
+      (0x0001_0000, 0x000b_002d) => ("v1.11", &v111::HOOKS, true),
+      (0x0001_0000, 0x000b_002e) => ("v1.11b", &v111b::HOOKS, true),
+      (0x0001_0000, 0x000c_0031) => ("v1.12", &v112::HOOKS, true),
+      // (0x0001_0000, 0x000d_0037) => ("1.13a", &v113a::HOOKS, true),
+      (0x0001_0000, 0x000d_003c) => ("v1.13c", &v113c::HOOKS, true),
+      (0x0001_0000, 0x000d_0040) => ("v1.13d", &v113d::HOOKS, true),
+      (0x0001_000e, 0x0000_0040) => ("v1.14a", &v114a::HOOKS, true),
+      (0x0001_000e, 0x0001_0044) => ("v1.14b", &v114b::HOOKS, true),
+      (0x0001_000e, 0x0002_0046) => ("v1.14c", &v114c::HOOKS, true),
+      (0x0001_000e, 0x0003_0047) => ("v1.14d", &v114d::HOOKS, true),
+      _ => ("unknown", Self::UNKNOWN, false),
     }
   }
 }
 
 pub struct GameAccessor {
+  pub is_expansion: bool,
   pub player: *mut Option<NonNull<()>>,
   pub env_effects: *mut d2::ClientEnvEffects,
   pub game_type: *mut d2::GameType,
@@ -117,11 +118,17 @@ pub struct GameAccessor {
   pub draw_menu: unsafe extern "stdcall" fn(),
   pub cursor_table: *const [d2::Cursor; 7],
   pub summit_cloud_x_pos: *mut [d2::FixedI4; 10],
+  pub viewport_width: *mut u32,
+  pub viewport_height: *mut u32,
+  pub viewport_shift: *mut i32,
+  pub find_closest_color: unsafe extern "stdcall" fn(u32, u32, u32) -> u8,
+  pub draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
   pub const fn new() -> Self {
     Self {
+      is_expansion: false,
       player: null_mut(),
       env_effects: null_mut(),
       game_type: null_mut(),
@@ -149,10 +156,31 @@ impl GameAccessor {
       },
       cursor_table: null(),
       summit_cloud_x_pos: null_mut(),
+      viewport_height: null_mut(),
+      viewport_width: null_mut(),
+      viewport_shift: null_mut(),
+      find_closest_color: {
+        extern "stdcall" fn f(_: u32, _: u32, _: u32) -> u8 {
+          panic!()
+        }
+        f
+      },
+      draw_line: {
+        extern "stdcall" fn f(_: i32, _: i32, _: i32, _: i32, _: u8, _: u8) {
+          panic!()
+        }
+        f
+      },
     }
   }
 
-  unsafe fn load(&mut self, modules: &d2::Modules, addresses: &d2::Addresses) -> Result<(), ()> {
+  unsafe fn load(
+    &mut self,
+    modules: &d2::Modules,
+    addresses: &d2::Addresses,
+    is_expansion: bool,
+  ) -> Result<(), ()> {
+    self.is_expansion = is_expansion;
     self.player = addresses.player(modules.client()).as_ptr();
     self.env_effects = addresses.env_effects(modules.client()).as_ptr();
     self.game_type = addresses.game_type(modules.client()).as_ptr();
@@ -165,6 +193,11 @@ impl GameAccessor {
     self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
     self.cursor_table = addresses.cursor_table(modules.client());
     self.summit_cloud_x_pos = addresses.summit_cloud_x_pos(modules.client()).as_ptr();
+    self.viewport_width = addresses.viewport_width(modules.client()).as_ptr();
+    self.viewport_height = addresses.viewport_height(modules.client()).as_ptr();
+    self.viewport_shift = addresses.viewport_shift(modules.client()).as_ptr();
+    self.find_closest_color = addresses.find_closest_color(modules.win()).ok_or(())?;
+    self.draw_line = addresses.draw_line(modules.gfx()).ok_or(())?;
     Ok(())
   }
 
@@ -183,11 +216,22 @@ impl GameAccessor {
   pub unsafe fn cursor_table(&self) -> &'static [d2::Cursor; 7] {
     &*self.cursor_table
   }
+
+  pub unsafe fn viewport_size(&self) -> d2::Size<u32> {
+    if self.is_expansion {
+      d2::Size {
+        width: *self.viewport_width,
+        height: *self.viewport_width,
+      }
+    } else {
+      d2::Size { width: 640, height: 440 }
+    }
+  }
 }
 
 impl InstanceSync {
   pub fn attach(&mut self) {
-    let (version, hooks) = match unsafe { read_file_version(GAME_EXE) } {
+    let (version, hooks, is_expansion) = match unsafe { read_file_version(GAME_EXE) } {
       Ok(version) => Hooks::from_game_file_version(version),
       Err(_) => {
         log!("Error detecting game version");
@@ -202,7 +246,7 @@ impl InstanceSync {
       INSTANCE.config.features.store_relaxed(Features::empty());
       return;
     };
-    if unsafe { self.accessor.load(&modules, &hooks.addresses).is_err() } {
+    if unsafe { self.accessor.load(&modules, &hooks.addresses, is_expansion).is_err() } {
       log!("Disabling all features: failed to load game addresses");
       INSTANCE.config.features.store_relaxed(Features::empty());
       return;
@@ -515,6 +559,10 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     INSTANCE
       .update_time_fract
       .store(time_delta as f64 / frame_len as f64, Relaxed);
+    INSTANCE.update_ticks.store(
+      sync_instance.render_timer.last_update() - last_update,
+      Relaxed,
+    );
 
     let enable_smoothing =
       INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
@@ -688,4 +736,16 @@ unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
 
 extern "fastcall" fn summit_cloud_move_amount(x: d2::FixedU4) -> d2::FixedU4 {
   (f64::from(x) * INSTANCE.update_time_fract.load(Relaxed)).into()
+}
+
+unsafe extern "C" fn draw_arcane_bg() {
+  let mut lock = INSTANCE.sync.lock();
+  let sync_instance = &mut *lock;
+  let delayed_instace = sync_instance.delayed.as_mut().unwrap();
+
+  delayed_instace.arcane_bg.draw(
+    &mut delayed_instace.rng,
+    &sync_instance.accessor,
+    INSTANCE.update_ticks.load(Relaxed),
+  );
 }

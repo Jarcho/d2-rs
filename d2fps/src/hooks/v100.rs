@@ -1,9 +1,9 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-    draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, should_update_cursor,
-    update_menu_char_frame, Hooks, UnitId,
+    draw_arcane_bg, draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
+    should_update_cursor, update_menu_char_frame, Hooks, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -124,6 +124,139 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Npc mouse over
           Patch::call_std1(0xd4e6a, patch_source!("e8 63100000"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xd4e7d, patch_source!("e8 4a100000"), entity_iso_ypos::<Entity>),
+          // Arcane background
+          Patch::call_c(0x20f27, patch_source!("
+            a1 $48871310
+            85c0
+            0f8550010000
+            8b0d $7c840f10
+            53
+            e8ee500b00
+            8b0d $04821310
+            e8dd500b00
+            8b0d $7c840f10
+            8bd0
+            e8b04f0b00
+            c744241400000000
+            33f6
+            b893244992
+            f7ee
+            03d6
+            c1fa02
+            8bca
+            c1e91f
+            8dbc0a80000000
+            8b0d $7c840f10
+            e8ed4e0b00
+            83e03f
+            8d5c38e0
+            81fbff000000
+            7e05
+            bbff000000
+            8b0d $7c840f10
+            e8ce4e0b00
+            83e03f
+            8d6c38e0
+            81fdff000000
+            7e05
+            bdff000000
+            8b0d $7c840f10
+            e8af4e0b00
+            83e03f
+            8d4438e0
+            3dff000000
+            7e05
+            b8ff000000
+            50
+            55
+            53
+            e80a600b00
+            81c680000000
+            8b4c2414
+            8881 $1c871310
+            41
+            81fe00040000
+            894c2414
+            0f8c63ffffff
+            33f6
+            5b
+            8b0d $7c840f10
+            ba80020000
+            e8004e0b00
+            8b0d $7c840f10
+            bae0010000
+            8904b5 $f04c1310
+            e8e94d0b00
+            8b0d $7c840f10
+            ba05000000
+            8904b5 $f0481310
+            e8d24d0b00
+            8b0d $7c840f10
+            83caff
+            2bd0
+            8914b5 $1c831310
+            ba08000000
+            e8b64d0b00
+            25ff000000
+            46
+            81fe00010000
+            8a80 $1c871310
+            8886 $17821310
+            7c8c
+            8b6c2414
+            c705 $48871310 01000000
+            33f6
+            8a96 $18821310
+            8b04b5 $f0481310
+            8b0cb5 $f04c1310
+            68ff000000
+            52
+            50
+            51
+            50
+            51
+            e82b5e0b00
+            46
+            81fe00010000
+            7cd4
+            ff15 $701d1810
+            8b15 $08821310
+            8bf8
+            2bc2
+            83f828
+            0f869c000000
+            33f6
+            8b0cb5 $1c831310
+            8b04b5 $f04c1310
+            03c1
+            8904b5 $f04c1310
+            796e
+            8b0d $7c840f10
+            e8814d0b00
+            8b0d $7c840f10
+            83e007
+            057f020000
+            bae0010000
+            8904b5 $f04c1310
+            e8024d0b00
+            8b0d $7c840f10
+            ba05000000
+            8904b5 $f0481310
+            e8eb4c0b00
+            8b0d $7c840f10
+            83caff
+            2bd0
+            8914b5 $1c831310
+            ba08000000
+            e8cf4c0b00
+            25ff000000
+            8a80 $1c871310
+            8886 $18821310
+            46
+            81fe00010000
+            0f8c6cffffff
+            893d $08821310
+          "), draw_arcane_bg_100_asm_stub),
         ],
       ),
       ModulePatches::new(
@@ -232,4 +365,21 @@ global_asm! {
 }
 extern "C" {
   pub fn should_update_cursor_100_asm_stub();
+}
+
+global_asm! {
+  ".global _draw_arcane_bg_100_asm_stub",
+  "_draw_arcane_bg_100_asm_stub:",
+  "push eax",
+  "push ecx",
+  "push edx",
+  "call {}",
+  "pop edx",
+  "pop ecx",
+  "pop eax",
+  "ret",
+  sym draw_arcane_bg,
+}
+extern "C" {
+  pub fn draw_arcane_bg_100_asm_stub();
 }

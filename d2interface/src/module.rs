@@ -169,7 +169,17 @@ decl_addresses! {
   /// The in-game cursor's state
   Client::game_cursor: NonNull<()>,
   /// The x-positions of the clouds in the Arreat Summit.
-  Client::summit_cloud_x_pos: NonNull<[FixedI4; 10]>
+  Client::summit_cloud_x_pos: NonNull<[FixedI4; 10]>,
+  /// Draw a one pixel thick line
+  #ordinal Gfx::draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
+  /// Gets the closest available color in the current palette
+  #ordinal Win::find_closest_color: unsafe extern "stdcall" fn(u32, u32, u32) -> u8,
+  ///The width of the game's viewport.
+  Client::viewport_width: NonNull<u32>,
+  ///The height of the game's viewport.
+  Client::viewport_height: NonNull<u32>,
+  /// How far the viewport is shifted from the center.
+  Client::viewport_shift: NonNull<i32>,
 }
 
 #[derive(Clone, Copy)]

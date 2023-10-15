@@ -19,4 +19,9 @@ pub const ADDRESSES: Addresses = Addresses {
   cursor_table: 0xd4a30,
   game_cursor: 0xfb424,
   summit_cloud_x_pos: 0,
+  draw_line: Ordinal(10001),
+  find_closest_color: Ordinal(10070),
+  viewport_width: 0x123394,
+  viewport_height: 0x123390,
+  viewport_shift: 0x11c3e8,
 };

@@ -24,6 +24,11 @@ pub const ADDRESSES: Addresses = Addresses {
   cursor_table: 0xd19d8,
   game_cursor: 0xfb4c8,
   summit_cloud_x_pos: 0,
+  draw_line: Ordinal(10061),
+  find_closest_color: Ordinal(10030),
+  viewport_width: 0,
+  viewport_height: 0,
+  viewport_shift: 0xe7b4c,
 };
 
 #[repr(C)]

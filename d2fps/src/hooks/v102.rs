@@ -122,6 +122,139 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Npc mouse over
           Patch::call_std1(0xd569a, patch_source!("e857100000"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xd56ad, patch_source!("e83e100000"), entity_iso_ypos::<Entity>),
+          // Arcane background
+          Patch::call_c(0x205f7, patch_source!("
+            a1 $d0841310
+            85c0
+            0f8550010000
+            8b0d $70810f10
+            53
+            e842620b00
+            8b0d $8c7f1310
+            e831620b00
+            8b0d $70810f10
+            8bd0
+            e804610b00
+            c744241400000000
+            33f6
+            b893244992
+            f7ee
+            03d6
+            c1fa02
+            8bca
+            c1e91f
+            8dbc0a80000000
+            8b0d $70810f10
+            e84d600b00
+            83e03f
+            8d5c38e0
+            81fbff000000
+            7e05
+            bbff000000
+            8b0d $70810f10
+            e82e600b00
+            83e03f
+            8d6c38e0
+            81fdff000000
+            7e05
+            bdff000000
+            8b0d $70810f10
+            e80f600b00
+            83e03f
+            8d4438e0
+            3dff000000
+            7e05
+            b8ff000000
+            50
+            55
+            53
+            e87c710b00
+            81c680000000
+            8b4c2414
+            8881 $a4841310
+            41
+            81fe00040000
+            894c2414
+            0f8c63ffffff
+            33f6
+            5b
+            8b0d $70810f10
+            ba80020000
+            e8605f0b00
+            8b0d $70810f10
+            bae0010000
+            8904b5 $784a1310
+            e8495f0b00
+            8b0d $70810f10
+            ba05000000
+            8904b5 $78461310
+            e8325f0b00
+            8b0d $70810f10
+            83caff
+            2bd0
+            8914b5 $a4801310
+            ba08000000
+            e8165f0b00
+            25ff000000
+            46
+            81fe00010000
+            8a80 $a4841310
+            8886 $9f7f1310
+            7c8c
+            8b6c2414
+            c705 $d0841310 01000000
+            33f6
+            8a96 $a07f1310
+            8b04b5 $78461310
+            8b0cb5 $784a1310
+            68ff000000
+            52
+            50
+            51
+            50
+            51
+            e89d6f0b00
+            46
+            81fe00010000
+            7cd4
+            ff15 $8c1d1810
+            8b15 $907f1310
+            8bf8
+            2bc2
+            83f828
+            0f869c000000
+            33f6
+            8b0cb5 $a4801310
+            8b04b5 $784a1310
+            03c1
+            8904b5 $784a1310
+            796e
+            8b0d $70810f10
+            e8e15e0b00
+            8b0d $70810f10
+            83e007
+            057f020000
+            bae0010000
+            8904b5 $784a1310
+            e8625e0b00
+            8b0d $70810f10
+            ba05000000
+            8904b5 $78461310
+            e84b5e0b00
+            8b0d $70810f10
+            83caff
+            2bd0
+            8914b5 $a4801310
+            ba08000000
+            e82f5e0b00
+            25ff000000
+            8a80 $a4841310
+            8886 $a07f1310
+            46
+            81fe00010000
+            0f8c6cffffff
+            893d $907f1310
+          "), super::v100::draw_arcane_bg_100_asm_stub),
         ],
       ),
       ModulePatches::new(

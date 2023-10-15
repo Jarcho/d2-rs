@@ -1,8 +1,8 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-    draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks,
+    draw_arcane_bg, draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, Hooks,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -141,6 +141,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Course entity mouse detection
           Patch::call_std1(0xa6a54, patch_source!("e87957f6ff"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xa6a5c, patch_source!("e89557f6ff"), entity_iso_ypos::<Entity>),
+          // Arcane background
+          Patch::call_c(0x8b1e1, patch_source!("e81afcffff"), draw_arcane_bg),
         ],
       ),
       ModulePatches::new(

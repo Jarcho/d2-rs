@@ -1,7 +1,7 @@
 #![no_std]
 
 macro_rules! decl_enum {
-  ($name:ident($ty:ty) { $($vname:ident = $value:literal),* $(,)? }) => {
+  ($name:ident($ty:ty) { $($vname:ident = $value:expr),* $(,)? }) => {
     #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[repr(transparent)]
     pub struct $name(pub $ty);

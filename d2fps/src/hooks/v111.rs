@@ -1,9 +1,9 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-    draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, should_update_cursor,
-    summit_cloud_move_amount, update_menu_char_frame, Hooks,
+    draw_arcane_bg, draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
+    should_update_cursor, summit_cloud_move_amount, update_menu_char_frame, Hooks,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -143,6 +143,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Npc mouse over
           Patch::call_std1(0xc398f, patch_source!("e88287f4ff"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xc39a4, patch_source!("e89787f4ff"), entity_iso_ypos::<Entity>),
+          // Arcane background
+          Patch::call_c(0x5c3d1, patch_source!("e81afcffff"), draw_arcane_bg),
         ],
       ),
       ModulePatches::new(

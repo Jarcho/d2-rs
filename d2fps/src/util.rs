@@ -1,3 +1,4 @@
+use atomic_float::AtomicF32;
 use core::{
   fmt,
   mem::{size_of, zeroed},
@@ -137,14 +138,16 @@ impl AtomicRatio {
 pub struct PerfFreq {
   for_s: AtomicU64,
   for_ms: AtomicU64,
-  game_frame_time: AtomicU64,
+  for_game_frame: AtomicU64,
+  for_ms_f32: AtomicF32,
 }
 impl PerfFreq {
   pub const fn uninit() -> Self {
     Self {
       for_s: AtomicU64::new(1000),
       for_ms: AtomicU64::new(1),
-      game_frame_time: AtomicU64::new(40),
+      for_game_frame: AtomicU64::new(40),
+      for_ms_f32: AtomicF32::new(1.0),
     }
   }
 
@@ -155,8 +158,9 @@ impl PerfFreq {
     }
     self.for_s.store(freq as u64, Relaxed);
     self.for_ms.store(freq as u64 / 1000, Relaxed);
+    self.for_ms_f32.store(freq as f32 / 1000.0, Relaxed);
     let time = self.ms_to_ticks(40);
-    self.game_frame_time.store(time, Relaxed);
+    self.for_game_frame.store(time, Relaxed);
 
     true
   }
@@ -173,8 +177,12 @@ impl PerfFreq {
     ms * self.for_ms.load(Relaxed)
   }
 
+  pub fn per_ms_to_per_tick(&self, x: f32) -> f32 {
+    x / self.for_ms_f32.load(Relaxed)
+  }
+
   pub fn game_frame_time(&self) -> u64 {
-    self.game_frame_time.load(Relaxed)
+    self.for_game_frame.load(Relaxed)
   }
 }
 

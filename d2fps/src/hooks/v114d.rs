@@ -1,8 +1,8 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-    draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks,
+    draw_arcane_bg, draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, Hooks,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -129,6 +129,8 @@ pub(super) const HOOKS: Hooks = Hooks {
           8bc6
           e84df1ffff
         "), super::v114c::intercept_teleport_114c_asm_stub),
+        // Arcane background
+        Patch::call_c(0x76c81, patch_source!("e80af6ffff"), draw_arcane_bg),
       ],
     )],
   )
