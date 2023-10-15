@@ -17,7 +17,7 @@ use core::{
   sync::atomic::{AtomicBool, AtomicIsize, Ordering::Relaxed},
 };
 use d2interface as d2;
-use fxhash::FxHashMap as HashMap;
+use fxhash::{FxBuildHasher, FxHashMap as HashMap, FxHashSet as HashSet};
 use parking_lot::Mutex;
 use rand::SeedableRng;
 use std::{panic::set_hook, sync::atomic::AtomicU64};
@@ -58,10 +58,14 @@ type Rng = rand_xoshiro::Xoshiro128Plus;
 struct InstanceDelayed {
   arcane_bg: ArcaneBg,
   rng: Rng,
+  entity_tracker: HashMap<UnitId, Position>,
+  /// Used when visiting both entity tables, to avoid visiting an entity in the
+  /// secondary table when it exists in the primary table.
+  /// Stored as a global to avoid reallocating every frame.
+  visited_entities: HashSet<UnitId>,
 }
 struct InstanceSync {
   accessor: GameAccessor,
-  entity_tracker: Option<HashMap<UnitId, Position>>,
   /// Timer for the renderer, both in-game and in-menu.
   render_timer: VariableRateLimiter,
   /// Timer for the character animations in the menu screens.
@@ -135,7 +139,6 @@ impl Instance {
 static INSTANCE: Instance = Instance {
   sync: Mutex::new(InstanceSync {
     accessor: GameAccessor::new(),
-    entity_tracker: None,
     render_timer: VariableRateLimiter::new(),
     menu_anim_timer: FixedRateLimiter::new(),
     game_update_time_ms: 0,
@@ -236,10 +239,6 @@ unsafe extern "stdcall" fn Init() {
       };
       INSTANCE.active_fps.store_relaxed(game_fps);
       INSTANCE.render_fps.store_relaxed(game_fps);
-      sync_instance.entity_tracker = Some(HashMap::with_capacity_and_hasher(
-        2048, // Should be more than enough to store active units
-        fxhash::FxBuildHasher::default(),
-      ));
       sync_instance.attach();
 
       let mut time = 0;
@@ -247,6 +246,11 @@ unsafe extern "stdcall" fn Init() {
       sync_instance.delayed = Some(InstanceDelayed {
         arcane_bg: ArcaneBg::new(),
         rng: Rng::seed_from_u64(time as u64),
+        entity_tracker: HashMap::with_capacity_and_hasher(
+          2048, // Should be more than enough to store active units
+          FxBuildHasher::default(),
+        ),
+        visited_entities: HashSet::with_capacity_and_hasher(2048, FxBuildHasher::default()),
       });
 
       if INSTANCE.config.features.fps() {

@@ -2,7 +2,7 @@
 
 macro_rules! decl_enum {
   ($name:ident($ty:ty) { $($vname:ident = $value:expr),* $(,)? }) => {
-    #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[repr(transparent)]
     pub struct $name(pub $ty);
     #[allow(non_upper_case_globals)]

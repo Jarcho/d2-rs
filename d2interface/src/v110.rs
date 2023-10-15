@@ -14,7 +14,8 @@ pub const ADDRESSES: Addresses = Addresses {
   player: 0x11c200,
   env_effects: 0x1076fc,
   game_type: 0x107960,
-  active_entities: 0x11aa00,
+  entity_table: 0x11aa00,
+  entity_table2: 0x11b600,
   client_loop_globals: 0x107750,
   // Signature: `__fastcall(DyPos*, Room*, FixedU16, FixedU16)`
   apply_pos_change: 0x6cc40,

@@ -8,7 +8,8 @@ pub const ADDRESSES: Addresses = Addresses {
   player: 0x440df0,
   env_effects: 0x432960,
   game_type: 0x42e1b0,
-  active_entities: 0,
+  entity_table: 0,
+  entity_table2: 0,
   client_loop_globals: 0x42e020,
   // Signature: `__stdcall(DyPos* @ eax, FixedU16, FixedU16, Room*)`
   apply_pos_change: 0,

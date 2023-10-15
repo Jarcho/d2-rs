@@ -151,7 +151,8 @@ decl_addresses! {
   /// game is running.
   Client::game_type: NonNull<GameType>,
   /// The table of active game entities.
-  Client::active_entities: NonNull<()>,
+  Client::entity_table: NonNull<()>,
+  Client::entity_table2: NonNull<()>,
   /// Globals controlling the main client loop.
   Client::client_loop_globals: NonNull<ClientLoopGlobals>,
   /// Applies a position change to a `DyPos`. Signature depends on game version.

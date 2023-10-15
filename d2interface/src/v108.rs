@@ -8,7 +8,8 @@ pub const ADDRESSES: Addresses = Addresses {
   player: 0x1245e0,
   env_effects: 0x10eb6c,
   game_type: 0x10edd0,
-  active_entities: 0x122de0,
+  entity_table: 0x122de0,
+  entity_table2: 0x1239e0,
   client_loop_globals: 0x10ebc0,
   // Doesn't exist in this version
   apply_pos_change: 0,

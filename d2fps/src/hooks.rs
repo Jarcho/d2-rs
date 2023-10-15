@@ -11,6 +11,7 @@ use core::{
 };
 use d2::CursorId;
 use d2interface as d2;
+use fxhash::FxHashSet as HashSet;
 use std::collections::hash_map::Entry;
 use windows_sys::{
   w,
@@ -109,7 +110,8 @@ pub struct GameAccessor {
   pub player: *mut Option<NonNull<()>>,
   pub env_effects: *mut d2::ClientEnvEffects,
   pub game_type: *mut d2::GameType,
-  pub active_entities: *mut (),
+  pub entity_table: *mut (),
+  pub entity_table2: *mut (),
   pub client_loop_globals: *mut d2::ClientLoopGlobals,
   pub apply_pos_change: usize,
   pub server_update_time: *mut u32,
@@ -132,7 +134,8 @@ impl GameAccessor {
       player: null_mut(),
       env_effects: null_mut(),
       game_type: null_mut(),
-      active_entities: null_mut(),
+      entity_table: null_mut(),
+      entity_table2: null_mut(),
       client_loop_globals: null_mut(),
       apply_pos_change: 0,
       server_update_time: null_mut(),
@@ -184,7 +187,8 @@ impl GameAccessor {
     self.player = addresses.player(modules.client()).as_ptr();
     self.env_effects = addresses.env_effects(modules.client()).as_ptr();
     self.game_type = addresses.game_type(modules.client()).as_ptr();
-    self.active_entities = addresses.active_entities(modules.client()).as_ptr();
+    self.entity_table = addresses.entity_table(modules.client()).as_ptr();
+    self.entity_table2 = addresses.entity_table2(modules.client()).as_ptr();
     self.client_loop_globals = addresses.client_loop_globals(modules.client()).as_ptr();
     self.apply_pos_change = addresses.apply_pos_change(modules.common());
     self.server_update_time = addresses.server_update_time(modules.game()).as_ptr();
@@ -205,8 +209,42 @@ impl GameAccessor {
     (*self.player).map(|x| &mut *x.cast().as_ptr())
   }
 
-  pub unsafe fn active_entities<'a, T>(&self) -> &'a mut d2::EntityTables<T> {
-    &mut *self.active_entities.cast()
+  pub unsafe fn entity_table<'a, T>(&self) -> &'a mut d2::EntityTables<T> {
+    &mut *self.entity_table.cast()
+  }
+
+  pub unsafe fn entity_table2<'a, T>(&self) -> &'a mut d2::EntityTables<T> {
+    &mut *self.entity_table2.cast()
+  }
+
+  unsafe fn for_each_dy_entity<T: Entity>(&self, ids: &mut HashSet<UnitId>, mut f: impl FnMut(&T)) {
+    ids.clear();
+    self.entity_table::<T>().for_each_dy(|e| {
+      ids.insert(e.unit_id());
+      f(e);
+    });
+    self.entity_table2::<T>().for_each_dy(|e| {
+      if !ids.contains(&e.unit_id()) {
+        f(e);
+      }
+    });
+  }
+
+  unsafe fn for_each_dy_entity_mut<T: Entity>(
+    &self,
+    ids: &mut HashSet<UnitId>,
+    mut f: impl FnMut(&mut T),
+  ) {
+    ids.clear();
+    self.entity_table::<T>().for_each_dy_mut(|e| {
+      ids.insert(e.unit_id());
+      f(e);
+    });
+    self.entity_table2::<T>().for_each_dy_mut(|e| {
+      if !ids.contains(&e.unit_id()) {
+        f(e);
+      }
+    });
   }
 
   pub unsafe fn game_type(&self) -> d2::GameType {
@@ -391,9 +429,10 @@ impl InstanceSync {
 
   fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
     self
-      .entity_tracker
+      .delayed
       .as_mut()
       .unwrap()
+      .entity_tracker
       .get(&e.unit_id())
       .map(|pos| pos.for_time(self.unit_movement_fract))
   }
@@ -445,34 +484,37 @@ impl InstanceSync {
   }
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
-    let tracker = self.entity_tracker.as_mut().unwrap();
+    let instance = self.delayed.as_mut().unwrap();
     self
       .accessor
-      .active_entities::<T>()
-      .for_each_dy(|e| match tracker.entry(e.unit_id()) {
-        Entry::Occupied(mut x) => {
-          x.get_mut().update_pos(e.linear_pos());
-          x.get_mut().active = true;
-        }
-        Entry::Vacant(x) => {
-          x.insert(Position::new(e.linear_pos()));
+      .for_each_dy_entity::<T>(&mut instance.visited_entities, |e| {
+        match instance.entity_tracker.entry(e.unit_id()) {
+          Entry::Occupied(mut x) => {
+            x.get_mut().update_pos(e.linear_pos());
+            x.get_mut().active = true;
+          }
+          Entry::Vacant(x) => {
+            x.insert(Position::new(e.linear_pos()));
+          }
         }
       });
-    tracker.retain(|_, v| take(&mut v.active));
+    instance.entity_tracker.retain(|_, v| take(&mut v.active));
   }
 
   unsafe fn update_entites_from_tables_no_delta<T: Entity>(&mut self) {
-    let tracker = self.entity_tracker.as_mut().unwrap();
-    self.accessor.active_entities::<T>().for_each_dy(|e| {
-      if let Some(pos) = tracker.get_mut(&e.unit_id()) {
-        let epos = e.linear_pos();
-        if pos.real != epos && pos.teleport {
-          pos.delta = d2::LinearPos::default();
-          pos.teleport = false;
+    let instance = &mut self.delayed.as_mut().unwrap();
+    self
+      .accessor
+      .for_each_dy_entity::<T>(&mut instance.visited_entities, |e| {
+        if let Some(pos) = instance.entity_tracker.get_mut(&e.unit_id()) {
+          let epos = e.linear_pos();
+          if pos.real != epos && pos.teleport {
+            pos.delta = d2::LinearPos::default();
+            pos.teleport = false;
+          }
+          pos.real = e.linear_pos();
         }
-        pos.real = e.linear_pos();
-      }
-    });
+      });
   }
 
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
@@ -483,21 +525,25 @@ impl InstanceSync {
     let fract = (offset << 16) / frame_len;
     self.unit_movement_fract = d2::FixedI16::from_repr(fract as i32);
 
-    let tracker = self.entity_tracker.as_ref().unwrap();
-    self.accessor.active_entities::<T>().for_each_dy_mut(|e| {
-      if let Some(pos) = tracker.get(&e.unit_id()) {
-        e.set_pos(pos.for_time(self.unit_movement_fract));
-      }
-    });
+    let instance = &mut self.delayed.as_mut().unwrap();
+    self
+      .accessor
+      .for_each_dy_entity_mut::<T>(&mut instance.visited_entities, |e| {
+        if let Some(pos) = instance.entity_tracker.get(&e.unit_id()) {
+          e.set_pos(pos.for_time(self.unit_movement_fract));
+        }
+      });
   }
 
   unsafe fn reset_entity_positions<T: Entity>(&mut self) {
-    let tracker = self.entity_tracker.as_ref().unwrap();
-    self.accessor.active_entities::<T>().for_each_dy_mut(|e| {
-      if let Some(pos) = tracker.get(&e.unit_id()) {
-        e.set_pos(pos.real);
-      }
-    });
+    let instance = &mut self.delayed.as_mut().unwrap();
+    self
+      .accessor
+      .for_each_dy_entity_mut::<T>(&mut instance.visited_entities, |e| {
+        if let Some(pos) = instance.entity_tracker.get(&e.unit_id()) {
+          e.set_pos(pos.real);
+        }
+      });
   }
 
   unsafe fn update_env_images(&mut self, prev_pos: d2::IsoPos<i32>) {
@@ -719,9 +765,10 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
   let sync_instance = &mut *lock;
 
   if let Some(pos) = sync_instance
-    .entity_tracker
+    .delayed
     .as_mut()
     .unwrap()
+    .entity_tracker
     .get_mut(&UnitId { kind, id })
   {
     pos.teleport = true;
