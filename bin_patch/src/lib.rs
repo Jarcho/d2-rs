@@ -7,12 +7,12 @@ use windows_sys::Win32::{
 pub use bin_patch_mac::patch_source;
 
 struct Uint2Iter<'a> {
-  iter: slice::Iter<'a, u32>,
-  cur: u32,
+  iter: slice::Iter<'a, u8>,
+  cur: u8,
   remain: u8,
 }
 impl<'a> Uint2Iter<'a> {
-  fn new(slice: &'a [u32]) -> Self {
+  fn new(slice: &'a [u8]) -> Self {
     Self { iter: slice.iter(), cur: 0, remain: 0 }
   }
 }
@@ -21,11 +21,11 @@ impl Iterator for Uint2Iter<'_> {
   fn next(&mut self) -> Option<Self::Item> {
     self.remain = if self.remain == 0 {
       self.cur = *self.iter.next()?;
-      15
+      3
     } else {
       self.remain - 1
     };
-    let res = self.cur as u8 & 3;
+    let res = self.cur & 3;
     self.cur >>= 2;
     Some(res)
   }
@@ -64,7 +64,7 @@ pub struct Patch {
   pub offset: usize,
   len: u16,
   hash: u32,
-  control_stream: &'static [u32],
+  control_stream: &'static [u8],
   data: PatchData,
 }
 impl Patch {
@@ -72,7 +72,7 @@ impl Patch {
   /// function taking zero arguments.
   pub const fn call_c<R>(
     offset: usize,
-    (len, hash, control_stream): (u16, u32, &'static [u32]),
+    (len, hash, control_stream): (u16, u32, &'static [u8]),
     target: unsafe extern "C" fn() -> R,
   ) -> Self {
     Self {
@@ -88,7 +88,7 @@ impl Patch {
   /// `stdcall` function taking one argument.
   pub const fn call_std1<T1, R>(
     offset: usize,
-    (len, hash, control_stream): (u16, u32, &'static [u32]),
+    (len, hash, control_stream): (u16, u32, &'static [u8]),
     target: unsafe extern "stdcall" fn(T1) -> R,
   ) -> Self {
     Self {
@@ -102,7 +102,7 @@ impl Patch {
 
   /// Create a patch which replaces the referenced code with code that does
   /// nothing.
-  pub const fn nop(offset: usize, (len, hash, control_stream): (u16, u32, &'static [u32])) -> Self {
+  pub const fn nop(offset: usize, (len, hash, control_stream): (u16, u32, &'static [u8])) -> Self {
     Self {
       offset,
       len,
@@ -115,7 +115,7 @@ impl Patch {
   /// Create a patch which replaces the referenced code with the given code.
   pub const fn raw(
     offset: usize,
-    (len, hash, control_stream): (u16, u32, &'static [u32]),
+    (len, hash, control_stream): (u16, u32, &'static [u8]),
     data: &'static [u8],
   ) -> Self {
     Self {

@@ -7,19 +7,19 @@ use proc_macro::{
 };
 
 struct Uint2Collector {
-  collected: Vec<u32>,
-  next: u32,
+  collected: Vec<u8>,
+  next: u8,
   pos: u8,
 }
 impl Uint2Collector {
   fn new() -> Self {
-    Self { collected: Vec::with_capacity(1), next: 0, pos: 0 }
+    Self { collected: Vec::with_capacity(8), next: 0, pos: 0 }
   }
 
   fn push(&mut self, x: u8) {
     assert!(x < 3);
-    self.next |= (x as u32) << self.pos;
-    self.pos = if self.pos == 30 {
+    self.next |= x << self.pos;
+    self.pos = if self.pos == 6 {
       self.collected.push(self.next);
       self.next = 0;
       0
@@ -28,7 +28,7 @@ impl Uint2Collector {
     };
   }
 
-  fn into_iter(mut self) -> impl Iterator<Item = u32> {
+  fn into_iter(mut self) -> impl Iterator<Item = u8> {
     if self.next != 0 {
       self.collected.push(self.next);
     }
@@ -116,7 +116,7 @@ pub fn patch_source(i: TokenStream) -> TokenStream {
         Bracket,
         TokenStream::from_iter(control_stream.into_iter().flat_map(|x| {
           [
-            TT::Literal(Literal::u32_suffixed(x)),
+            TT::Literal(Literal::u8_suffixed(x)),
             TT::Punct(Punct::new(',', Alone)),
           ]
         })),
