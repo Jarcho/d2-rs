@@ -39,7 +39,7 @@ struct MemUnlock {
 impl MemUnlock {
   unsafe fn new(address: *const c_void, len: usize) -> Result<Self, ()> {
     let mut prev = 0u32;
-    if VirtualProtect(address, 4, PAGE_EXECUTE_READWRITE, &mut prev) != 0 {
+    if VirtualProtect(address, len, PAGE_EXECUTE_READWRITE, &mut prev) != 0 {
       Ok(Self { prev, address, len })
     } else {
       Err(())
