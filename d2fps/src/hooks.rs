@@ -217,15 +217,19 @@ impl GameAccessor {
     &mut *self.entity_table2.cast()
   }
 
-  unsafe fn for_each_dy_entity<T: Entity>(&self, ids: &mut HashSet<UnitId>, mut f: impl FnMut(&T)) {
+  unsafe fn for_each_dy_entity<T: Entity>(
+    &self,
+    ids: &mut HashSet<UnitId>,
+    mut f: impl FnMut(&T, bool),
+  ) {
     ids.clear();
     self.entity_table::<T>().for_each_dy(|e| {
       ids.insert(e.unit_id());
-      f(e);
+      f(e, true);
     });
     self.entity_table2::<T>().for_each_dy(|e| {
       if !ids.contains(&e.unit_id()) {
-        f(e);
+        f(e, false);
       }
     });
   }
@@ -380,6 +384,7 @@ pub struct Position {
   pub delta: d2::LinearPos<d2::FixedI16>,
   pub teleport: bool,
   pub active: bool,
+  pub from_first_table: bool,
 }
 impl Position {
   pub fn for_time(&self, fract: d2::FixedI16) -> d2::LinearPos<d2::FixedU16> {
@@ -390,24 +395,26 @@ impl Position {
     d2::LinearPos::new(d2::FixedU16::from_repr(x), d2::FixedU16::from_repr(y))
   }
 
-  fn update_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
+  fn update_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>, from_first_table: bool) {
     let dx = pos.x.repr().wrapping_sub(self.real.x.repr()) as i32;
     let dy = pos.y.repr().wrapping_sub(self.real.y.repr()) as i32;
     self.real = pos;
-    self.delta = if self.teleport {
+    self.delta = if self.teleport || self.from_first_table != from_first_table {
       d2::LinearPos::default()
     } else {
       d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy))
     };
+    self.from_first_table = from_first_table;
     self.teleport = false;
   }
 
-  fn new(pos: d2::LinearPos<d2::FixedU16>) -> Self {
+  fn new(pos: d2::LinearPos<d2::FixedU16>, from_first_table: bool) -> Self {
     Self {
       real: pos,
       delta: d2::LinearPos::default(),
       teleport: false,
       active: true,
+      from_first_table,
     }
   }
 }
@@ -485,19 +492,21 @@ impl InstanceSync {
 
   unsafe fn update_entites_from_tables<T: Entity>(&mut self) {
     let instance = self.delayed.as_mut().unwrap();
+
     self
       .accessor
-      .for_each_dy_entity::<T>(&mut instance.visited_entities, |e| {
-        match instance.entity_tracker.entry(e.unit_id()) {
+      .for_each_dy_entity::<T>(
+        &mut instance.visited_entities,
+        |e, first_table| match instance.entity_tracker.entry(e.unit_id()) {
           Entry::Occupied(mut x) => {
-            x.get_mut().update_pos(e.linear_pos());
+            x.get_mut().update_pos(e.linear_pos(), first_table);
             x.get_mut().active = true;
           }
           Entry::Vacant(x) => {
-            x.insert(Position::new(e.linear_pos()));
+            x.insert(Position::new(e.linear_pos(), first_table));
           }
-        }
-      });
+        },
+      );
     instance.entity_tracker.retain(|_, v| take(&mut v.active));
   }
 
@@ -505,12 +514,13 @@ impl InstanceSync {
     let instance = &mut self.delayed.as_mut().unwrap();
     self
       .accessor
-      .for_each_dy_entity::<T>(&mut instance.visited_entities, |e| {
+      .for_each_dy_entity::<T>(&mut instance.visited_entities, |e, first_table| {
         if let Some(pos) = instance.entity_tracker.get_mut(&e.unit_id()) {
           let epos = e.linear_pos();
-          if pos.real != epos && pos.teleport {
+          if pos.real != epos && (pos.teleport || pos.from_first_table != first_table) {
             pos.delta = d2::LinearPos::default();
             pos.teleport = false;
+            pos.from_first_table = first_table
           }
           pos.real = e.linear_pos();
         }
