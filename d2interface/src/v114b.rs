@@ -1,7 +1,7 @@
 use crate::{module::Ordinal::Address, Addresses};
 
 pub use crate::v114a::{
-  DyPos, Entity, EntityTable, EntityTables, GameCursor, Room, StaticPos, BASE_ADDRESSES,
+  dtbl, DyPos, Entity, EntityTable, EntityTables, GameCursor, Room, StaticPos, BASE_ADDRESSES,
 };
 
 pub const ADDRESSES: Addresses = Addresses {

@@ -1,5 +1,12 @@
 use core::{fmt, marker::PhantomData, ops};
 
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Range<T> {
+  pub min: T,
+  pub max: T,
+}
+
 /// A fixed-point number with `N` bits of precision.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -120,22 +127,32 @@ pub type FixedU4 = FixedPoint<u32, 4>;
 pub type FixedU3 = FixedPoint<u32, 3>;
 
 pub type FixedI16 = FixedPoint<i32, 16>;
+pub type FixedI12 = FixedPoint<i32, 12>;
+pub type FixedI7 = FixedPoint<i32, 7>;
 pub type FixedI4 = FixedPoint<i32, 4>;
 
-/// The linear coordinate system.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// The main coordinate system used to position entities.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct LinearSystem;
 
-/// The isometric coordinate systems used by the camera.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// The isometric coordinate system used to position the camera.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct IsometricSystem;
 
 /// The coordinate system is unknown at compile time.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct UnknownSystem;
 
+/// The coordinate system used to position things on the screen. Origin is the upper-left.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct ScreenSystem;
+
+/// The coordinate system used to position entities on tiles.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct TileSystem;
+
 /// A two dimensional position in a specific coordinate system.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Pos<T, System> {
   pub x: T,
@@ -167,6 +184,8 @@ impl<T: fmt::Debug, System> fmt::Debug for Pos<T, System> {
 pub type LinearPos<T> = Pos<T, LinearSystem>;
 pub type IsoPos<T> = Pos<T, IsometricSystem>;
 pub type UnknownPos<T> = Pos<T, UnknownSystem>;
+pub type TilePos<T> = Pos<T, TileSystem>;
+pub type ScreenPos<T> = Pos<T, ScreenSystem>;
 
 impl From<Pos<FixedU16, LinearSystem>> for Pos<i32, IsometricSystem> {
   fn from(value: Pos<FixedU16, LinearSystem>) -> Self {
@@ -185,7 +204,7 @@ impl From<Pos<FixedI16, LinearSystem>> for Pos<i32, IsometricSystem> {
 }
 
 /// A two dimensional size.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Size<T> {
   pub width: T,
@@ -198,9 +217,30 @@ impl<T> Size<T> {
 }
 
 /// A rectangle defined by two points.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Rect<T, System> {
   pub upper_left: Pos<T, System>,
   pub lower_right: Pos<T, System>,
 }
+
+/// A rectangle defined by the x-bounds and y-bounds.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct RectLr<T, System> {
+  pub x: Range<T>,
+  pub y: Range<T>,
+  system: PhantomData<System>,
+}
+
+pub type ScreenRectLr<T> = RectLr<T, ScreenSystem>;
+
+/// A rectangle defined by a position and size.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct RectS<T, U, System> {
+  pub pos: Pos<T, System>,
+  pub size: Size<U>,
+}
+
+pub type ScreenRectS<T, U> = RectS<T, U, ScreenSystem>;

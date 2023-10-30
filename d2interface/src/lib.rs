@@ -12,6 +12,22 @@ macro_rules! decl_enum {
   }
 }
 
+macro_rules! decl_id {
+  ($name:ident($ty:ty)) => {
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[repr(transparent)]
+    pub struct $name(pub $ty);
+    impl<T> From<$crate::common::SId<T, Self>> for $name
+    where
+      $ty: From<T>,
+    {
+      fn from(x: $crate::common::SId<T, Self>) -> Self {
+        Self(x.0.into())
+      }
+    }
+  };
+}
+
 mod common;
 mod coord;
 mod module;
@@ -41,13 +57,15 @@ pub mod v114d;
 
 pub use crate::{
   common::{
-    ActId, ActIdS, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals, ClientPingTimer, Cursor,
-    CursorId, CursorState, EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor,
-    GameType, InRoom, LinkedList, Rand,
+    dtbl, Act, ArmorTy, BodyLoc, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals,
+    ClientPingTimer, Color, Component, CubeMod, CubeTy, Cursor, CursorId, CursorState, ElTy,
+    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor, GameType, HitClass,
+    Id16, Id8, InRoom, LinkedList, NgLvl, NpcMode, NpcSpawnTy, ObjMode, Pc, PcMode, Rand, RgbColor,
+    SkRange, StorePage, StrId,
   },
   coord::{
-    FixedI16, FixedI4, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos, LinearPos, Size,
-    UnknownPos,
+    FixedI12, FixedI16, FixedI4, FixedI7, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos,
+    LinearPos, Range, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos, UnknownPos,
   },
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };

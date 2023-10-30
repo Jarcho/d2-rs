@@ -3,7 +3,7 @@ use crate::{
 };
 use core::ptr::NonNull;
 
-pub use crate::v105::{Room, StaticPos, BASE_ADDRESSES};
+pub use crate::v105::{dtbl, Room, StaticPos, BASE_ADDRESSES};
 
 pub type EntityTables = crate::EntityTables<Entity>;
 pub type EntityTable = crate::EntityTable<Entity>;

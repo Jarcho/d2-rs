@@ -6,6 +6,9 @@ authors = ["Jason Newcomb <jsnewcomb@pm.me>"]
 license = "GPL-3.0"
 publish = false
 
+[dependencies]
+bitflags = "2.4.1"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies.windows-sys]

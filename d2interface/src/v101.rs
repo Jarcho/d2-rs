@@ -26,3 +26,14 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_height: 0,
   viewport_shift: 0x1346d4,
 };
+
+pub mod dtbl {
+  pub use crate::v100::dtbl::*;
+  use crate::StrId;
+
+  #[repr(C)]
+  pub struct LqItemDef {
+    pub name: [u8; 32],
+    pub display_name: StrId,
+  }
+}

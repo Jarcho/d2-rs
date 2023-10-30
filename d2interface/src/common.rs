@@ -1,5 +1,12 @@
 use crate::{FixedU8, UnknownPos};
-use core::{iter, ops, ptr::NonNull, slice};
+use core::{iter, marker::PhantomData, ops, ptr::NonNull, slice};
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct SId<T, Id>(T, PhantomData<Id>);
+
+pub type Id16<Id> = SId<i16, Id>;
+pub type Id8<Id> = SId<i8, Id>;
 
 decl_enum! { EntityKind(u32) {
   Pc = 0,
@@ -10,26 +17,8 @@ decl_enum! { EntityKind(u32) {
   Tile = 5,
 }}
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct ActId(pub u32);
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct ActIdS(pub u8);
-
-impl From<ActId> for ActIdS {
-  #[inline]
-  fn from(value: ActId) -> Self {
-    Self(value.0 as u8)
-  }
-}
-impl From<ActIdS> for ActId {
-  #[inline]
-  fn from(value: ActIdS) -> Self {
-    Self(value.0.into())
-  }
-}
+decl_id!(Act(i32));
+decl_id!(StrId(i16));
 
 decl_enum! { GameType(u32) {
   Sp = 0,
@@ -309,4 +298,379 @@ pub struct GameCursor<E = ()> {
   pub _padding: u32,
   pub last_move_time: u32,
   pub state: CursorState,
+}
+
+decl_enum! { ElTy(u8) {
+  None = 0,
+  Fire = 1,
+  Light = 2,
+  Magic = 3,
+  Cold = 4,
+  Poison = 5,
+  HpSteal = 6,
+  MpSteal = 7,
+  StSteal = 8,
+  Stun = 9,
+  Spectral = 10,
+  Burn = 11,
+  Freeze = 12,
+}}
+
+decl_enum! { ArmorTy(i8) {
+  None = -1,
+  Light = 0,
+  Med = 1,
+  Heavy = 2,
+}}
+
+decl_enum! { Color(u8) {
+    White = 0,
+    LGrey = 1,
+    DGrey = 2,
+    Black = 3,
+    LBlue = 4,
+    DBlue = 5,
+    CBlue = 6,
+    LRed = 7,
+    DRed = 8,
+    CRed = 9,
+    LGreen = 10,
+    DGreen = 11,
+    CGreen = 12,
+    LYellow = 13,
+    DYellow = 14,
+    LGold = 15,
+    DGold = 16,
+    LPurple = 17,
+    DPurple = 18,
+    Orange = 19,
+    BWhite = 20,
+}}
+
+decl_enum! { Component(u8) {
+    Head = 0,
+    Torso = 1,
+    Legs = 2,
+    RArm = 3,
+    LArm = 4,
+    RHand = 5,
+    LHand = 6,
+    Shield = 7,
+    LShoulder = 8,
+    RShoulder = 9,
+    Sp3 = 10,
+    Sp4 = 11,
+    Sp5 = 12,
+    Sp6 = 13,
+    Sp7 = 14,
+    Sp8 = 15,
+}}
+
+decl_enum! { NgLvl(u8) {
+    Norm = 0,
+    Nm = 1,
+    Hell = 2,
+}}
+
+decl_enum! { BodyLoc(u8) {
+    None = 0,
+    Head = 1,
+    Neck = 2,
+    Torso = 3,
+    RArm = 4,
+    LArm = 5,
+    RRing = 6,
+    LRing = 7,
+    Belt = 8,
+    Feet = 9,
+    Gloves = 10,
+}}
+
+decl_enum! { StorePage(u8) {
+    Armor = 0,
+    Weapons = 1,
+    Magic = 2,
+    Misc = 3,
+}}
+
+decl_enum! { CubeMod(u8) {
+    None = 0,
+    Amethyst = 1,
+    Ruby = 2,
+    Sapphire = 3,
+    Topaz = 4,
+    Emerald = 5,
+    Diamond = 6,
+    Skill = 7,
+    Magic = 8,
+    Rare = 9,
+    Unique = 10,
+    Crafted = 11,
+}}
+
+decl_enum! { CubeTy(u8) {
+    None = 0,
+    HpPot = 1,
+    MpPot = 2,
+    Item = 3,
+    Axe = 4,
+    Sword = 5,
+    Spear = 6,
+    Gem = 7,
+    Staff = 8,
+    Belt = 9,
+    Dagger = 10,
+    Weapon = 11,
+    Armor = 12,
+    Ring = 13,
+    Amulet = 14,
+}}
+
+decl_enum! { NpcMode(u8) {
+    Death = 0,
+    Neutral = 1,
+    Walk = 2,
+    Recovery = 3,
+    Att1 = 4,
+    Att2 = 5,
+    Block = 6,
+    Cast = 7,
+    Sk1 = 8,
+    Sk2 = 9,
+    Sk3 = 10,
+    Sk4 = 11,
+    Dead = 12,
+    KnockBack = 13,
+    Seq = 14,
+    Run = 15,
+}}
+
+decl_enum! { ObjMode(u8) {
+    Neutral = 0,
+    Operating = 1,
+    Opened = 2,
+    Sp1 = 3,
+    Sp2 = 4,
+    Sp3 = 5,
+    Sp4 = 6,
+    Sp5 = 7,
+}}
+
+decl_enum! { PcMode(u8) {
+    Death = 0,
+    Neutral = 1,
+    Walk = 2,
+    Run = 3,
+    Recover = 4,
+    TownNeutral = 5,
+    TownWalk = 6,
+    Att1 = 7,
+    Att2 = 8,
+    Block = 9,
+    Cast = 10,
+    Throw = 11,
+    Kick = 12,
+    Sk1 = 13,
+    Sk2 = 14,
+    Sk3 = 15,
+    Sk4 = 16,
+    Dead = 17,
+    Seq = 18,
+    KnockBack = 19,
+}}
+
+decl_enum! { SkRange(u8) {
+    None = 0,
+    H2h = 1,
+    Range = 2,
+    Both = 3,
+    Location = 4,
+}}
+
+decl_enum! { Pc(u8) {
+    Zon = 0,
+    Sorc = 1,
+    Necro = 2,
+    Pal = 3,
+    Barb = 4,
+    Druid = 5,
+    Sin = 6,
+}}
+
+decl_enum! { NpcSpawnTy(u8) {
+    Normal = 0,
+    Map = 1,
+    Special = 2,
+}}
+
+pub type HitClass = u8;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct RgbColor {
+  pub r: u8,
+  pub g: u8,
+  pub b: u8,
+}
+
+pub mod dtbl {
+  use crate::BodyLoc;
+
+  use super::{Component, NgLvl, NpcMode, ObjMode};
+
+  decl_id!(I32Code(u32));
+  decl_id!(ItemCode(u32));
+  decl_id!(ItemTyCode(u32));
+
+  decl_id!(CodeOffset(u32));
+
+  decl_id!(DropSet(i32));
+  decl_id!(Event(i16));
+  decl_id!(Item(i32));
+  decl_id!(ItemStat(i32));
+  decl_id!(ItemTy(i32));
+  decl_id!(Lvl(i32));
+  decl_id!(MercDesc(i8));
+  decl_id!(Missile(i32));
+  decl_id!(MPrefix(i16));
+  decl_id!(MSuffix(i16));
+  decl_id!(Npc(i32));
+  decl_id!(NpcAi(i16));
+  decl_id!(NpcAnim(i16));
+  decl_id!(NpcEx(i16));
+  decl_id!(NpcPlace(i16));
+  decl_id!(NpcTy(i32));
+  decl_id!(NpcMod(i32));
+  decl_id!(NpcProp(i32));
+  decl_id!(NpcSound(i32));
+  decl_id!(Overlay(i16));
+  decl_id!(Pet(i32));
+  decl_id!(Prop(i32));
+  decl_id!(Set(i16));
+  decl_id!(SItem(i16));
+  decl_id!(SkDesc(i32));
+  decl_id!(Skill(i32));
+  decl_id!(Sound(i32));
+  decl_id!(State(i32));
+  decl_id!(UItem(i16));
+  decl_id!(UMon(i16));
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByLvl<T> {
+    pub lvl1: T,
+    pub lvl25: T,
+    pub lvl40: T,
+  }
+  impl<T: Copy> ByLvl<T> {
+    pub fn get(&self, lvl: u32) -> T {
+      match lvl {
+        0..=24 => self.lvl1,
+        25..=39 => self.lvl25,
+        40..=u32::MAX => self.lvl40,
+      }
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct AccByLvl3<T> {
+    pub lvl2: T,
+    pub lvl10: T,
+    pub lvl15: T,
+  }
+  impl<T: Copy + Into<i32>> AccByLvl3<T> {
+    pub fn get(&self, lvl: u16) -> i32 {
+      let b1 = i32::from(lvl.max(9).saturating_sub(1));
+      let b2 = i32::from(lvl.max(14).saturating_sub(9));
+      let b3 = i32::from(lvl.saturating_sub(14));
+      b1 * self.lvl2.into() + b2 * self.lvl10.into() + b3 * self.lvl15.into()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct AccByLvl5<T> {
+    pub lvl2: T,
+    pub lvl9: T,
+    pub lvl17: T,
+    pub lvl23: T,
+    pub lvl29: T,
+  }
+  impl<T: Copy + Into<i32>> AccByLvl5<T> {
+    pub fn get(&self, lvl: u16) -> i32 {
+      let b1 = i32::from(lvl.max(8).saturating_sub(1));
+      let b2 = i32::from(lvl.max(16).saturating_sub(8));
+      let b3 = i32::from(lvl.max(22).saturating_sub(16));
+      let b4 = i32::from(lvl.max(28).saturating_sub(22));
+      let b5 = i32::from(lvl.saturating_sub(28));
+      b1 * self.lvl2.into()
+        + b2 * self.lvl9.into()
+        + b3 * self.lvl17.into()
+        + b4 * self.lvl23.into()
+        + b5 * self.lvl29.into()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByNgLvl<T> {
+    pub values: [T; 3],
+  }
+  impl<T: Copy> ByNgLvl<T> {
+    pub fn get(&self, x: NgLvl) -> Option<T> {
+      self.values.get(x.0 as usize).copied()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByObjMode<T> {
+    pub values: [T; 8],
+  }
+  impl<T: Copy> ByObjMode<T> {
+    pub fn get(&self, x: ObjMode) -> Option<T> {
+      self.values.get(x.0 as usize).copied()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByNpcMode<T> {
+    pub values: [T; 16],
+  }
+  impl<T: Copy> ByNpcMode<T> {
+    pub fn get(&self, x: NpcMode) -> Option<T> {
+      self.values.get(x.0 as usize).copied()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByComponent<T> {
+    pub values: [T; 16],
+  }
+  impl<T: Copy> ByComponent<T> {
+    pub fn get(&self, x: Component) -> Option<T> {
+      self.values.get(x.0 as usize).copied()
+    }
+  }
+
+  #[derive(Clone, Copy)]
+  #[repr(C)]
+  pub struct ByEqComponent<T> {
+    pub rarm: T,
+    pub larm: T,
+    pub torso: T,
+    pub legs: T,
+    pub rshoulder: T,
+    pub lshoulder: T,
+  }
+
+  #[repr(C)]
+  pub struct StartItem {
+    pub item: ItemCode,
+    pub loc: BodyLoc,
+    pub count: u8,
+  }
 }

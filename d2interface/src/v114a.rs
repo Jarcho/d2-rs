@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use crate::{module::Ordinal::Address, Addresses, BaseAddresses, CursorId, CursorState, FixedU8};
 
-pub use crate::v113d::{DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
+pub use crate::v113d::{dtbl, DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
 pub const ADDRESSES: Addresses = Addresses {
   player: 0x440df0,
