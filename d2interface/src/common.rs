@@ -514,9 +514,9 @@ pub struct RgbColor {
 }
 
 pub mod dtbl {
-  use crate::BodyLoc;
-
   use super::{Component, NgLvl, NpcMode, ObjMode};
+
+  use crate::BodyLoc;
 
   decl_id!(I32Code(u32));
   decl_id!(ItemCode(u32));
@@ -563,7 +563,7 @@ pub mod dtbl {
     pub lvl40: T,
   }
   impl<T: Copy> ByLvl<T> {
-    pub fn get(&self, lvl: u32) -> T {
+    pub fn at_lvl(&self, lvl: u32) -> T {
       match lvl {
         0..=24 => self.lvl1,
         25..=39 => self.lvl25,
@@ -580,7 +580,7 @@ pub mod dtbl {
     pub lvl15: T,
   }
   impl<T: Copy + Into<i32>> AccByLvl3<T> {
-    pub fn get(&self, lvl: u16) -> i32 {
+    pub fn at_lvl(&self, lvl: u16) -> i32 {
       let b1 = i32::from(lvl.max(9).saturating_sub(1));
       let b2 = i32::from(lvl.max(14).saturating_sub(9));
       let b3 = i32::from(lvl.saturating_sub(14));
@@ -598,7 +598,7 @@ pub mod dtbl {
     pub lvl29: T,
   }
   impl<T: Copy + Into<i32>> AccByLvl5<T> {
-    pub fn get(&self, lvl: u16) -> i32 {
+    pub fn at_lvl(&self, lvl: u16) -> i32 {
       let b1 = i32::from(lvl.max(8).saturating_sub(1));
       let b2 = i32::from(lvl.max(16).saturating_sub(8));
       let b3 = i32::from(lvl.max(22).saturating_sub(16));
@@ -618,7 +618,7 @@ pub mod dtbl {
     pub values: [T; 3],
   }
   impl<T: Copy> ByNgLvl<T> {
-    pub fn get(&self, x: NgLvl) -> Option<T> {
+    pub fn at_ng_lvl(&self, x: NgLvl) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }
@@ -629,7 +629,7 @@ pub mod dtbl {
     pub values: [T; 8],
   }
   impl<T: Copy> ByObjMode<T> {
-    pub fn get(&self, x: ObjMode) -> Option<T> {
+    pub fn for_obj(&self, x: ObjMode) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }
@@ -640,7 +640,7 @@ pub mod dtbl {
     pub values: [T; 16],
   }
   impl<T: Copy> ByNpcMode<T> {
-    pub fn get(&self, x: NpcMode) -> Option<T> {
+    pub fn for_mode(&self, x: NpcMode) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }
@@ -651,7 +651,7 @@ pub mod dtbl {
     pub values: [T; 16],
   }
   impl<T: Copy> ByComponent<T> {
-    pub fn get(&self, x: Component) -> Option<T> {
+    pub fn for_component(&self, x: Component) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }

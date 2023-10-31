@@ -1,11 +1,6 @@
 use core::{fmt, marker::PhantomData, ops};
 
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct Range<T> {
-  pub min: T,
-  pub max: T,
-}
+use crate::Range;
 
 /// A fixed-point number with `N` bits of precision.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

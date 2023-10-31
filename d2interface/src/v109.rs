@@ -38,8 +38,8 @@ pub mod dtbl {
   pub use crate::v108::dtbl::*;
   use crate::{
     dtbl::{
-      AccByLvl3, ByEqComponent, ByLvl, ByNgLvl, I32Code, ItemCode, ItemTy, ItemTyCode, Missile,
-      Prop, Skill, DropSet,
+      AccByLvl3, ByEqComponent, ByLvl, ByNgLvl, DropSet, I32Code, ItemCode, ItemTy, ItemTyCode,
+      Missile, Prop, Skill,
     },
     ArmorTy, BodyLoc, Component, ElTy, FixedI7, HitClass, Id16, Id8, Pc, Range, RgbColor, Size,
     StorePage,
@@ -177,10 +177,8 @@ pub mod dtbl {
     pub compact_save: u8,
     pub skip_name: u8,
     pub nameable: u8,
-    pub vend_min: PerVendor,
-    pub vend_max: PerVendor,
-    pub vend_mmin: PerVendor,
-    pub vend_mmax: PerVendor,
+    pub vend_qnt: Range<PerVendor>,
+    pub vend_mqnt: Range<PerVendor>,
     pub vend_mlvl: PerVendor,
     pub nm_upg: I32Code,
     pub hell_upg: I32Code,
@@ -324,8 +322,7 @@ pub mod dtbl {
     pub wname: [u16; 60],
     pub class: i32,
     pub mods: [i32; 3],
-    pub min_grp: i32,
-    pub max_grp: i32,
+    pub group_size: Range<i32>,
     pub auto_pos: i32,
     pub eclass: i32,
     pub stacks: i32,

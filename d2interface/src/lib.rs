@@ -65,7 +65,49 @@ pub use crate::{
   },
   coord::{
     FixedI12, FixedI16, FixedI4, FixedI7, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos,
-    LinearPos, Range, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos, UnknownPos,
+    LinearPos, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos, UnknownPos,
   },
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };
+
+use common::dtbl::{AccByLvl3, AccByLvl5, ByNgLvl};
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Range<T> {
+  pub min: T,
+  pub max: T,
+}
+impl<T> Range<T> {
+  pub const fn new(min: T, max: T) -> Self {
+    Self { min, max }
+  }
+
+  pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Range<U> {
+    Range::new(f(self.min), f(self.max))
+  }
+}
+impl<T: Copy> Range<ByNgLvl<T>> {
+  pub fn at_ng_lvl(&self, lvl: NgLvl) -> Option<Range<T>> {
+    Some(Range::new(
+      self.min.at_ng_lvl(lvl)?,
+      self.max.at_ng_lvl(lvl)?,
+    ))
+  }
+}
+impl<T: Copy + Into<i32>> Range<AccByLvl3<T>> {
+  pub fn at_lvl(&self, lvl: u16) -> Range<i32> {
+    Range::new(self.min.at_lvl(lvl), self.max.at_lvl(lvl))
+  }
+}
+impl<T: Copy + Into<i32>> Range<AccByLvl5<T>> {
+  pub fn at_lvl(&self, lvl: u16) -> Range<i32> {
+    Range::new(self.min.at_lvl(lvl), self.max.at_lvl(lvl))
+  }
+}
+impl<T: Copy, const N: usize> Range<[T; N]> {
+  #[track_caller]
+  pub fn index(&self, i: usize) -> Range<T> {
+    Range::new(self.min[i], self.max[i])
+  }
+}
