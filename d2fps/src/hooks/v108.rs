@@ -127,7 +127,22 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Npc mouse over
           Patch::call_std1(0xbdea4, patch_source!("e8310a0000"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xbdeb7, patch_source!("e8180a0000"), entity_iso_ypos::<Entity>),
-          // Arcane background
+        ],
+      ),
+      ModulePatches::new(
+        d2::Module::Common,
+        &[
+          Patch::call_c(0x5f3b7, patch_source!("
+            893e
+            8d442414
+          "), super::v100::intercept_teleport_100_asm_stub),
+        ],
+      ),
+    ],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
           Patch::call_c(0x160ca, patch_source!("
             a1 $407dbe6f
             33f6
@@ -241,15 +256,6 @@ pub(super) const HOOKS: Hooks = Hooks {
             7cd2
             893d $d077be6f
           "), super::v100::draw_arcane_bg_100_asm_stub),
-        ],
-      ),
-      ModulePatches::new(
-        d2::Module::Common,
-        &[
-          Patch::call_c(0x5f3b7, patch_source!("
-            893e
-            8d442414
-          "), super::v100::intercept_teleport_100_asm_stub),
         ],
       ),
     ],

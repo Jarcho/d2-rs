@@ -128,11 +128,15 @@ pub(super) const HOOKS: Hooks = Hooks {
           8bc6
           e8f7f0ffff
         "), intercept_teleport_114c_asm_stub),
-        // Arcane background
+      ],
+    )],
+    &[ModulePatches::new(
+      d2::Module::GameExe,
+      &[
         Patch::call_c(0x729c5, patch_source!("e806f6ffff"), draw_arcane_bg),
       ],
     )],
-  )
+  ),
 };
 
 global_asm! {

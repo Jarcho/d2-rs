@@ -141,8 +141,6 @@ pub(super) const HOOKS: Hooks = Hooks {
           // Course entity mouse detection
           Patch::call_std1(0xa6a54, patch_source!("e87957f6ff"), entity_iso_xpos::<Entity>),
           Patch::call_std1(0xa6a5c, patch_source!("e89557f6ff"), entity_iso_ypos::<Entity>),
-          // Arcane background
-          Patch::call_c(0x8b1e1, patch_source!("e81afcffff"), draw_arcane_bg),
         ],
       ),
       ModulePatches::new(
@@ -150,5 +148,13 @@ pub(super) const HOOKS: Hooks = Hooks {
         &[Patch::call_c(0xe0b7, patch_source!("e884f9ffff"), super::v111::intercept_teleport_111_asm_stub)],
       ),
     ],
-  )
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::call_c(0x8b1e1, patch_source!("e81afcffff"), draw_arcane_bg),
+        ],
+      ),
+    ],
+  ),
 };

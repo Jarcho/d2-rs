@@ -102,7 +102,8 @@ pub(super) const HOOKS: Hooks = Hooks {
       ],
     )],
     &[],
-  )
+    &[],
+  ),
 };
 
 global_asm! {
