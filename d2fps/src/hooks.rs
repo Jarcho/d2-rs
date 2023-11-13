@@ -596,6 +596,8 @@ unsafe extern "C" fn draw_game<E: Entity>() {
   let sync_instance = &mut *lock;
   sync_instance.hook_window();
 
+  // Don't draw anything if the player doesn't exist.
+  // Shouldn't happen, but the game also has the same checks.
   let Some(player) = sync_instance.accessor.player::<E>() else {
     return;
   };
@@ -620,8 +622,9 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       Relaxed,
     );
 
-    let enable_smoothing =
-      INSTANCE.render_fps.load_relaxed() != GAME_FPS && INSTANCE.config.features.motion_smoothing();
+    let enable_smoothing = INSTANCE.config.features.motion_smoothing();
+    let smooth_frame = INSTANCE.render_fps.load_relaxed() != GAME_FPS && enable_smoothing;
+
     let prev_update_count = replace(
       &mut sync_instance.client_update_count,
       (*sync_instance.accessor.client_loop_globals).updates,
@@ -635,12 +638,17 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       } else {
         sync_instance.update_entites_from_tables_no_delta::<E>();
       }
-      sync_instance.update_entity_positions::<E>();
+    }
 
+    if smooth_frame {
+      sync_instance.update_entity_positions::<E>();
       let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = sync_instance.entity_adjusted_iso_pos(player);
 
       if !client_updated {
+        // Environment particles are positioned in screen space and updated only
+        // when the client state has been updated. For every other frame we need
+        // to adjust their positions.
         sync_instance.update_env_images(prev_player_pos);
       }
     } else {
@@ -664,7 +672,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     (*sync_instance.accessor.client_loop_globals).frames_drawn += 1;
     (*sync_instance.accessor.client_loop_globals).fps_timer.frames_drawn += 1;
 
-    if enable_smoothing {
+    if smooth_frame {
       sync_instance.reset_entity_positions::<E>();
     }
   }
