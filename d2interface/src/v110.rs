@@ -1,6 +1,8 @@
+use bitflags::bitflags;
+
 use crate::{
-  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, InRoom, IsoPos, LinearPos,
-  LinkedList, Rand, Size,
+  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, Id16, InRoom, IsoPos,
+  LinearPos, LinkedList, Rand, Size,
 };
 use core::ptr::NonNull;
 
@@ -131,17 +133,77 @@ impl Entity {
   }
 }
 
+bitflags! {
+  #[derive(Clone, Copy, PartialEq, Eq)]
+  #[repr(transparent)]
+  pub struct DropSetEntryFlags: u8 {
+    const Unique = 0x1;
+    const Set = 0x2;
+    const DropSet = 0x4;
+    const Expansion = 0x10;
+  }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub union DropSetEntryId {
+  pub item: Id16<crate::dtbl::Item>,
+  pub drop_set: Id16<crate::dtbl::DropSet>,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub union DropSetEntryParam {
+  pub unique: crate::dtbl::SItem,
+  pub set: crate::dtbl::UItem,
+  pub mul: i16,
+}
+
+#[repr(C)]
+pub struct DropSetEntry {
+  pub start_roll: u32,
+  pub start_roll_ex: u32,
+  pub id: DropSetEntryId,
+  pub param: DropSetEntryParam,
+  pub cm: i16,
+  pub cr: i16,
+  pub cs: i16,
+  pub cu: i16,
+  pub ce: i16,
+  pub cg: i16,
+}
+
+#[repr(C)]
+pub struct DropSet {
+  pub group: u16,
+  pub lvl: u16,
+  pub entry_count: u32,
+  pub max_roll: u32,
+  pub max_roll_ex: u32,
+  pub picks: i32,
+  pub no_drop_weight: i32,
+  pub _pad0: [u8; 2],
+  pub magic_weight: i16,
+  pub rare_weight: i16,
+  pub set_weight: i16,
+  pub unique_weight: i16,
+  pub _pad1: [u8; 4],
+  pub entries: *const DropSetEntry,
+}
+
 pub mod dtbl {
   pub use crate::v109d::dtbl::*;
   use crate::{
+    common::PcOrNpcState,
     dtbl::{
-      AccByLvl3, AccByLvl5, ByComponent, ByEqComponent, ByLvl, ByNgLvl, ByNpcMode, ByObjMode,
-      CodeOffset, DropSet, Event, I32Code, Item, ItemCode, ItemStat, ItemTy, ItemTyCode, Lvl,
-      MPrefix, MSuffix, MercDesc, Missile, Npc, NpcAi, NpcAnim, NpcEx, NpcPlace, NpcProp, NpcSound,
-      NpcTy, Overlay, Pet, Prop, SItem, Set, SkDesc, Skill, Sound, StartItem, State, UItem, UMon,
+      AccByLvl3, AccByLvl5, ByComponent, ByEqComponent, ByLvl, ByNgLvl, ByNpcState, ByObjState,
+      CodeOffset, DropSet, Effect, Event, Gem, I32Code, Item, ItemCode, ItemStat, ItemTy,
+      ItemTyCode, Lvl, MPrefix, MSuffix, MercDesc, Missile, Npc, NpcAi, NpcAnim, NpcEquip, NpcEx,
+      NpcPlace, NpcProp, NpcSound, NpcTy, Overlay, Pet, Prop, SItem, Set, SkDesc, Skill, Sound,
+      StartItem, UItem, UMon,
     },
-    ArmorTy, BodyLoc, Color, Component, ElTy, HitClass, Id16, Id8, NpcMode, Pc, PcMode, Range,
-    RgbColor, ScreenRectS, Size, SkRange, StorePage, StrId,
+    ArmorTy, BodyLoc, Color, Component, ElTy, Id16, Id8, ItemHitClass, NpcState, Pc, PcState,
+    Range, RgbColor, ScreenRectS, Size, SkRange, StorePage, StrId,
   };
 
   use bitflags::bitflags;
@@ -152,11 +214,14 @@ pub mod dtbl {
     pub struct ItemStatDefFlags: u32 {
       const SendOther = 0x1;
       const Signed = 0x2;
-      const UpdateAnimRate = 0x200;
-      const Fmin = 0x400;
       const DamageRelated = 0x4;
       const ItemSpecific = 0x8;
       const Direct = 0x10;
+      const UsesMaxHp = 0x40;
+      const UsesMaxMp = 0x80;
+      const UsesMaxStam = 0x100;
+      const UpdateAnimRate = 0x200;
+      const Fmin = 0x400;
       const Fcallback = 0x800;
       const Saved = 0x1000;
       const CsvSigned = 0x2000;
@@ -172,8 +237,6 @@ pub mod dtbl {
       const Pierce = 0x4;
       const CanSlow = 0x8;
       const CanDestroy = 0x10;
-      const NoMultishot = 0x1000;
-      const NoUniqueMod = 0x2000;
       const ClientSend = 0x20;
       const GetHit = 0x40;
       const SoftHit = 0x80;
@@ -181,8 +244,10 @@ pub mod dtbl {
       const ReturnFire = 0x200;
       const Town = 0x400;
       const SrcTown = 0x800;
-      const MissileSkill = 0x8000;
+      const NoMultishot = 0x1000;
+      const NoUniqueMod = 0x2000;
       const Half2hSrc = 0x4000;
+      const MissileSkill = 0x8000;
     }
   }
 
@@ -200,17 +265,17 @@ pub mod dtbl {
       const CorpseSel = 0x80;
       const Revive = 0x100;
       const IsStt = 0x200;
-      const Large = 0x800;
       const Small = 0x400;
+      const Large = 0x800;
       const Soft = 0x1000;
       const Critter = 0x2000;
+      const Shadow = 0x4000;
+      const NoUniqueShift = 0x8000;
+      const CompositeDeath = 0x10000;
       const Inert = 0x20000;
       const Objcol = 0x40000;
       const DeadCol = 0x80000;
       const UnflatDead = 0x100000;
-      const Shadow = 0x4000;
-      const NoUniqueShift = 0x8000;
-      const CompositeDeath = 0x10000;
     }
   }
 
@@ -278,20 +343,16 @@ pub mod dtbl {
     #[derive(Default, Clone, Copy, PartialEq, Eq)]
     #[repr(transparent)]
     pub struct NpcDefFlags: u32 {
-      const Enabled = 0x2000000;
-      const RangedTy = 0x10000000;
-      const PlaceSpawn = 0x800000;
       const IsSpawn = 0x1;
       const IsMelee = 0x2;
       const NoRatio = 0x4;
+      const OpenDoors = 0x8;
       const SetBoss = 0x10;
       const BossXfer = 0x20;
       const Boss = 0x40;
       const PrimeEvil = 0x80;
-      const OpenDoors = 0x8;
       const Npc = 0x100;
       const Interact = 0x200;
-      const Inventory = 0x1000000;
       const InTown = 0x400;
       const LowUndead = 0x800;
       const HighUndead = 0x1000;
@@ -299,14 +360,18 @@ pub mod dtbl {
       const Flying = 0x4000;
       const Killable = 0x8000;
       const SwitchAi = 0x10000;
-      const NoAura = 0x8000000;
       const NoMultishot = 0x20000;
       const NeverCount = 0x40000;
       const PetIgnore = 0x80000;
       const DeathDmg = 0x100000;
       const GenericSpawn = 0x200000;
       const Zoo = 0x400000;
+      const PlaceSpawn = 0x800000;
+      const Inventory = 0x1000000;
+      const Enabled = 0x2000000;
       const NoShldBlock = 0x4000000;
+      const NoAura = 0x8000000;
+      const RangedTy = 0x10000000;
     }
   }
 
@@ -327,22 +392,22 @@ pub mod dtbl {
     #[derive(Default, Clone, Copy, PartialEq, Eq)]
     #[repr(transparent)]
     pub struct SkillDefFlags: u32 {
-      const Lob = 0x2;
       const Decquant = 0x1;
-      const Immediate = 0x8000;
-      const StSuccessOnly = 0x1000;
-      const StSoundDelay = 0x2000;
-      const WeaponSnd = 0x4000;
+      const Lob = 0x2;
       const Progressive = 0x4;
       const Finishing = 0x8;
-      const Prgstack = 0x80;
-      const Intown = 0x100;
-      const Kick = 0x200;
       const Passive = 0x10;
       const Aura = 0x20;
       const Periodic = 0x40;
-      const ItemTgtDo = 0x20000000;
+      const Prgstack = 0x80;
+      const Intown = 0x100;
+      const Kick = 0x200;
       const InGame = 0x400;
+      const Repeat = 0x800;
+      const StSuccessOnly = 0x1000;
+      const StSoundDelay = 0x2000;
+      const WeaponSnd = 0x4000;
+      const Immediate = 0x8000;
       const NoAmmo = 0x10000;
       const Enhanceable = 0x20000;
       const Durability = 0x40000;
@@ -356,9 +421,9 @@ pub mod dtbl {
       const TargetAlly = 0x4000000;
       const TargetItem = 0x8000000;
       const AttackNoMana = 0x10000000;
+      const ItemTgtDo = 0x20000000;
       const LeftSkill = 0x40000000;
       const Interrupt = 0x80000000;
-      const Repeat = 0x800;
     }
   }
 
@@ -366,24 +431,24 @@ pub mod dtbl {
     #[derive(Default, Clone, Copy, PartialEq, Eq)]
     #[repr(transparent)]
     pub struct SkillDefFlags2: u32 {
-      const Warp = 0x40;
-      const General = 0x8;
-      const Scroll = 0x10;
+      const TgtPlaceCheck = 0x1;
       const ItemCheckStart = 0x2;
       const ItemCltCheckStart = 0x4;
-      const TgtPlaceCheck = 0x1;
+      const General = 0x8;
+      const Scroll = 0x10;
       const UseManaOnDo = 0x20;
+      const Warp = 0x40;
     }
   }
 
   bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq)]
     #[repr(transparent)]
-    pub struct StateDefFlags: u32 {
+    pub struct EffectDefFlags: u32 {
       const NoSend = 0x1;
+      const Aura = 0x2;
       const Hide = 0x4;
       const Transform = 0x8;
-      const Aura = 0x2;
       const Pgsv = 0x10;
       const Active = 0x20;
       const RemHit = 0x40;
@@ -418,15 +483,15 @@ pub mod dtbl {
   bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq)]
     #[repr(transparent)]
-    pub struct StateDefFlags2: u32 {
-      const BossInv = 0x20;
-      const MeleeOnly = 0x40;
+    pub struct EffectDefFlags2: u32 {
       const Life = 0x1;
       const Undead = 0x2;
       const Green = 0x4;
       const NoOverlays = 0x8;
-      const NotOnDead = 0x80;
       const NoClear = 0x10;
+      const BossInv = 0x20;
+      const MeleeOnly = 0x40;
+      const NotOnDead = 0x80;
     }
   }
 
@@ -435,9 +500,9 @@ pub mod dtbl {
     #[repr(transparent)]
     pub struct UItemDefFlags: u32 {
       const Enabled = 0x1;
-      const Ladder = 0x8;
       const NoLimit = 0x2;
       const Carry1 = 0x4;
+      const Ladder = 0x8;
     }
   }
 
@@ -447,7 +512,7 @@ pub mod dtbl {
     pub value: i32,
     pub skill: Skill,
     pub npc_ty: NpcTy,
-    pub state: State,
+    pub effect: Effect,
   }
 
   #[repr(C)]
@@ -500,9 +565,16 @@ pub mod dtbl {
     pub set: i16,
     pub unique: i16,
     pub _pad0: [u8; 4],
-    pub nodrop: i32,
+    pub no_drop: i32,
     pub items: [[u8; 64]; 10],
     pub weights: [i32; 10],
+  }
+
+  #[repr(C)]
+  pub struct GambleItemDef {
+    pub id: ItemCode,
+    pub lvl: u32,
+    pub item: *const ItemDef,
   }
 
   #[repr(C)]
@@ -523,6 +595,31 @@ pub mod dtbl {
     pub weapon_mods: [ItemMod; 3],
     pub helm_mods: [ItemMod; 3],
     pub shield_mods: [ItemMod; 3],
+  }
+
+  decl_enum! { ItemStatOp(u8) {
+    None = 0,
+    AddPct = 1,
+    AddBaseMulValShiftParam = 2,
+    AddBaseMulValShiftParamAsPct = 3,
+    AddBaseMulValShiftParamToItem = 4,
+    AddBaseMulValShiftParamToItemAsPct = 5,
+    AddTimeOfDay = 6,
+    AddTimeOfDayAsPct = 7,
+    AddByIntGain = 8,
+    AddByVitGain = 9,
+    None2 = 10,
+    AddPct2 = 11,
+    None3 = 12,
+    AddPctToItem = 13,
+  }}
+
+  #[repr(C)]
+  pub struct ItemStatParamSrc {
+    op_base: Id16<ItemStat>,
+    id: Id16<ItemStat>,
+    op: ItemStatOp,
+    param: u8,
   }
 
   #[repr(C)]
@@ -563,12 +660,15 @@ pub mod dtbl {
     pub item_event_func1: i16,
     pub item_event_func2: i16,
     pub keep_zero: u8,
-    pub _pad3: [u8; 3],
-    pub op: u8,
+    pub is_formula_src: u8,
+    pub _pad3: [u8; 1],
+    pub applied_to_item: u8,
+    pub op: ItemStatOp,
     pub op_param: u8,
     pub op_base: Id16<ItemStat>,
     pub op_stats: [Id16<ItemStat>; 3],
-    pub _pad4: [u8; 226],
+    pub base_for: [Id16<ItemStat>; 64],
+    pub param_for: [ItemStatParamSrc; 16],
     pub stuff: i32,
   }
 
@@ -614,8 +714,8 @@ pub mod dtbl {
     pub ultra_code: I32Code,
     pub alt_gfx: I32Code,
     pub p_spell: i32,
-    pub state: Id16<State>,
-    pub cstates: [Id16<State>; 2],
+    pub effect: Id16<Effect>,
+    pub ceffects: [Id16<Effect>; 2],
     pub stats: [Id16<ItemStat>; 3],
     pub calcs: [CodeOffset; 3],
     pub len: CodeOffset,
@@ -633,7 +733,7 @@ pub mod dtbl {
     pub cost: i32,
     pub stack_size: Range<i32>,
     pub spawn_stack: i32,
-    pub gem_offset: i32,
+    pub gem: Gem,
     pub name_str: StrId,
     pub version: i16,
     pub auto_prefix: i16,
@@ -681,7 +781,7 @@ pub mod dtbl {
     pub socket_count: u8,
     pub transmogrify: u8,
     pub tmog_qnt: Range<u8>,
-    pub hit_class: HitClass,
+    pub hit_class: ItemHitClass,
     pub multi_handed: u8,
     pub gem_apply_ty: u8,
     pub lvl_req: u8,
@@ -716,13 +816,15 @@ pub mod dtbl {
     pub mlvls: ByNgLvl<u16>,
     pub mlvls_ex: ByNgLvl<u16>,
     pub mon_density: ByNgLvl<i32>,
-    pub umon_count: Range<ByNgLvl<u8>>,
+    pub umon_spanw_count: Range<ByNgLvl<u8>>,
     pub mon_wndr: u8,
     pub mon_spc_walk: u8,
     pub quest: u8,
     pub ranged_spawn: u8,
+    pub max_selected_mons: u8,
     pub mon_count: u8,
-    pub _pad1: [u8; 3],
+    pub nm_mon_count: u8,
+    pub umon_count: u8,
     pub mons: [Id16<Npc>; 25],
     pub nm_mons: [Id16<Npc>; 25],
     pub umons: [Id16<Npc>; 25],
@@ -836,7 +938,7 @@ pub mod dtbl {
     pub skills: [Skill; 6],
     pub sk_chance: [i32; 6],
     pub sk_chance_lvl: [i32; 6],
-    pub sk_modes: [NpcMode; 6],
+    pub sk_states: [NpcState; 6],
     pub sk_lvl: [u8; 6],
     pub sk_lvl_per_lvl: [u8; 6],
     pub hire_desc: MercDesc,
@@ -874,7 +976,7 @@ pub mod dtbl {
     pub server_hit_calc: CodeOffset,
     pub client_hit_calc: CodeOffset,
     pub server_dmg_calc: CodeOffset,
-    pub hit_class: i8,
+    pub hit_class: u8,
     pub range: i16,
     pub range_lvl: i16,
     pub vel: i8,
@@ -953,9 +1055,9 @@ pub mod dtbl {
     pub spawn: Id16<Npc>,
     pub spawnx: i8,
     pub spawny: i8,
-    pub spawn_mode: NpcMode,
+    pub spawn_state: NpcState,
     pub minions: [Id16<Npc>; 2],
-    pub _pad0: [u8; 2],
+    pub equip: NpcEquip,
     pub minion_count: Range<u8>,
     pub rarity: i8,
     pub group_size: Range<u8>,
@@ -995,7 +1097,7 @@ pub mod dtbl {
     pub a1_dmg: Range<ByNgLvl<i16>>,
     pub a2_dmg: Range<ByNgLvl<i16>>,
     pub s1_dmg: Range<ByNgLvl<i16>>,
-    pub el_modes: [NpcMode; 3],
+    pub el_states: [NpcState; 3],
     pub el_tys: [ElTy; 3],
     pub el_pct: [ByNgLvl<i8>; 3],
     pub el_dmg: Range<[ByNgLvl<i16>; 3]>,
@@ -1009,7 +1111,7 @@ pub mod dtbl {
     pub cold_effect: ByNgLvl<i8>,
     pub send_skills: i32,
     pub skills: [Id16<Skill>; 8],
-    pub sk_modes: [NpcMode; 8],
+    pub sk_states: [NpcState; 8],
     pub sk_anims: [NpcAnim; 8],
     pub sk_lvls: [i8; 8],
     pub damage_regen: i32,
@@ -1020,9 +1122,14 @@ pub mod dtbl {
   }
 
   #[repr(C)]
-  pub struct NpcAnimDef {
-    pub seq: NpcAnim,
-    pub mode: NpcMode,
+  pub struct AnimDef {
+    pub frames: *const AnimFrameDef,
+  }
+
+  #[repr(C)]
+  pub struct AnimFrameDef {
+    pub id: NpcAnim,
+    pub state: PcOrNpcState,
     pub frame: i8,
     pub dir: i8,
     pub event: i8,
@@ -1049,19 +1156,19 @@ pub mod dtbl {
     pub pix_height: i8,
     pub melee_range: i8,
     pub base_w: I32Code,
-    pub hit_class: HitClass,
+    pub hit_class: u8,
     pub component_variant_count: ByComponent<u8>,
     pub _pad0: [u8; 1],
     pub component_tys: ByComponent<[i8; 12]>,
     pub enabled_components: EnabledComponents,
     pub component_count: u8,
     pub flags3: NpcExDefFlags3,
-    pub enabled_modes: ByNpcMode<u8>,
+    pub enabled_states: ByNpcState<u8>,
     pub flags4: NpcExDefFlags4,
     pub inferno_len: i8,
     pub inferno_anim: i8,
     pub inferno_rollback: i8,
-    pub res_mode: NpcMode,
+    pub res_state: NpcState,
     pub res_skill: Id16<Skill>,
     pub hit_test_rect: ScreenRectS<i16, i16>,
     pub automap_cel: i32,
@@ -1091,7 +1198,7 @@ pub mod dtbl {
 
   #[repr(C)]
   pub struct NpcModDef {
-    pub id: Id16<NpcMod>,
+    pub id: crate::dtbl::NpcMod,
     pub _pad0: [u8; 2],
     pub version: i16,
     pub enabled: i8,
@@ -1139,9 +1246,9 @@ pub mod dtbl {
   }
 
   #[repr(C)]
-  pub struct NpcModeSound {
-    pub initial: NpcMode,
-    pub target: NpcMode,
+  pub struct NpcStateSound {
+    pub initial: NpcState,
+    pub target: NpcState,
     pub skill: Skill,
   }
 
@@ -1165,7 +1272,7 @@ pub mod dtbl {
     pub init: Sound,
     pub taunt: Sound,
     pub flee: Sound,
-    pub on_mode_cvt: [NpcModeSound; 3],
+    pub on_state_cvt: [NpcStateSound; 3],
   }
 
   #[repr(C)]
@@ -1182,25 +1289,25 @@ pub mod dtbl {
     pub wname: [u16; 64],
     pub token: [u8; 3],
     pub spawn_max: u8,
-    pub is_selectable: ByObjMode<u8>,
+    pub is_selectable: ByObjState<u8>,
     pub trap_prob: u8,
     pub size: Size<i32>,
-    pub frame_count: ByObjMode<i32>,
-    pub frame_rate: ByObjMode<i16>,
-    pub loop_anim: ByObjMode<i8>,
-    pub light_size: ByObjMode<i8>,
-    pub blocks_light: ByObjMode<i8>,
-    pub has_collision: ByObjMode<i8>,
+    pub frame_count: ByObjState<i32>,
+    pub frame_rate: ByObjState<i16>,
+    pub loop_anim: ByObjState<i8>,
+    pub light_size: ByObjState<i8>,
+    pub blocks_light: ByObjState<i8>,
+    pub has_collision: ByObjState<i8>,
     pub is_attackable: i8,
-    pub start_frame: ByObjMode<i8>,
-    pub draw_order: ByObjMode<i8>,
+    pub start_frame: ByObjState<i8>,
+    pub draw_order: ByObjState<i8>,
     pub env_effect: i8,
     pub is_door: i8,
     pub blocks_vis: i8,
     pub orientation: i8,
     pub pre_operate: i8,
     pub trans: i8,
-    pub has_mode: ByObjMode<i8>,
+    pub has_states: ByObjState<i8>,
     pub xoffset: i32,
     pub yoffset: i32,
     pub draw: i8,
@@ -1221,7 +1328,7 @@ pub mod dtbl {
     pub restore: i8,
     pub only_restore_unused: i8,
     pub sync: i8,
-    pub param: ByObjMode<i32>,
+    pub param: ByObjState<i32>,
     pub n_tgt_fx: i8,
     pub n_tgt_fy: i8,
     pub n_tgt_bx: i8,
@@ -1314,10 +1421,11 @@ pub mod dtbl {
     pub name: StrId,
     pub icon_type: i8,
     pub base_icon: [u8; 32],
-    pub micons: [[u8; 32]; 4],
+    pub alt_icons: [[u8; 32]; 4],
     pub _pad0: [u8; 2],
-    pub mclass: [i16; 4],
-    pub _pad1: [u8; 38],
+    pub alt_npcs: [Id16<Npc>; 4],
+    pub skill_count: u32,
+    pub skills: [Id16<Skill>; 16],
   }
 
   decl_enum! { PresetNpcPlaceKind(u8) {
@@ -1492,7 +1600,8 @@ pub mod dtbl {
     pub rune_name: [u8; 64],
     pub complete: i8,
     pub server: i8,
-    pub _pad0: [u8; 4],
+    pub display_name: StrId,
+    pub _pad0: [u8; 2],
     pub item_tys: [Id16<ItemTy>; 6],
     pub not_item_tys: [Id16<ItemTy>; 3],
     pub runes: [Item; 6],
@@ -1501,12 +1610,14 @@ pub mod dtbl {
 
   #[repr(C)]
   pub struct SItemDef {
+    pub id: SItem,
+    pub name: [u8; 32],
     pub _pad0: [u8; 2],
-    pub index: [u8; 32],
-    pub _pad1: [u8; 6],
+    pub display_name: StrId,
+    pub _pad1: [u8; 2],
     pub item: I32Code,
     pub set: Set,
-    pub _pad2: [u8; 2],
+    pub item_idx: u16,
     pub lvl: i16,
     pub lvl_req: i16,
     pub rarity: i32,
@@ -1529,10 +1640,11 @@ pub mod dtbl {
     pub id: Set,
     pub name: StrId,
     pub version: i16,
-    pub _pad0: [u8; 10],
+    pub _pad0: [u8; 6],
+    pub item_count: u32,
     pub partial_mods: [ItemMod; 8],
     pub full_mods: [ItemMod; 8],
-    pub _pad1: [u8; 24],
+    pub items: [*const SItemDef; 6],
   }
 
   #[repr(C)]
@@ -1580,9 +1692,9 @@ pub mod dtbl {
     pub flags2: SkillDefFlags2,
     pub char_class: Pc,
     pub _pad0: [u8; 3],
-    pub anim: PcMode,
-    pub mon_anim: NpcMode,
-    pub seq_trans: PcMode,
+    pub anim: PcState,
+    pub mon_anim: NpcState,
+    pub seq_trans: PcState,
     pub seq_num: i8,
     pub range: SkRange,
     pub select_proc: i8,
@@ -1602,13 +1714,13 @@ pub mod dtbl {
     pub aura_len_calc: CodeOffset,
     pub aura_range_calc: CodeOffset,
     pub aura_stat_calcs: [CodeOffset; 6],
-    pub aura_state: Id16<State>,
-    pub aura_target_state: Id16<State>,
+    pub aura_effect: Id16<Effect>,
+    pub aura_target_state: Id16<Effect>,
     pub aura_events: [Event; 3],
     pub aura_event_fns: [i16; 3],
     pub aura_target_event: Event,
     pub aura_target_event_fn: i16,
-    pub passive_state: Id16<State>,
+    pub passive_effect: Id16<Effect>,
     pub passive_item_ty: Id16<ItemTy>,
     pub passive_stats: [Id16<ItemStat>; 5],
     pub passive_calcs: [CodeOffset; 5],
@@ -1616,11 +1728,11 @@ pub mod dtbl {
     pub passive_event_fn: i16,
     pub summon: Id16<Npc>,
     pub pet_ty: Id8<Pet>,
-    pub summon_mode: NpcMode,
+    pub summon_state: NpcState,
     pub max_pets: CodeOffset,
     pub summon_skills: [Id16<Skill>; 5],
     pub summon_skill_calcs: [CodeOffset; 5],
-    pub summon_mod: Id16<NpcMod>,
+    pub summon_mod: crate::dtbl::NpcMod,
     pub summon_overlay: Overlay,
     pub client_missile: Id16<Missile>,
     pub client_sub_missiles: [Id16<Missile>; 4],
@@ -1683,7 +1795,7 @@ pub mod dtbl {
     pub el_length_lvl: AccByLvl3<i32>,
     pub el_len_sym_per_calc: CodeOffset,
     pub restrict: i8,
-    pub states: [Id16<State>; 3],
+    pub effects: [Id16<Effect>; 3],
     pub ai_ty: i8,
     pub ai_bonus: i16,
     pub cost_mult: i32,
@@ -1691,14 +1803,14 @@ pub mod dtbl {
   }
 
   #[repr(C)]
-  pub struct StateDef {
-    pub state: Id16<State>,
+  pub struct EffectDef {
+    pub id: Id16<Effect>,
     pub overlays: [Overlay; 4],
     pub cast_overlay: Overlay,
     pub remove_overlay: Overlay,
     pub pgsv_overlay: Overlay,
-    pub flags: StateDefFlags,
-    pub flags2: StateDefFlags2,
+    pub flags: EffectDefFlags,
+    pub flags2: EffectDefFlags2,
     pub stat: Id16<ItemStat>,
     pub set_fn: i16,
     pub remove_fn: i16,
@@ -1722,9 +1834,9 @@ pub mod dtbl {
 
   #[repr(C)]
   pub struct UItemDef {
-    pub _pad0: [u8; 2],
-    pub index: [u8; 32],
-    pub _pad1: [u8; 2],
+    pub id: UItem,
+    pub name: [u8; 32],
+    pub display_name: StrId,
     pub version: i16,
     pub code: I32Code,
     pub flags: UItemDefFlags,

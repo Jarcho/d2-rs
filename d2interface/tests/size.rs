@@ -104,7 +104,7 @@ fn test_size() {
   assert_eq!(size_of::<d2::v110::dtbl::MercDef>(), 0x118);
   assert_eq!(size_of::<d2::v110::dtbl::MissileDef>(), 0x1a4);
   assert_eq!(size_of::<d2::v110::dtbl::NpcDef>(), 0x1a8);
-  assert_eq!(size_of::<d2::v110::dtbl::NpcAnimDef>(), 0x6);
+  assert_eq!(size_of::<d2::v110::dtbl::AnimFrameDef>(), 0x6);
   assert_eq!(size_of::<d2::v110::dtbl::NpcEquipDef>(), 0x1c);
   assert_eq!(size_of::<d2::v110::dtbl::NpcExDef>(), 0x134);
   assert_eq!(size_of::<d2::v110::dtbl::NpcLvlDef>(), 0x78);

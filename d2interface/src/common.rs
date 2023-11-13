@@ -426,7 +426,7 @@ decl_enum! { CubeTy(u8) {
     Amulet = 14,
 }}
 
-decl_enum! { NpcMode(u8) {
+decl_enum! { NpcState(u8) {
     Death = 0,
     Neutral = 1,
     Walk = 2,
@@ -445,7 +445,7 @@ decl_enum! { NpcMode(u8) {
     Run = 15,
 }}
 
-decl_enum! { ObjMode(u8) {
+decl_enum! { ObjState(u8) {
     Neutral = 0,
     Operating = 1,
     Opened = 2,
@@ -456,7 +456,7 @@ decl_enum! { ObjMode(u8) {
     Sp5 = 7,
 }}
 
-decl_enum! { PcMode(u8) {
+decl_enum! { PcState(u8) {
     Death = 0,
     Neutral = 1,
     Walk = 2,
@@ -478,6 +478,13 @@ decl_enum! { PcMode(u8) {
     Seq = 18,
     KnockBack = 19,
 }}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub union PcOrNpcState {
+  pub pc: PcState,
+  pub npc: NpcState,
+}
 
 decl_enum! { SkRange(u8) {
     None = 0,
@@ -503,7 +510,22 @@ decl_enum! { NpcSpawnTy(u8) {
     Special = 2,
 }}
 
-pub type HitClass = u8;
+decl_enum! { ItemHitClass(u8) {
+  None = 0,
+  H2h = 1,
+  Swing1H = 2,
+  SwingBig1H = 3,
+  Swing2H = 4,
+  SwingBig2H = 5,
+  Thrust1H = 6,
+  Thrust2H = 7,
+  Club = 8,
+  Staff = 9,
+  Bow = 10,
+  XBow = 11,
+  Claw = 12,
+  Overlay = 13,
+}}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
@@ -514,7 +536,7 @@ pub struct RgbColor {
 }
 
 pub mod dtbl {
-  use super::{Component, NgLvl, NpcMode, ObjMode};
+  use super::{Component, NgLvl, NpcState, ObjState};
 
   use crate::BodyLoc;
 
@@ -526,6 +548,7 @@ pub mod dtbl {
 
   decl_id!(DropSet(i32));
   decl_id!(Event(i16));
+  decl_id!(Gem(i32));
   decl_id!(Item(i32));
   decl_id!(ItemStat(i32));
   decl_id!(ItemTy(i32));
@@ -537,10 +560,11 @@ pub mod dtbl {
   decl_id!(Npc(i32));
   decl_id!(NpcAi(i16));
   decl_id!(NpcAnim(i16));
+  decl_id!(NpcEquip(i16));
   decl_id!(NpcEx(i16));
   decl_id!(NpcPlace(i16));
   decl_id!(NpcTy(i32));
-  decl_id!(NpcMod(i32));
+  decl_id!(NpcMod(i16));
   decl_id!(NpcProp(i32));
   decl_id!(NpcSound(i32));
   decl_id!(Overlay(i16));
@@ -551,7 +575,7 @@ pub mod dtbl {
   decl_id!(SkDesc(i32));
   decl_id!(Skill(i32));
   decl_id!(Sound(i32));
-  decl_id!(State(i32));
+  decl_id!(Effect(i32));
   decl_id!(UItem(i16));
   decl_id!(UMon(i16));
 
@@ -625,22 +649,22 @@ pub mod dtbl {
 
   #[derive(Clone, Copy)]
   #[repr(C)]
-  pub struct ByObjMode<T> {
+  pub struct ByObjState<T> {
     pub values: [T; 8],
   }
-  impl<T: Copy> ByObjMode<T> {
-    pub fn for_obj(&self, x: ObjMode) -> Option<T> {
+  impl<T: Copy> ByObjState<T> {
+    pub fn for_state(&self, x: ObjState) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }
 
   #[derive(Clone, Copy)]
   #[repr(C)]
-  pub struct ByNpcMode<T> {
+  pub struct ByNpcState<T> {
     pub values: [T; 16],
   }
-  impl<T: Copy> ByNpcMode<T> {
-    pub fn for_mode(&self, x: NpcMode) -> Option<T> {
+  impl<T: Copy> ByNpcState<T> {
+    pub fn for_state(&self, x: NpcState) -> Option<T> {
       self.values.get(x.0 as usize).copied()
     }
   }

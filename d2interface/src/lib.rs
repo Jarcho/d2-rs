@@ -59,9 +59,9 @@ pub use crate::{
   common::{
     dtbl, Act, ArmorTy, BodyLoc, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals,
     ClientPingTimer, Color, Component, CubeMod, CubeTy, Cursor, CursorId, CursorState, ElTy,
-    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor, GameType, HitClass,
-    Id16, Id8, InRoom, LinkedList, NgLvl, NpcMode, NpcSpawnTy, ObjMode, Pc, PcMode, Rand, RgbColor,
-    SkRange, StorePage, StrId,
+    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor, GameType, Id16, Id8,
+    InRoom, ItemHitClass, LinkedList, NgLvl, NpcSpawnTy, NpcState, ObjState, Pc, PcState, Rand,
+    RgbColor, SkRange, StorePage, StrId,
   },
   coord::{
     FixedI12, FixedI16, FixedI4, FixedI7, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos,

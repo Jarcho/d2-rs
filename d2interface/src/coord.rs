@@ -1,6 +1,5 @@
-use core::{fmt, marker::PhantomData, ops};
-
 use crate::Range;
+use core::{fmt, marker::PhantomData, ops};
 
 /// A fixed-point number with `N` bits of precision.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

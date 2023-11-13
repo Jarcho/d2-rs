@@ -31,7 +31,7 @@ pub mod dtbl {
   pub use crate::v102::dtbl::*;
   use crate::{
     dtbl::{ByEqComponent, I32Code, ItemCode, Missile},
-    ArmorTy, BodyLoc, Component, HitClass, Id16, Range, Size,
+    ArmorTy, BodyLoc, Component, Id16, ItemHitClass, Range, Size,
   };
 
   #[repr(C)]
@@ -106,7 +106,7 @@ pub mod dtbl {
     pub transmogrify: u8,
     pub tmog_qnt: Range<u8>,
     pub _pad1: [u8; 1],
-    pub hit_class: HitClass,
+    pub hit_class: ItemHitClass,
     pub multi_handed: u8,
     pub transform: u8,
     pub inv_trans: u8,

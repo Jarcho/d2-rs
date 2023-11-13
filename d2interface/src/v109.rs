@@ -41,9 +41,16 @@ pub mod dtbl {
       AccByLvl3, ByEqComponent, ByLvl, ByNgLvl, DropSet, I32Code, ItemCode, ItemTy, ItemTyCode,
       Missile, Prop, Skill,
     },
-    ArmorTy, BodyLoc, Component, ElTy, FixedI7, HitClass, Id16, Id8, Pc, Range, RgbColor, Size,
+    ArmorTy, BodyLoc, Component, ElTy, FixedI7, Id16, Id8, ItemHitClass, Pc, Range, RgbColor, Size,
     StorePage,
   };
+
+  #[repr(C)]
+  pub struct GambleItemDef {
+    pub id: ItemCode,
+    pub lvl: u32,
+    pub item: *const ItemDef,
+  }
 
   #[repr(C)]
   pub struct ItemRatioDef {
@@ -167,7 +174,7 @@ pub mod dtbl {
     pub socket_count: u8,
     pub transmogrify: u8,
     pub tmog_qnt: Range<u8>,
-    pub hit_class: HitClass,
+    pub hit_class: ItemHitClass,
     pub multi_handed: u8,
     pub gem_apply_ty: u8,
     pub lvl_req: u8,

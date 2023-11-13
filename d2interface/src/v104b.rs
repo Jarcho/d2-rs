@@ -36,8 +36,15 @@ pub mod dtbl {
   pub use crate::v103::dtbl::*;
   use crate::{
     dtbl::{ByEqComponent, I32Code, ItemCode, Missile},
-    ArmorTy, BodyLoc, Component, HitClass, Id16, Range, Size, StrId,
+    ArmorTy, BodyLoc, Component, Id16, ItemHitClass, Range, Size, StrId,
   };
+
+  #[repr(C)]
+  pub struct GambleItemDef {
+    pub id: ItemCode,
+    pub lvl: u32,
+    pub item: *const ItemDef,
+  }
 
   #[repr(C)]
   pub struct ItemMod {
@@ -106,7 +113,7 @@ pub mod dtbl {
     pub socket_count: u8,
     pub transmogrify: u8,
     pub tmog_qnt: Range<u8>,
-    pub hit_class: HitClass,
+    pub hit_class: ItemHitClass,
     pub multi_handed: u8,
     pub version: i16,
     pub transform: u8,

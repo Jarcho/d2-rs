@@ -121,12 +121,12 @@ pub mod dtbl {
   pub use crate::v106b::dtbl::*;
   use crate::{
     dtbl::{
-      AccByLvl3, ByComponent, ByEqComponent, ByLvl, ByNgLvl, ByNpcMode, DropSet, I32Code, Item,
-      ItemCode, ItemTy, ItemTyCode, Missile, Prop, Skill, State,
+      AccByLvl3, ByComponent, ByEqComponent, ByLvl, ByNgLvl, ByNpcState, DropSet, Effect, I32Code,
+      Item, ItemCode, ItemTy, ItemTyCode, Missile, Prop, Skill,
     },
-    ArmorTy, BodyLoc, Color, Component, CubeMod, CubeTy, ElTy, FixedI12, FixedI7, HitClass, Id16,
-    Id8, NpcMode, NpcSpawnTy, Pc, Range, RgbColor, ScreenPos, ScreenRectS, Size, StorePage, StrId,
-    TilePos,
+    ArmorTy, BodyLoc, Color, Component, CubeMod, CubeTy, ElTy, FixedI12, FixedI7, Id16, Id8,
+    ItemHitClass, NpcSpawnTy, NpcState, Pc, Range, RgbColor, ScreenPos, ScreenRectS, Size,
+    StorePage, StrId, TilePos,
   };
 
   #[repr(C)]
@@ -158,6 +158,13 @@ pub mod dtbl {
     pub nodrop: i32,
     pub items: [[u8; 64]; 10],
     pub weights: [i32; 10],
+  }
+
+  #[repr(C)]
+  pub struct GambleItemDef {
+    pub id: ItemCode,
+    pub lvl: u32,
+    pub item: *const ItemDef,
   }
 
   #[repr(C)]
@@ -294,7 +301,7 @@ pub mod dtbl {
     pub socket_count: u8,
     pub transmogrify: u8,
     pub tmog_qnt: Range<u8>,
-    pub hit_class: HitClass,
+    pub hit_class: ItemHitClass,
     pub multi_handed: u8,
     pub gem_apply_ty: u8,
     pub lvl_req: u8,
@@ -504,8 +511,8 @@ pub mod dtbl {
     pub component_count: u8,
     pub base_w: I32Code,
     pub ai_params: [u8; 5],
-    pub used_modes: ByNpcMode<u8>,
-    pub el_mode: NpcMode,
+    pub used_states: ByNpcState<u8>,
+    pub el_state: NpcState,
     pub el_ty: ElTy,
     pub el_chance_pct: u8,
     pub el_dmg: Range<i32>,
@@ -581,7 +588,7 @@ pub mod dtbl {
     pub can_change_align: u8,
     pub is_saved: u8,
     pub no_quest_count: u8,
-    pub hit_class: HitClass,
+    pub hit_class: u8,
     pub spl_end_death: u8,
     pub spl_get_mode_chart: u8,
     pub spl_end_generic: u8,
@@ -742,9 +749,9 @@ pub mod dtbl {
     pub req_int: u8,
     pub req_vit: u8,
     pub req_skills: [Skill; 3],
-    pub caster_state: State,
-    pub victim_state: State,
-    pub isaura: u8,
+    pub caster_effect: Effect,
+    pub victim_effect: Effect,
+    pub is_aura: u8,
     pub _pad10: [u8; 15],
     pub states: [i32; 3],
     pub delay: i32,
