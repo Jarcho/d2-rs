@@ -100,10 +100,6 @@ pub(super) const HOOKS: Hooks = Hooks {
           7406
           ff05 $8ce91210
         "), draw_game::<Entity>),
-        // Draw cursor framerate
-        Patch::call_c(0xca5a8, patch_source!("
-          39a8 $70ad1110
-        "), super::v100::should_update_cursor_100_asm_stub),
       ],
     )],
     &[
@@ -270,6 +266,17 @@ pub(super) const HOOKS: Hooks = Hooks {
             0f8c6cffffff
             893d $907f1310
           "), super::v100::draw_arcane_bg_100_asm_stub),
+        ],
+      ),
+    ],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          // Draw cursor framerate
+          Patch::call_c(0xca5a8, patch_source!("
+            39a8 $70ad1110
+          "), super::v100::should_update_cursor_100_asm_stub),
         ],
       ),
     ],

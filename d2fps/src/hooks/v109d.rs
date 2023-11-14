@@ -99,15 +99,6 @@ pub(super) const HOOKS: Hooks = Hooks {
           7406
           ff05 $e409bb6f
         "), draw_game::<Entity>),
-        // Draw cursor framerate
-        Patch::call_c(0xb5678, patch_source!("
-          39a8 $e8fab96f
-        "), super::v100::should_update_cursor_100_asm_stub),
-        // Summit cloud move speed
-        Patch::call_c(0x169b4, patch_source!("
-          03e9
-          81c270010000
-        "), super::v107::summit_cloud_move_amount_107_asm_stub),
       ],
     )],
     &[
@@ -255,6 +246,22 @@ pub(super) const HOOKS: Hooks = Hooks {
             7cd2
             893d $c095bb6f
           "), super::v100::draw_arcane_bg_100_asm_stub),
+        ],
+      ),
+    ],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          // Draw cursor framerate
+          Patch::call_c(0xb5678, patch_source!("
+            39a8 $e8fab96f
+          "), super::v100::should_update_cursor_100_asm_stub),
+          // Summit cloud move speed
+          Patch::call_c(0x169b4, patch_source!("
+            03e9
+            81c270010000
+          "), super::v107::summit_cloud_move_amount_107_asm_stub),
         ],
       ),
     ],

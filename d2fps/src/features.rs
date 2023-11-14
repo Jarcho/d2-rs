@@ -15,6 +15,7 @@ pub enum FeatureId {
   GameFps = 1,
   MotionSmoothing = 2,
   ArcaneBg = 3,
+  AnimRate = 4,
 }
 impl FeatureId {
   pub const fn name(self) -> &'static str {
@@ -23,6 +24,7 @@ impl FeatureId {
       Self::GameFps => "game fps",
       Self::MotionSmoothing => "motion smoothing",
       Self::ArcaneBg => "arcane background",
+      Self::AnimRate => "animation rate fixes",
     }
   }
 
@@ -37,7 +39,7 @@ impl FeatureId {
   pub fn prereqs(self) -> Features {
     match self {
       Self::MenuFps | Self::GameFps => Features::empty(),
-      Self::MotionSmoothing | Self::ArcaneBg => Features::GameFps,
+      Self::MotionSmoothing | Self::ArcaneBg | Self::AnimRate => Features::GameFps,
     }
   }
 }
@@ -56,6 +58,7 @@ bitflags! {
     const Fps = 3;
     const MotionSmoothing = 4;
     const ArcaneBg = 8;
+    const AnimRate = 16;
   }
 }
 impl fmt::Display for Features {
@@ -144,10 +147,10 @@ impl ModulePatches {
 }
 
 /// The set of all patches used for a specific game version, separated by feature.
-pub struct FeaturePatches([&'static [ModulePatches]; 4]);
+pub struct FeaturePatches([&'static [ModulePatches]; 5]);
 impl FeaturePatches {
   pub const fn empty() -> Self {
-    Self([&[]; 4])
+    Self([&[]; 5])
   }
 
   pub const fn new(
@@ -155,8 +158,9 @@ impl FeaturePatches {
     game_fps: &'static [ModulePatches],
     motion_smoothing: &'static [ModulePatches],
     arcane_bg: &'static [ModulePatches],
+    anim_rate: &'static [ModulePatches],
   ) -> Self {
-    Self([menu_fps, game_fps, motion_smoothing, arcane_bg])
+    Self([menu_fps, game_fps, motion_smoothing, arcane_bg, anim_rate])
   }
 
   #[allow(clippy::needless_lifetimes)]

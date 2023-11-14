@@ -100,12 +100,6 @@ pub(super) const HOOKS: Hooks = Hooks {
           7406
           011d $3c757900
         "), draw_game::<Entity>),
-        // Cursor animation speed
-        Patch::raw(0x63b7d, patch_source!("10"), &[0x28]),
-        // Summit cloud move speed
-        Patch::call_c(0x7260c, patch_source!("
-          0197 $70cc7a00
-        "), super::v114a::move_summit_cloud_114a_asm_stub),
       ],
     )],
     &[ModulePatches::new(
@@ -136,6 +130,19 @@ pub(super) const HOOKS: Hooks = Hooks {
         Patch::call_c(0x729c5, patch_source!("e806f6ffff"), draw_arcane_bg),
       ],
     )],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          // Cursor animation speed
+          Patch::raw(0x63b7d, patch_source!("10"), &[0x28]),
+          // Summit cloud move speed
+          Patch::call_c(0x7260c, patch_source!("
+            0197 $70cc7a00
+          "), super::v114a::move_summit_cloud_114a_asm_stub),
+        ],
+      ),
+    ],
   ),
 };
 

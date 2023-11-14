@@ -60,6 +60,10 @@ impl Config {
               Ok(v) => self.features.set_relaxed(Features::ArcaneBg, v),
               Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
             },
+            "anim-rate-fixes" => match v.parse() {
+              Ok(v) => self.features.set_relaxed(Features::ArcaneBg, v),
+              Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),
+            },
             "reapply-patches" => match v.parse() {
               Ok(v) => self.reapply_patches.store(v, Relaxed),
               Err(_) => log!("Error parsing d2fps.ini: line `{i}`: unknown value `{v}`"),

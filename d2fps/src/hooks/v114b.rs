@@ -100,5 +100,6 @@ pub(super) const HOOKS: Hooks = Hooks {
     )],
     &[],
     &[],
+    &[],
   ),
 };
