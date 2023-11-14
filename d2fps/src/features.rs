@@ -29,7 +29,7 @@ impl FeatureId {
   }
 
   pub fn iter() -> impl ExactSizeIterator<Item = FeatureId> {
-    (0u8..3u8).map(|x| unsafe { transmute(x) })
+    (0u8..5u8).map(|x| unsafe { transmute(x) })
   }
 
   pub fn as_flag(self) -> Features {
