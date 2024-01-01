@@ -57,7 +57,7 @@ struct Hooks {
   load_modules: fn() -> Option<d2::Modules>,
 }
 impl Hooks {
-  const UNKNOWN: &Hooks = &Hooks {
+  const UNKNOWN: &'static Hooks = &Hooks {
     patches: FeaturePatches::empty(),
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
