@@ -3,7 +3,7 @@ use crate::{
   hooks::{
     draw_arcane_bg, draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos,
     entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
-    should_update_cursor, summit_cloud_move_amount, update_menu_char_frame, Hooks,
+    should_update_cursor, summit_cloud_move_amount, update_menu_char_frame, Hooks, Trampolines,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -167,7 +167,21 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
-  )
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::nop(0x4dc02, patch_source!("
+            53
+            e828fbffff
+          ")),
+        ]
+      )
+    ],
+  ),
+  trampolines: Trampolines {
+    gen_weather_particle: gen_weather_particle_111_trampoline,
+  },
 };
 
 global_asm! {
@@ -227,4 +241,19 @@ global_asm! {
 }
 extern "C" {
   pub fn summit_cloud_move_amount_111_asm_stub();
+}
+
+global_asm! {
+  ".global @gen_weather_particle_111_trampoline@8",
+  "@gen_weather_particle_111_trampoline@8:",
+  "pop eax",
+  "push ecx",
+  "push eax",
+  "jmp edx",
+}
+extern "fastcall" {
+  pub fn gen_weather_particle_111_trampoline(
+    _: *mut d2::Rng,
+    _: usize, // stdcall(&mut d2::Rng),
+  );
 }

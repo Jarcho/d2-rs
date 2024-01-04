@@ -2,7 +2,7 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks,
+    entity_linear_ypos, game_loop_sleep_hook, Hooks, Trampolines,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -266,5 +266,134 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
-  )
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::nop(0x7406, patch_source!("
+            391d $84ebbd6f
+            7429
+            8b0d $aceabd6f
+            51
+            e86e8c0b00
+            d9e1
+            d9542410
+            d81d $bcc2b96f
+            dfe0
+            f6c401
+            7420
+            c74424100000803e
+            eb16
+            d905 $a4eabd6f
+            d80d $b8c2b96f
+            d805 $b4c2b96f
+            d95c2410
+            a1 $74ebbd6f
+            8b8810010000
+            8bb01c010000
+            85c9
+            0f8c42010000
+            66833e00
+            0f8423010000
+            db4614
+            d84c2410
+            e8a4950b00
+            8b15 $aceabd6f
+            8944241c
+            db44241c
+            52
+            d95c2420
+            e8f48b0b00
+            d84c241c
+            e883950b00
+            8bf8
+            a1 $aceabd6f
+            50
+            e8d88b0b00
+            d84c241c
+            e86d950b00
+            8b0d $4ceebd6f
+            8b5608
+            2bc1
+            8b4e0c
+            03d0
+            8bc2
+            895608
+            3bc1
+            7e07
+            c7461c01000000
+            8b461c
+            85c0
+            7445
+            8b4620
+            85c0
+            752e
+            8b0d $74ebbd6f
+            8bd3
+            c1e210
+            e8858b0b00
+            8b0d $74ebbd6f
+            a1 $c0eabd6f
+            8b9114010000
+            3bd0
+            7d19
+            8bcd
+            e833020000
+            eb10
+            8b4620
+            33ff
+            48
+            c7461400000000
+            894620
+            66833e00
+            746e
+            a1 $84ebbd6f
+            85c0
+            7434
+            8b461c
+            85c0
+            752d
+            8b0d $9cebbd6f
+            b81f85eb51
+            c1e109
+            f7e1
+            8b4618
+            c1ea03
+            03d0
+            81e2ff010000
+            52
+            e8298b0b00
+            dcc0
+            e8c0940b00
+            03f8
+            8b5604
+            a1 $48eebd6f
+            2bd0
+            8d043a
+            894604
+            8b0d $e440ba6f
+            3bc1
+            7c0b
+            2bc1
+            894604
+            8b0d $e440ba6f
+            8b4604
+            85c0
+            7d05
+            03c1
+            894604
+            a1 $74ebbd6f
+            43
+            83c628
+            3b9810010000
+            0f8ebefeffff
+            ff05 $9cebbd6f
+          ")),
+        ]
+      )
+    ],
+  ),
+  trampolines: Trampolines {
+    gen_weather_particle: super::v100::gen_weather_particle_100_trampoline,
+  },
 };

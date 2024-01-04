@@ -2,7 +2,7 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_game, draw_game_paused, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
-    entity_linear_ypos, game_loop_sleep_hook, Hooks, UnitId,
+    entity_linear_ypos, game_loop_sleep_hook, Hooks, Trampolines, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -278,7 +278,18 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::nop(0x61db, patch_source!("e800020000")),
+        ]
+      )
+    ],
   ),
+  trampolines: Trampolines {
+    gen_weather_particle: super::v100::gen_weather_particle_100_trampoline,
+  },
 };
 
 impl super::Entity for Entity {
@@ -315,5 +326,9 @@ impl super::Entity for Entity {
         epos.as_mut().iso_pos = pos.into();
       }
     }
+  }
+
+  fn rng(&mut self) -> &mut d2::Rng {
+    &mut self.rng
   }
 }

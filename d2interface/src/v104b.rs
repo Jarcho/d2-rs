@@ -23,10 +23,19 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0,
   viewport_height: 0,
   viewport_shift: 0xe7b6c,
+  max_weather_particles: 0xe2d68,
+  weather_angle: 0xe2d54,
+  rain_speed: 0xe2d40,
+  is_snowing: 0,
+  sine_table: 0x1d1e4,
+  // Signature: fastcall(&mut Rng)
+  gen_weather_particle: 0x62a0,
+  env_array_remove: Ordinal(10044),
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x6fb60000,
   common: 0x6fd80000,
+  fog: 0x6ff60000,
   game: 0x6fcb0000,
   gfx: 0x6fb30000,
   win: 0x6f9a0000,

@@ -57,11 +57,11 @@ pub mod v114d;
 
 pub use crate::{
   common::{
-    dtbl, Act, ArmorTy, BodyLoc, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals,
+    dtbl, Act, ArmorTy, BodyLoc, Bool32, ClientEnvEffects, ClientFpsTimer, ClientLoopGlobals,
     ClientPingTimer, Color, Component, CubeMod, CubeTy, Cursor, CursorId, CursorState, ElTy,
-    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, GameCursor, GameType, Id16, Id8,
-    InRoom, ItemHitClass, LinkedList, NgLvl, NpcSpawnTy, NpcState, ObjState, Pc, PcState, Rand,
-    RgbColor, SkRange, StorePage, StrId,
+    EntityKind, EntityTable, EntityTables, EnvImage, EnvImages, EnvParticle, EnvParticles,
+    GameCursor, GameType, Id16, Id8, InRoom, ItemHitClass, LinkedList, NgLvl, NpcSpawnTy, NpcState,
+    ObjState, Pc, PcState, RgbColor, Rng, SkRange, StorePage, StrId,
   },
   coord::{
     FixedI12, FixedI16, FixedI4, FixedI7, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos,
@@ -69,6 +69,8 @@ pub use crate::{
   },
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };
+
+pub type EnvArray = common::EnvArray<()>;
 
 use common::dtbl::{AccByLvl3, AccByLvl5, ByNgLvl};
 

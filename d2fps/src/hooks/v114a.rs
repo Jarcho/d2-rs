@@ -1,6 +1,8 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
-  hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, Hooks},
+  hooks::{
+    draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, Hooks, Trampolines,
+  },
   INSTANCE,
 };
 use bin_patch::{patch_source, Patch};
@@ -104,7 +106,21 @@ pub(super) const HOOKS: Hooks = Hooks {
     &[],
     &[],
     &[],
+    &[
+      ModulePatches::new(
+        d2::Module::GameExe,
+        &[
+          Patch::nop(0x5a10d, patch_source!("
+            56
+            e83df2ffff
+          ")),
+        ]
+      )
+    ],
   ),
+  trampolines: Trampolines {
+    gen_weather_particle: gen_weather_particle_114_trampoline,
+  },
 };
 
 global_asm! {
@@ -137,4 +153,17 @@ global_asm! {
 }
 extern "C" {
   pub fn move_summit_cloud_114a_asm_stub();
+}
+
+global_asm! {
+  ".global @gen_weather_particle_114_trampoline@8",
+  "@gen_weather_particle_114_trampoline@8:",
+  "mov eax, ecx",
+  "jmp edx",
+}
+extern "fastcall" {
+  pub fn gen_weather_particle_114_trampoline(
+    _: *mut d2::Rng,
+    _: usize, // (&mut d2::Rng @ eax)
+  );
 }

@@ -16,6 +16,7 @@ pub enum FeatureId {
   MotionSmoothing = 2,
   ArcaneBg = 3,
   AnimRate = 4,
+  Weather = 5,
 }
 impl FeatureId {
   pub const fn name(self) -> &'static str {
@@ -25,11 +26,12 @@ impl FeatureId {
       Self::MotionSmoothing => "motion smoothing",
       Self::ArcaneBg => "arcane background",
       Self::AnimRate => "animation rate fixes",
+      Self::Weather => "weather smoothing",
     }
   }
 
   pub fn iter() -> impl ExactSizeIterator<Item = FeatureId> {
-    (0u8..5u8).map(|x| unsafe { transmute(x) })
+    (0u8..6u8).map(|x| unsafe { transmute(x) })
   }
 
   pub fn as_flag(self) -> Features {
@@ -39,7 +41,7 @@ impl FeatureId {
   pub fn prereqs(self) -> Features {
     match self {
       Self::MenuFps | Self::GameFps => Features::empty(),
-      Self::MotionSmoothing | Self::ArcaneBg | Self::AnimRate => Features::GameFps,
+      Self::MotionSmoothing | Self::ArcaneBg | Self::AnimRate | Self::Weather => Features::GameFps,
     }
   }
 }
@@ -59,6 +61,7 @@ bitflags! {
     const MotionSmoothing = 4;
     const ArcaneBg = 8;
     const AnimRate = 16;
+    const Weather = 32;
   }
 }
 impl fmt::Display for Features {
@@ -130,6 +133,10 @@ impl AtomicFeatures {
     self.load_relaxed().intersects(Features::MotionSmoothing)
   }
 
+  pub fn weather_smoothing(&self) -> bool {
+    self.load_relaxed().intersects(Features::Weather)
+  }
+
   pub fn fps(&self) -> bool {
     self.load_relaxed().intersects(Features::Fps)
   }
@@ -147,10 +154,10 @@ impl ModulePatches {
 }
 
 /// The set of all patches used for a specific game version, separated by feature.
-pub struct FeaturePatches([&'static [ModulePatches]; 5]);
+pub struct FeaturePatches([&'static [ModulePatches]; 6]);
 impl FeaturePatches {
   pub const fn empty() -> Self {
-    Self([&[]; 5])
+    Self([&[]; 6])
   }
 
   pub const fn new(
@@ -159,8 +166,16 @@ impl FeaturePatches {
     motion_smoothing: &'static [ModulePatches],
     arcane_bg: &'static [ModulePatches],
     anim_rate: &'static [ModulePatches],
+    weather: &'static [ModulePatches],
   ) -> Self {
-    Self([menu_fps, game_fps, motion_smoothing, arcane_bg, anim_rate])
+    Self([
+      menu_fps,
+      game_fps,
+      motion_smoothing,
+      arcane_bg,
+      anim_rate,
+      weather,
+    ])
   }
 
   #[allow(clippy::needless_lifetimes)]

@@ -2,7 +2,7 @@ use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
     draw_arcane_bg, draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos,
-    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, Hooks,
+    entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, Hooks, Trampolines,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -133,7 +133,7 @@ pub(super) const HOOKS: Hooks = Hooks {
     )],
     &[
       ModulePatches::new(
-        d2::Module::Client,
+        d2::Module::GameExe,
         &[
           // Cursor animation speed
           Patch::raw(0x6836d, patch_source!("10"), &[0x28]),
@@ -144,7 +144,21 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
+    &[
+      ModulePatches::new(
+        d2::Module::GameExe,
+        &[
+          Patch::nop(0x74043, patch_source!("
+            51
+            e877f2ffff
+          ")),
+        ]
+      )
+    ],
   ),
+  trampolines: Trampolines {
+    gen_weather_particle: super::v114a::gen_weather_particle_114_trampoline,
+  },
 };
 
 global_asm! {

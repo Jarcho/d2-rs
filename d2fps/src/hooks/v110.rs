@@ -3,7 +3,7 @@ use crate::{
   hooks::{
     draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos, entity_linear_xpos,
     entity_linear_ypos, game_loop_sleep_hook, intercept_teleport, summit_cloud_move_amount,
-    update_menu_char_frame, Hooks, UnitId,
+    update_menu_char_frame, Hooks, Trampolines, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -276,7 +276,135 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
-  )
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::nop(0x7a46, patch_source!("
+            391d $1477ba6f
+            7429
+            8b0d $4476ba6f
+            51
+            e8c22c0c00
+            d9e1
+            d9542410
+            d81d $2ce2b66f
+            dfe0
+            f6c405
+            7a20
+            c74424100000803e
+            eb16
+            d905 $3c76ba6f
+            d80d $28e2b66f
+            d805 $24e2b66f
+            d95c2410
+            a1 $0477ba6f
+            8b8810010000
+            8bb01c010000
+            85c9
+            0f8c3f010000
+            66833e00
+            0f8420010000
+            db4614
+            d84c2410
+            e8648f0b00
+            8b15 $4476ba6f
+            8944241c
+            db44241c
+            52
+            d95c2420
+            e8482c0c00
+            d84c241c
+            e8438f0b00
+            8bf8
+            a1 $4476ba6f
+            50
+            e82c2c0c00
+            d84c241c
+            e82d8f0b00
+            8b0d $dc79ba6f
+            8b5608
+            2bc1
+            8b4e0c
+            03d0
+            8bc2
+            895608
+            3bc1
+            7e07
+            c7461c01000000
+            8b461c
+            85c0
+            7442
+            8b4620
+            85c0
+            752e
+            8b0d $0477ba6f
+            8bd3
+            c1e210
+            e8d92b0c00
+            8b0d $0477ba6f
+            a1 $5876ba6f
+            8b9114010000
+            3bd0
+            7d16
+            8bcd
+            e823020000
+            eb0d
+            33ff
+            48
+            c7461400000000
+            894620
+            66833e00
+            746e
+            a1 $1477ba6f
+            85c0
+            7434
+            8b461c
+            85c0
+            752d
+            8b0d $2c77ba6f
+            b81f85eb51
+            c1e109
+            f7e1
+            8b4618
+            c1ea03
+            03d0
+            81e2ff010000
+            52
+            e8802b0c00
+            dcc0
+            e8838e0b00
+            03f8
+            8b5604
+            a1 $d879ba6f
+            2bd0
+            8d043a
+            894604
+            8b0d $ec40b76f
+            3bc1
+            7c0b
+            2bc1
+            894604
+            8b0d $ec40b76f
+            8b4604
+            85c0
+            7d05
+            03c1
+            894604
+            a1 $0477ba6f
+            43
+            83c628
+            3b9810010000
+            0f8ec1feffff
+            ff05 $2c77ba6f
+          ")),
+        ]
+      )
+    ],
+  ),
+  trampolines: Trampolines {
+    gen_weather_particle: super::v100::gen_weather_particle_100_trampoline,
+  },
 };
 
 impl super::Entity for Entity {
@@ -313,6 +441,10 @@ impl super::Entity for Entity {
         epos.as_mut().iso_pos = pos.into();
       }
     }
+  }
+
+  fn rng(&mut self) -> &mut d2::Rng {
+    &mut self.rng
   }
 }
 

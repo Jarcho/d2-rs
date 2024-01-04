@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, Rand,
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, Rng,
 };
 use core::ptr::NonNull;
 
@@ -30,10 +30,19 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0x10c014,
   viewport_height: 0x10c010,
   viewport_shift: 0x11e2b4,
+  max_weather_particles: 0x118f50,
+  weather_angle: 0x118f3c,
+  rain_speed: 0x118f34,
+  is_snowing: 0x119014,
+  sine_table: 0x2022c,
+  // Signature: fastcall(&mut Rng)
+  gen_weather_particle: 0x7730,
+  env_array_remove: Ordinal(10065),
 };
 pub const BASE_ADDRESSES: BaseAddresses = BaseAddresses {
   client: 0x6fad0000,
   common: 0x6fd60000,
+  fog: 0x6ff60000,
   game: 0x6fc60000,
   gfx: 0x6faa0000,
   win: 0x6f900000,
@@ -75,7 +84,7 @@ pub struct Entity {
   pub class_id: u32,
   pub id: u32,
   pub _padding1: [u32; 8],
-  pub rand: Rand,
+  pub rng: Rng,
   pub seed: u32,
   pub pos: EntityPos,
   pub _padding2: [u32; 10],

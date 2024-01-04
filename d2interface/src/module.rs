@@ -1,4 +1,6 @@
-use crate::{ClientEnvEffects, ClientLoopGlobals, Cursor, FixedI4, GameType};
+use crate::{
+  Bool32, ClientEnvEffects, ClientLoopGlobals, Cursor, EnvArray, FixedI4, FixedU8, GameType,
+};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
 use windows_sys::{
   w,
@@ -16,6 +18,9 @@ pub struct Client(HMODULE);
 pub struct Common(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
+pub struct Fog(HMODULE);
+#[derive(Default, Clone, Copy)]
+#[repr(transparent)]
 pub struct Game(HMODULE);
 #[derive(Default, Clone, Copy)]
 #[repr(transparent)]
@@ -25,13 +30,14 @@ pub struct Gfx(HMODULE);
 pub struct Win(HMODULE);
 
 pub struct Modules {
-  modules: [HMODULE; 5],
+  modules: [HMODULE; 6],
 }
 impl Modules {
   pub fn load_split_modules() -> Option<Self> {
-    const MODULE_NAMES: [*const u16; 5] = [
+    const MODULE_NAMES: [*const u16; 6] = [
       w!("D2Client.dll"),
       w!("D2Common.dll"),
+      w!("Fog.dll"),
       w!("D2Game.dll"),
       w!("D2gfx.dll"),
       w!("D2Win.dll"),
@@ -43,7 +49,7 @@ impl Modules {
 
   pub fn load_combined_module() -> Option<Self> {
     let module = unsafe { GetModuleHandleW(w!("game.exe")) };
-    (module != 0).then_some(Self { modules: [module; 5] })
+    (module != 0).then_some(Self { modules: [module; 6] })
   }
 
   #[inline]
@@ -57,18 +63,23 @@ impl Modules {
   }
 
   #[inline]
+  pub fn fog(&self) -> Fog {
+    Fog(self.modules[2])
+  }
+
+  #[inline]
   pub fn game(&self) -> Game {
-    Game(self.modules[2])
+    Game(self.modules[3])
   }
 
   #[inline]
   pub fn gfx(&self) -> Gfx {
-    Gfx(self.modules[3])
+    Gfx(self.modules[4])
   }
 
   #[inline]
   pub fn win(&self) -> Win {
-    Win(self.modules[4])
+    Win(self.modules[5])
   }
 }
 impl Index<Module> for Modules {
@@ -78,9 +89,10 @@ impl Index<Module> for Modules {
     &self.modules[match index {
       Module::GameExe | Module::Client => 0,
       Module::Common => 1,
-      Module::Game => 2,
-      Module::Gfx => 3,
-      Module::Win => 4,
+      Module::Fog => 2,
+      Module::Game => 3,
+      Module::Gfx => 4,
+      Module::Win => 5,
     }]
   }
 }
@@ -158,7 +170,7 @@ decl_addresses! {
   /// Applies a position change to a `DyPos`. Signature depends on game version.
   Common::apply_pos_change: usize,
   /// Whether the game is rendered in perspective mode.
-  #ordinal Gfx::in_perspective: unsafe extern "stdcall" fn() -> u32,
+  #ordinal Gfx::in_perspective: unsafe extern "stdcall" fn() -> Bool32,
   /// The game's window handle
   #ordinal Gfx::hwnd: unsafe extern "stdcall" fn() -> HWND,
   /// The time the game server most recently updated the game state.
@@ -181,6 +193,20 @@ decl_addresses! {
   Client::viewport_height: NonNull<u32>,
   /// How far the viewport is shifted from the center.
   Client::viewport_shift: NonNull<i32>,
+  /// The maximum number of weather particles for the current frame.
+  Client::max_weather_particles: NonNull<u32>,
+  /// The angle the weather is currently moving
+  Client::weather_angle: NonNull<FixedU8>,
+  // The speed the rain is currently moving at.
+  Client::rain_speed: NonNull<f32>,
+  /// Whether the current weather is snow
+  Client::is_snowing: NonNull<Bool32>,
+  /// Sine table for 8-bit fixed point numbers. Input in x*pi radians.
+  Fog::sine_table: NonNull<[f32; 0x200]>,
+  /// Generates a weather particle. Signature depends on game version.
+  Client::gen_weather_particle: usize,
+  /// Removes an item from the env array.
+  #ordinal Fog::env_array_remove: unsafe extern "fastcall" fn(*mut EnvArray, id: u32),
 }
 
 #[derive(Clone, Copy)]
@@ -189,6 +215,7 @@ pub enum Module {
   GameExe,
   Client,
   Common,
+  Fog,
   #[allow(dead_code)]
   Game,
   #[allow(dead_code)]
@@ -201,6 +228,7 @@ impl Module {
       Self::GameExe => "game.exe",
       Self::Client => "D2Client.dll",
       Self::Common => "D2Common.dll",
+      Self::Fog => "Fog.dll",
       Self::Game => "D2Game.dll",
       Self::Gfx => "D2gfx.dll",
       Self::Win => "D2Win.dll",
@@ -216,12 +244,20 @@ impl fmt::Display for Module {
 pub struct BaseAddresses {
   pub client: usize,
   pub common: usize,
+  pub fog: usize,
   pub game: usize,
   pub gfx: usize,
   pub win: usize,
 }
 impl BaseAddresses {
-  pub const ZERO: Self = Self { client: 0, common: 0, game: 0, gfx: 0, win: 0 };
+  pub const ZERO: Self = Self {
+    client: 0,
+    common: 0,
+    fog: 0,
+    game: 0,
+    gfx: 0,
+    win: 0,
+  };
 }
 impl Index<Module> for BaseAddresses {
   type Output = usize;
@@ -229,6 +265,7 @@ impl Index<Module> for BaseAddresses {
     match index {
       Module::GameExe | Module::Client => &self.client,
       Module::Common => &self.common,
+      Module::Fog => &self.fog,
       Module::Game => &self.game,
       Module::Gfx => &self.gfx,
       Module::Win => &self.win,

@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, IsoPos, LinearPos, LinkedList, Rand,
+  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, IsoPos, LinearPos, LinkedList, Rng,
 };
 use core::ptr::NonNull;
 
@@ -30,6 +30,14 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0,
   viewport_height: 0,
   viewport_shift: 0xe7b4c,
+  max_weather_particles: 0xe2d48,
+  weather_angle: 0xe2d34,
+  rain_speed: 0xe2d20,
+  is_snowing: 0,
+  sine_table: 0x201fc,
+  // Signature: fastcall(&mut Rng)
+  gen_weather_particle: 0x62a0,
+  env_array_remove: Ordinal(10044),
 };
 
 #[repr(C)]
@@ -54,7 +62,7 @@ pub struct Entity {
   pub class_id: u32,
   pub id: u32,
   pub _padding1: [u32; 6],
-  pub rand: Rand,
+  pub rng: Rng,
   pub seed: u32,
   pub pos: EntityPos,
   pub _padding2: [u32; 51],

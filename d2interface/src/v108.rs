@@ -25,6 +25,14 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0x101b84,
   viewport_height: 0x101b80,
   viewport_shift: 0x113e24,
+  max_weather_particles: 0x10eac0,
+  weather_angle: 0x10eaac,
+  rain_speed: 0x10eaa4,
+  is_snowing: 0x10eb84,
+  sine_table: 0x2022c,
+  // Signature: fastcall(&mut Rng)
+  gen_weather_particle: 0x7740,
+  env_array_remove: Ordinal(10065),
 };
 
 pub mod dtbl {

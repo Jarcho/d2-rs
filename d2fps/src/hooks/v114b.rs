@@ -1,6 +1,6 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
-  hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, Hooks},
+  hooks::{draw_game, draw_game_paused, game_loop_sleep_hook, Hooks, Trampolines},
 };
 use bin_patch::{patch_source, Patch};
 use d2interface::{
@@ -101,5 +101,19 @@ pub(super) const HOOKS: Hooks = Hooks {
     &[],
     &[],
     &[],
+    &[
+      ModulePatches::new(
+        d2::Module::GameExe,
+        &[
+          Patch::nop(0x6fc9d, patch_source!("
+            56
+            e83df2ffff
+          ")),
+        ]
+      )
+    ],
   ),
+  trampolines: Trampolines {
+    gen_weather_particle: super::v114a::gen_weather_particle_114_trampoline,
+  },
 };

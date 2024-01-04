@@ -26,4 +26,12 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0x123d64,
   viewport_height: 0x123d60,
   viewport_shift: 0x11d074,
+  max_weather_particles: 0x10870c,
+  weather_angle: 0x1086f0,
+  rain_speed: 0x1086cc,
+  is_snowing: 0x11d098,
+  sine_table: 0x2f078,
+  // Signature: stdcall(&mut Rng)
+  gen_weather_particle: 0x4b350,
+  env_array_remove: Ordinal(10065),
 };

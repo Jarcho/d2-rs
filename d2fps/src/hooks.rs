@@ -7,7 +7,7 @@ use core::{
   hash::Hash,
   mem::{replace, take},
   ptr::{null, null_mut, NonNull},
-  sync::atomic::Ordering::Relaxed,
+  sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
 use d2::CursorId;
 use d2interface as d2;
@@ -55,6 +55,7 @@ struct Hooks {
   addresses: d2::Addresses,
   base_addresses: d2::BaseAddresses,
   load_modules: fn() -> Option<d2::Modules>,
+  trampolines: Trampolines,
 }
 impl Hooks {
   const UNKNOWN: &'static Hooks = &Hooks {
@@ -62,6 +63,7 @@ impl Hooks {
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
     load_modules: d2::Modules::load_split_modules,
+    trampolines: Trampolines::INIT,
   };
 
   fn from_game_file_version(version: FileVersion) -> (&'static str, &'static Hooks, bool) {
@@ -105,7 +107,22 @@ impl Hooks {
   }
 }
 
+pub struct Trampolines {
+  gen_weather_particle: unsafe extern "fastcall" fn(rng: *mut d2::Rng, target: usize),
+}
+impl Trampolines {
+  pub const INIT: Self = Self {
+    gen_weather_particle: {
+      extern "fastcall" fn f(_: *mut d2::Rng, _: usize) {
+        panic!()
+      }
+      f
+    },
+  };
+}
+
 pub struct GameAccessor {
+  trampolines: &'static Trampolines,
   pub is_expansion: bool,
   pub player: *mut Option<NonNull<()>>,
   pub env_effects: *mut d2::ClientEnvEffects,
@@ -115,7 +132,7 @@ pub struct GameAccessor {
   pub client_loop_globals: *mut d2::ClientLoopGlobals,
   pub apply_pos_change: usize,
   pub server_update_time: *mut u32,
-  pub in_perspective: unsafe extern "stdcall" fn() -> u32,
+  pub in_perspective: unsafe extern "stdcall" fn() -> d2::Bool32,
   pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
   pub draw_menu: unsafe extern "stdcall" fn(),
   pub cursor_table: *const [d2::Cursor; 7],
@@ -125,11 +142,19 @@ pub struct GameAccessor {
   pub viewport_shift: *mut i32,
   pub find_closest_color: unsafe extern "stdcall" fn(u32, u32, u32) -> u8,
   pub draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
+  pub max_weather_particles: *mut u32,
+  pub weather_angle: *mut d2::FixedU8,
+  pub rain_speed: *mut f32,
+  pub is_snowing: *mut d2::Bool32,
+  pub sine_table: *const [f32; 0x200],
+  pub gen_weather_particle: usize,
+  pub env_array_remove: unsafe extern "fastcall" fn(*mut d2::EnvArray, id: u32),
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
   pub const fn new() -> Self {
     Self {
+      trampolines: &Hooks::UNKNOWN.trampolines,
       is_expansion: false,
       player: null_mut(),
       env_effects: null_mut(),
@@ -140,7 +165,7 @@ impl GameAccessor {
       apply_pos_change: 0,
       server_update_time: null_mut(),
       in_perspective: {
-        extern "stdcall" fn f() -> u32 {
+        extern "stdcall" fn f() -> d2::Bool32 {
           panic!()
         }
         f
@@ -174,6 +199,18 @@ impl GameAccessor {
         }
         f
       },
+      max_weather_particles: null_mut(),
+      weather_angle: null_mut(),
+      rain_speed: null_mut(),
+      is_snowing: null_mut(),
+      sine_table: null(),
+      gen_weather_particle: 0,
+      env_array_remove: {
+        extern "fastcall" fn f(_: *mut d2::EnvArray, _: u32) {
+          panic!()
+        }
+        f
+      },
     }
   }
 
@@ -182,8 +219,10 @@ impl GameAccessor {
     modules: &d2::Modules,
     addresses: &d2::Addresses,
     is_expansion: bool,
+    trampolines: &'static Trampolines,
   ) -> Result<(), ()> {
     self.is_expansion = is_expansion;
+    self.trampolines = trampolines;
     self.player = addresses.player(modules.client()).as_ptr();
     self.env_effects = addresses.env_effects(modules.client()).as_ptr();
     self.game_type = addresses.game_type(modules.client()).as_ptr();
@@ -202,6 +241,13 @@ impl GameAccessor {
     self.viewport_shift = addresses.viewport_shift(modules.client()).as_ptr();
     self.find_closest_color = addresses.find_closest_color(modules.win()).ok_or(())?;
     self.draw_line = addresses.draw_line(modules.gfx()).ok_or(())?;
+    self.max_weather_particles = addresses.max_weather_particles(modules.client()).as_ptr();
+    self.weather_angle = addresses.weather_angle(modules.client()).as_ptr();
+    self.rain_speed = addresses.rain_speed(modules.client()).as_ptr();
+    self.is_snowing = addresses.is_snowing(modules.client()).as_ptr();
+    self.sine_table = addresses.sine_table(modules.fog()).as_ptr();
+    self.gen_weather_particle = addresses.gen_weather_particle(modules.client());
+    self.env_array_remove = addresses.env_array_remove(modules.fog()).ok_or(())?;
     Ok(())
   }
 
@@ -269,6 +315,22 @@ impl GameAccessor {
       d2::Size { width: 640, height: 440 }
     }
   }
+
+  pub unsafe fn is_snowing(&self) -> bool {
+    self.is_expansion && (*self.is_snowing).bool()
+  }
+
+  pub unsafe fn sin(&self, x: d2::FixedU8) -> f32 {
+    (*self.sine_table)[x.repr() as usize & 0x1ff]
+  }
+
+  pub unsafe fn cos(&self, x: d2::FixedU8) -> f32 {
+    (*self.sine_table)[x.repr().wrapping_add(0x80) as usize & 0x1ff]
+  }
+
+  pub unsafe fn gen_weather_particle(&self, rng: &mut d2::Rng) {
+    (self.trampolines.gen_weather_particle)(rng, self.gen_weather_particle)
+  }
 }
 
 impl InstanceSync {
@@ -288,7 +350,12 @@ impl InstanceSync {
       INSTANCE.config.features.store_relaxed(Features::empty());
       return;
     };
-    if unsafe { self.accessor.load(&modules, &hooks.addresses, is_expansion).is_err() } {
+    if unsafe {
+      self
+        .accessor
+        .load(&modules, &hooks.addresses, is_expansion, &hooks.trampolines)
+        .is_err()
+    } {
       log!("Disabling all features: failed to load game addresses");
       INSTANCE.config.features.store_relaxed(Features::empty());
       return;
@@ -425,6 +492,7 @@ trait Entity: d2::LinkedList {
   fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16>;
   fn iso_pos(&self) -> d2::IsoPos<i32>;
   fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>);
+  fn rng(&mut self) -> &mut d2::Rng;
 }
 
 impl InstanceSync {
@@ -556,22 +624,15 @@ impl InstanceSync {
       });
   }
 
-  unsafe fn update_env_images(&mut self, prev_pos: d2::IsoPos<i32>) {
-    if (self.accessor.in_perspective)() == 0 {
-      let dx = prev_pos.x.wrapping_sub(self.player_pos.x) as u32;
-      let dy = prev_pos.y.wrapping_sub(self.player_pos.y) as u32;
-
-      if let Some(mut splashes) = (*self.accessor.env_effects).splashes {
-        for splash in splashes.as_mut().as_mut_slice() {
-          splash.pos.x = splash.pos.x.wrapping_add(dx);
-          splash.pos.y = splash.pos.y.wrapping_add(dy);
-        }
+  unsafe fn update_env_images(&mut self, env_shift: d2::IsoPos<i32>) {
+    if !(self.accessor.in_perspective)().bool() {
+      for splash in (*(*self.accessor.env_effects).splashes).as_mut_slice() {
+        splash.pos.x = splash.pos.x.wrapping_add(env_shift.x);
+        splash.pos.y = splash.pos.y.wrapping_add(env_shift.y);
       }
-      if let Some(mut bubbles) = (*self.accessor.env_effects).bubbles {
-        for bubble in bubbles.as_mut().as_mut_slice() {
-          bubble.pos.x = bubble.pos.x.wrapping_add(dx);
-          bubble.pos.y = bubble.pos.y.wrapping_add(dy);
-        }
+      for bubble in (*(*self.accessor.env_effects).bubbles).as_mut_slice() {
+        bubble.pos.x = bubble.pos.x.wrapping_add(env_shift.x);
+        bubble.pos.y = bubble.pos.y.wrapping_add(env_shift.y);
       }
     }
   }
@@ -640,20 +701,34 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       }
     }
 
-    if smooth_frame {
+    let env_shift = if smooth_frame {
       sync_instance.update_entity_positions::<E>();
       let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = sync_instance.entity_adjusted_iso_pos(player);
+      let env_shift = d2::IsoPos::new(
+        prev_player_pos.x.wrapping_sub(sync_instance.player_pos.x),
+        prev_player_pos.y.wrapping_sub(sync_instance.player_pos.y),
+      );
 
       if !client_updated {
         // Environment particles are positioned in screen space and updated only
         // when the client state has been updated. For every other frame we need
         // to adjust their positions.
-        sync_instance.update_env_images(prev_player_pos);
+        sync_instance.update_env_images(env_shift);
       }
+      env_shift
     } else {
       sync_instance.unit_movement_fract = d2::FixedI16::default();
+      let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = player.iso_pos();
+      d2::IsoPos::new(
+        prev_player_pos.x.wrapping_sub(sync_instance.player_pos.x),
+        prev_player_pos.y.wrapping_sub(sync_instance.player_pos.y),
+      )
+    };
+
+    if INSTANCE.config.features.weather_smoothing() {
+      update_weather(player.rng(), env_shift, sync_instance);
     }
 
     let draw = (*sync_instance.accessor.client_loop_globals).draw_fn;
@@ -813,4 +888,72 @@ unsafe extern "C" fn draw_arcane_bg() {
     &sync_instance.accessor,
     INSTANCE.update_ticks.load(Relaxed),
   );
+}
+
+unsafe fn update_weather(
+  rng: &mut d2::Rng,
+  env_shift: d2::IsoPos<i32>,
+  sync_instance: &mut InstanceSync,
+) {
+  static UPDATE_COUNT: AtomicU32 = AtomicU32::new(0);
+
+  let particles = (*sync_instance.accessor.env_effects).particles;
+  let angle = *sync_instance.accessor.weather_angle;
+  let is_snowing = sync_instance.accessor.is_snowing();
+  let view_size = sync_instance.accessor.viewport_size();
+
+  let angle_sin = sync_instance.accessor.sin(angle) as f64;
+  let angle_cos = sync_instance.accessor.cos(angle) as f64;
+  let speed_mod = if is_snowing {
+    angle_cos.abs().clamp(0.1, 0.6)
+  } else {
+    *sync_instance.accessor.rain_speed as f64 * 0.15000000596046448 + 0.8500000238418579
+  } * INSTANCE.update_time_fract.load(Relaxed);
+
+  let mut ptr = (*particles).data.as_ptr();
+  let mut i = 0;
+  while i <= (*particles).last_active_idx {
+    let particle = &mut *ptr;
+    if particle.active.bool() {
+      let speed = particle.speed as f64 * speed_mod;
+      let delta_x = ((angle_cos * speed) as i32).wrapping_add(env_shift.x);
+      let delta_y = ((angle_sin * speed) as i32).max(1).wrapping_add(env_shift.y);
+      particle.pos.x = particle.pos.x.wrapping_add(delta_x);
+      particle.pos.y = particle.pos.y.wrapping_add(delta_y);
+      if particle.pos.y >= particle.end_y_pos || particle.pos.y < -20 {
+        particle.at_end = true.into();
+        particle.speed = 0;
+      }
+      if particle.at_end.bool() {
+        if particle.frames_remaining == 0 {
+          (sync_instance.accessor.env_array_remove)(particles.cast(), (i << 16) as u32);
+          if (*particles).active_count < (*sync_instance.accessor.max_weather_particles) {
+            sync_instance.accessor.gen_weather_particle(rng);
+          }
+        } else {
+          particle.frames_remaining -= u32::from(INSTANCE.client_updated.load(Relaxed));
+        }
+      } else {
+        if is_snowing && INSTANCE.client_updated.load(Relaxed) {
+          particle.pos.x = particle.pos.x.wrapping_add(
+            (sync_instance
+              .accessor
+              .sin(d2::FixedU8::from_repr(UPDATE_COUNT.load(Relaxed)) + particle.angle)
+              as f64
+              * 2.0) as i32,
+          );
+        }
+
+        particle.pos.x = (particle.pos.x.wrapping_add(view_size.width as i32)
+          % view_size.width as i32)
+          .wrapping_abs();
+      }
+    }
+    i += 1;
+    ptr = ptr.offset(1);
+  }
+
+  if INSTANCE.client_updated.load(Relaxed) {
+    UPDATE_COUNT.fetch_add(17, Relaxed);
+  }
 }

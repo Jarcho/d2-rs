@@ -3,7 +3,7 @@ use crate::{
   hooks::{
     draw_arcane_bg, draw_game, draw_game_paused, draw_menu, entity_iso_xpos, entity_iso_ypos,
     entity_linear_xpos, entity_linear_ypos, game_loop_sleep_hook, intercept_teleport,
-    should_update_cursor, update_menu_char_frame, Hooks, UnitId,
+    should_update_cursor, update_menu_char_frame, Hooks, Trampolines, UnitId,
   },
 };
 use bin_patch::{patch_source, Patch};
@@ -282,7 +282,18 @@ pub(super) const HOOKS: Hooks = Hooks {
         ],
       ),
     ],
+    &[
+      ModulePatches::new(
+        d2::Module::Client,
+        &[
+          Patch::nop(0xd5eb, patch_source!("e8b0030000")),
+        ]
+      )
+    ],
   ),
+  trampolines: Trampolines {
+    gen_weather_particle: gen_weather_particle_100_trampoline,
+  },
 };
 
 impl super::Entity for Entity {
@@ -319,6 +330,10 @@ impl super::Entity for Entity {
         epos.as_mut().iso_pos = pos.into();
       }
     }
+  }
+
+  fn rng(&mut self) -> &mut d2::Rng {
+    &mut self.rng
   }
 }
 
@@ -394,4 +409,16 @@ global_asm! {
 }
 extern "C" {
   pub fn draw_arcane_bg_100_asm_stub();
+}
+
+global_asm! {
+  ".global @gen_weather_particle_100_trampoline@8",
+  "@gen_weather_particle_100_trampoline@8:",
+  "jmp edx",
+}
+extern "fastcall" {
+  pub fn gen_weather_particle_100_trampoline(
+    _: *mut d2::Rng,
+    _: usize, // fastcall(*mut d2::Rng)
+  );
 }

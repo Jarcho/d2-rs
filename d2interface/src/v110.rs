@@ -2,7 +2,7 @@ use bitflags::bitflags;
 
 use crate::{
   module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, Id16, InRoom, IsoPos,
-  LinearPos, LinkedList, Rand, Size,
+  LinearPos, LinkedList, Rng, Size,
 };
 use core::ptr::NonNull;
 
@@ -33,6 +33,14 @@ pub const ADDRESSES: Addresses = Addresses {
   viewport_width: 0xfa704,
   viewport_height: 0xfa700,
   viewport_shift: 0x10b9c8,
+  max_weather_particles: 0x107658,
+  weather_angle: 0x107644,
+  rain_speed: 0x10763c,
+  is_snowing: 0x107714,
+  sine_table: 0x242a8,
+  // Signature: fastcall(&mut Rng)
+  gen_weather_particle: 0x7d70,
+  env_array_remove: Ordinal(10065),
 };
 
 #[repr(C)]
@@ -79,23 +87,32 @@ pub struct Entity {
   pub mem_pool: *mut (),
   pub id: u32,
   pub state: u32,
-  pub data: u32,
+  pub data: *mut (),
   pub act_id: u32,
-  pub act: *mut (),
-  pub rand: Rand,
+  pub dungeon: *mut (),
+  pub rng: Rng,
   pub seed: u32,
   pub pos: EntityPos,
-  pub _padding2: [u32; 5],
+  pub anim_frame_def: *mut (),
+  pub seq_frame_count: FixedU8,
+  pub seq_frame: FixedU8,
+  pub seq_anim_rate: FixedU8,
+  pub anim_state: u32,
   pub frame: FixedU8,
-  pub _padding3: [u32; 3],
-  pub gfx_info: u32,
-  pub _padding4: [u32; 3],
-  pub light: u32,
+  pub frame_count: FixedU8,
+  pub anim_rate: u16,
+  pub frame_event: u8,
+  pub anim_data: *mut (),
+  pub gfx_info: *mut (),
+  pub _padding0: [u32; 1],
+  pub stats: *mut (),
+  pub inv: *mut (),
+  pub light: *mut (),
   pub light_width: u32,
-  pub _padding5: [u32; 30],
+  pub _padding1: [u32; 30],
   pub next_entity: Option<NonNull<Entity>>,
   pub next_in_room: Option<NonNull<Entity>>,
-  pub _padding6: [u32; 2],
+  pub _padding2: [u32; 2],
 }
 impl LinkedList for Entity {
   fn next(&self) -> Option<NonNull<Self>> {

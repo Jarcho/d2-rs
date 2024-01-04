@@ -1,4 +1,4 @@
-use crate::{FixedU8, UnknownPos};
+use crate::{FixedU8, ScreenPos, UnknownPos};
 use core::{iter, marker::PhantomData, ops, ptr::NonNull, slice};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -7,6 +7,54 @@ pub struct SId<T, Id>(T, PhantomData<Id>);
 
 pub type Id16<Id> = SId<i16, Id>;
 pub type Id8<Id> = SId<i8, Id>;
+
+macro_rules! make_bool {
+  ($name:ident($ty:ident)) => {
+    #[derive(Clone, Copy, Eq)]
+    #[repr(transparent)]
+    pub struct $name($ty);
+    impl $name {
+      pub const fn bool(self) -> bool {
+        self.0 != 0
+      }
+    }
+    impl From<bool> for $name {
+      fn from(x: bool) -> Self {
+        Self(x.into())
+      }
+    }
+    impl From<$name> for bool {
+      fn from(x: $name) -> Self {
+        x.bool()
+      }
+    }
+    impl PartialEq for $name {
+      fn eq(&self, other: &Self) -> bool {
+        self.bool() == other.bool()
+      }
+    }
+    impl PartialEq<bool> for $name {
+      fn eq(&self, other: &bool) -> bool {
+        self.bool() == *other
+      }
+    }
+    impl PartialEq<$name> for bool {
+      fn eq(&self, other: &$name) -> bool {
+        *self == other.bool()
+      }
+    }
+    impl ops::Not for $name {
+      type Output = Self;
+      fn not(self) -> Self::Output {
+        Self((self.0 == 0).into())
+      }
+    }
+  };
+}
+
+make_bool!(Bool32(u32));
+make_bool!(Bool16(u16));
+make_bool!(Bool8(u8));
 
 decl_enum! { EntityKind(u32) {
   Pc = 0,
@@ -129,7 +177,7 @@ pub struct EnvArray<T> {
   pub name: [u8; 0x100],
   pub len: u32,
   pub element_size: u32,
-  pub initialized: u32,
+  pub initialized: Bool32,
   pub next_free_idx: u32,
   pub last_active_idx: i32,
   pub active_count: u32,
@@ -141,7 +189,7 @@ impl<T> EnvArray<T> {
     unsafe {
       slice::from_raw_parts(
         self.data.as_ptr(),
-        if self.initialized != 0 {
+        if self.initialized.bool() {
           (self.last_active_idx + 1) as usize
         } else {
           0
@@ -154,7 +202,7 @@ impl<T> EnvArray<T> {
     unsafe {
       slice::from_raw_parts_mut(
         self.data.as_ptr(),
-        if self.initialized != 0 {
+        if self.initialized.bool() {
           (self.last_active_idx + 1) as usize
         } else {
           0
@@ -166,9 +214,9 @@ impl<T> EnvArray<T> {
 
 #[repr(C)]
 pub struct EnvImage {
-  pub active: u16,
+  pub active: Bool16,
   /// Linear space when rendering in perspective. Camera space when not.
-  pub pos: UnknownPos<u32>,
+  pub pos: UnknownPos<i32>,
   pub file_idx: u32,
   pub frame: u32,
   pub till_next_frame: u32,
@@ -176,13 +224,28 @@ pub struct EnvImage {
 pub type EnvImages = EnvArray<EnvImage>;
 
 #[repr(C)]
+pub struct EnvParticle {
+  pub active: Bool16,
+  pub pos: ScreenPos<i32>,
+  pub end_y_pos: i32,
+  pub orientation: u32,
+  pub speed: i32,
+  pub angle: FixedU8,
+  pub at_end: Bool32,
+  pub frames_remaining: u32,
+  pub color: u8,
+  pub alpha: u8,
+}
+pub type EnvParticles = EnvArray<EnvParticle>;
+
+#[repr(C)]
 pub struct ClientEnvEffects {
   /// Water splashes when raining (Act 1&3).
-  pub splashes: Option<NonNull<EnvImages>>,
+  pub splashes: *mut EnvImages,
   /// Water bubbles (Act 3).
-  pub bubbles: Option<NonNull<EnvImages>>,
+  pub bubbles: *mut EnvImages,
   /// Weather particles (Rain & Snow).
-  pub particles: u32,
+  pub particles: *mut EnvParticles,
 }
 
 #[repr(C)]
@@ -233,13 +296,13 @@ pub struct ClientLoopGlobals {
 }
 
 #[repr(C)]
-pub struct Rand([u32; 2]);
-impl Default for Rand {
+pub struct Rng([u32; 2]);
+impl Default for Rng {
   fn default() -> Self {
     Self::new()
   }
 }
-impl Rand {
+impl Rng {
   pub const fn new() -> Self {
     Self([1, 0x29a])
   }
