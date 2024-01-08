@@ -49,6 +49,7 @@ mod hooks;
 mod limiter;
 mod logger;
 mod util;
+mod weather;
 mod window;
 
 const GAME_FPS: Ratio = Ratio::new(25, unsafe { NonZeroU32::new_unchecked(1) });
@@ -85,6 +86,7 @@ struct InstanceSync {
   /// The amount of a unit's detected movement to apply. Used to adjust a unit's
   /// position for cursor detection outside the rendering code.
   unit_movement_fract: d2::FixedI16,
+  weather_particles: Vec<weather::Particle>,
   /// Patches to reapply once the menu is loaded. Helps compatibility with other
   /// mods that patch code without validating the patch location's data.
   reapply_patches: Option<(&'static FeaturePatches, d2::Modules)>,
@@ -146,6 +148,7 @@ static INSTANCE: Instance = Instance {
     client_update_count: 0,
     player_pos: d2::IsoPos::new(0, 0),
     unit_movement_fract: d2::FixedI16::from_repr(0),
+    weather_particles: Vec::new(),
     reapply_patches: None,
     delayed: None,
   }),

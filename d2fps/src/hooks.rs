@@ -7,7 +7,7 @@ use core::{
   hash::Hash,
   mem::{replace, take},
   ptr::{null, null_mut, NonNull},
-  sync::atomic::{AtomicU32, Ordering::Relaxed},
+  sync::atomic::Ordering::Relaxed,
 };
 use d2::CursorId;
 use d2interface as d2;
@@ -717,7 +717,11 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     };
 
     if INSTANCE.config.features.weather_smoothing() {
-      update_weather(player.rng(), env_shift, sync_instance);
+      if client_updated {
+        crate::weather::update_weather(player.rng(), env_shift, sync_instance);
+      } else {
+        crate::weather::apply_weather_delta(env_shift, sync_instance);
+      }
     }
 
     let draw = (*sync_instance.accessor.client_loop_globals).draw_fn;
@@ -877,74 +881,4 @@ unsafe extern "C" fn draw_arcane_bg() {
     &sync_instance.accessor,
     INSTANCE.update_ticks.load(Relaxed),
   );
-}
-
-unsafe fn update_weather(
-  rng: &mut d2::Rng,
-  env_shift: d2::IsoPos<i32>,
-  sync_instance: &mut InstanceSync,
-) {
-  static UPDATE_COUNT: AtomicU32 = AtomicU32::new(0);
-
-  let particles = (*sync_instance.accessor.env_effects).particles;
-  let angle = *sync_instance.accessor.weather_angle;
-  let is_snowing = sync_instance.accessor.is_snowing();
-  let view_size = sync_instance.accessor.viewport_size();
-
-  let angle_sin = sync_instance.accessor.sin(angle) as f64;
-  let angle_cos = sync_instance.accessor.cos(angle) as f64;
-  let speed_mod = if is_snowing {
-    angle_cos.abs().clamp(0.1, 0.6)
-  } else {
-    *sync_instance.accessor.rain_speed as f64 * 0.15000000596046448 + 0.8500000238418579
-  } * INSTANCE.update_time_fract.load(Relaxed);
-
-  let mut ptr = (*particles).data.as_ptr();
-  let mut i = 0;
-  while i <= (*particles).last_active_idx {
-    let particle = &mut *ptr;
-    if particle.active.bool() {
-      let speed = particle.speed as f64 * speed_mod;
-      let delta_x = ((angle_cos * speed) as i32).wrapping_add(env_shift.x);
-      let delta_y = ((angle_sin * speed) as i32).max(1).wrapping_add(env_shift.y);
-      particle.pos.x = particle.pos.x.wrapping_add(delta_x);
-      particle.pos.y = particle.pos.y.wrapping_add(delta_y);
-      if particle.pos.y >= particle.end_y_pos || particle.pos.y < -20 {
-        particle.at_end = true.into();
-        particle.speed = 0;
-      }
-      if particle.at_end.bool() {
-        if particle.frames_remaining == 0 {
-          sync_instance
-            .accessor
-            .env_array_remove(particles.cast(), (i << 16) as u32);
-          if (*particles).active_count < (*sync_instance.accessor.max_weather_particles) {
-            sync_instance.accessor.gen_weather_particle(rng);
-          }
-        } else {
-          particle.frames_remaining -= u32::from(INSTANCE.client_updated.load(Relaxed));
-        }
-      } else {
-        if is_snowing && INSTANCE.client_updated.load(Relaxed) {
-          particle.pos.x = particle.pos.x.wrapping_add(
-            (sync_instance
-              .accessor
-              .sin(d2::FixedU8::from_repr(UPDATE_COUNT.load(Relaxed)) + particle.angle)
-              as f64
-              * 2.0) as i32,
-          );
-        }
-
-        particle.pos.x = (particle.pos.x.wrapping_add(view_size.width as i32)
-          % view_size.width as i32)
-          .wrapping_abs();
-      }
-    }
-    i += 1;
-    ptr = ptr.offset(1);
-  }
-
-  if INSTANCE.client_updated.load(Relaxed) {
-    UPDATE_COUNT.fetch_add(17, Relaxed);
-  }
 }
