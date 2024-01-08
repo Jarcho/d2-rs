@@ -31,14 +31,14 @@ mod v102;
 mod v103;
 mod v104b;
 mod v105;
-mod v106;
+mod v106a;
 mod v106b;
 mod v107;
 mod v108;
-mod v109;
+mod v109a;
 mod v109d;
 mod v110;
-mod v111;
+mod v111a;
 mod v111b;
 mod v112;
 mod v113c;
@@ -77,22 +77,22 @@ impl Hooks {
       (0x0001_0000, 0x0003_0000) => ("v1.03", &v103::HOOKS, false),
       (0x0001_0000, 0x0004_0001) => ("v1.04b", &v104b::HOOKS, false),
       (0x0001_0000, 0x0004_0002) => ("v1.04c", &v104b::HOOKS, false),
-      (0x0001_0000, 0x0005_0000) => ("v1.05", &v105::HOOKS, false),
+      (0x0001_0000, 0x0005_0000) => ("v1.05a", &v105::HOOKS, false),
       (0x0001_0000, 0x0005_0001) => ("v1.05b", &v105::HOOKS, false),
       (0x0001_0000, 0x0006_0000) => match hash_module_file(unsafe { GetModuleHandleW(GAME_EXE) }) {
-        Some(0x73645dbfe51df9ae) => ("v1.06", &v106::HOOKS, false),
+        Some(0x73645dbfe51df9ae) => ("v1.06a", &v106a::HOOKS, false),
         Some(0x62fea87b064aec9e) => ("v1.06b", &v106b::HOOKS, false),
         _ => ("unknown", Self::UNKNOWN, false),
       },
       (0x0001_0000, 0x0007_0000) => ("v1.07", &v107::HOOKS, true),
       (0x0001_0000, 0x0008_001c) => ("v1.08", &v108::HOOKS, true),
-      (0x0001_0000, 0x0009_0013) => ("v1.09", &v109::HOOKS, true),
-      (0x0001_0000, 0x0009_0014) => ("v1.09b", &v109::HOOKS, true),
+      (0x0001_0000, 0x0009_0013) => ("v1.09a", &v109a::HOOKS, true),
+      (0x0001_0000, 0x0009_0014) => ("v1.09b", &v109a::HOOKS, true),
       (0x0001_0000, 0x0009_0016) => ("v1.09d", &v109d::HOOKS, true),
       // (0x0001_0000, 0x000a_0009) => ("1.10b", &v110b::HOOKS, true),
       // (0x0001_0000, 0x000a_000a) => ("1.10s", &v110s::HOOKS, true),
       (0x0001_0000, 0x000a_0027) => ("v1.10", &v110::HOOKS, true),
-      (0x0001_0000, 0x000b_002d) => ("v1.11", &v111::HOOKS, true),
+      (0x0001_0000, 0x000b_002d) => ("v1.11a", &v111a::HOOKS, true),
       (0x0001_0000, 0x000b_002e) => ("v1.11b", &v111b::HOOKS, true),
       (0x0001_0000, 0x000c_0031) => ("v1.12", &v112::HOOKS, true),
       // (0x0001_0000, 0x000d_0037) => ("1.13a", &v113a::HOOKS, true),

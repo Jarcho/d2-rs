@@ -54,7 +54,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           8b4b0c
           03f0
           8bc6
-        "), super::v111::update_menu_char_frame_111_asm_stub),
+        "), super::v111a::update_menu_char_frame_111_asm_stub),
         // Menu sleep patch
         Patch::nop(0x13f8e, patch_source!("
           8bc7
@@ -134,7 +134,7 @@ pub(super) const HOOKS: Hooks = Hooks {
       ModulePatches::new(
         d2::Module::Common,
         &[
-          Patch::call_c(0x7c777, patch_source!("e884f9ffff"), super::v111::intercept_teleport_111_asm_stub),
+          Patch::call_c(0x7c777, patch_source!("e884f9ffff"), super::v111a::intercept_teleport_111_asm_stub),
         ],
       ),
     ],
@@ -155,13 +155,13 @@ pub(super) const HOOKS: Hooks = Hooks {
             6bc01c
             8b88 $304aba6f
             85c9
-          "), super::v111::should_update_cursor_111_asm_stub),
+          "), super::v111a::should_update_cursor_111_asm_stub),
           // Summit cloud move speed
           Patch::call_c(0x92dcc, patch_source!("
             03da
             8bc3
             3bc7
-          "), super::v111::summit_cloud_move_amount_111_asm_stub),
+          "), super::v111a::summit_cloud_move_amount_111_asm_stub),
         ],
       ),
     ],
@@ -178,6 +178,6 @@ pub(super) const HOOKS: Hooks = Hooks {
     ],
   ),
   helper_fns: HelperFns {
-    gen_weather_particle: super::v111::gen_weather_particle_111_trampoline,
+    gen_weather_particle: super::v111a::gen_weather_particle_111_trampoline,
   },
 };

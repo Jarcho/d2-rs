@@ -8,7 +8,7 @@ use crate::{
 use bin_patch::{patch_source, Patch};
 use d2interface::{
   self as d2,
-  v109::{Entity, ADDRESSES, BASE_ADDRESSES},
+  v109a::{Entity, ADDRESSES, BASE_ADDRESSES},
 };
 
 #[rustfmt::skip]

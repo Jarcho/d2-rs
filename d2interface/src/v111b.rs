@@ -1,6 +1,6 @@
 use crate::{module::Ordinal::Ordinal, Addresses};
 
-pub use crate::v111::{
+pub use crate::v111a::{
   dtbl, DyPos, Entity, EntityPos, EntityTable, EntityTables, GameCursor, Room, StaticPos,
   BASE_ADDRESSES,
 };

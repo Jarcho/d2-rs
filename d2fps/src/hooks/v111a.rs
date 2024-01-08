@@ -10,7 +10,7 @@ use bin_patch::{patch_source, Patch};
 use core::arch::global_asm;
 use d2interface::{
   self as d2,
-  v111::{Entity, ADDRESSES, BASE_ADDRESSES},
+  v111a::{Entity, ADDRESSES, BASE_ADDRESSES},
 };
 
 #[rustfmt::skip]

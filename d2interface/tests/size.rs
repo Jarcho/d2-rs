@@ -82,13 +82,13 @@ fn test_size() {
   assert_eq!(size_of::<d2::v108::dtbl::RuneWordDef>(), 0x118);
   assert_eq!(size_of::<d2::v108::dtbl::SubLvlDef>(), 0x15c);
 
-  assert_eq!(size_of::<d2::v109::dtbl::ItemDef>(), 0x234);
-  assert_eq!(size_of::<d2::v109::dtbl::ItemRatioDef>(), 0x44);
-  assert_eq!(size_of::<d2::v109::dtbl::ItemTyDef>(), 0xe8);
-  assert_eq!(size_of::<d2::v109::dtbl::LvlDef>(), 0x2c8);
-  assert_eq!(size_of::<d2::v109::dtbl::MissileDef>(), 0xe0);
-  assert_eq!(size_of::<d2::v109::dtbl::RecipeDef>(), 0x158);
-  assert_eq!(size_of::<d2::v109::dtbl::UMonDef>(), 0xe4);
+  assert_eq!(size_of::<d2::v109a::dtbl::ItemDef>(), 0x234);
+  assert_eq!(size_of::<d2::v109a::dtbl::ItemRatioDef>(), 0x44);
+  assert_eq!(size_of::<d2::v109a::dtbl::ItemTyDef>(), 0xe8);
+  assert_eq!(size_of::<d2::v109a::dtbl::LvlDef>(), 0x2c8);
+  assert_eq!(size_of::<d2::v109a::dtbl::MissileDef>(), 0xe0);
+  assert_eq!(size_of::<d2::v109a::dtbl::RecipeDef>(), 0x158);
+  assert_eq!(size_of::<d2::v109a::dtbl::UMonDef>(), 0xe4);
 
   assert_eq!(size_of::<d2::v110::dtbl::BookDef>(), 0x20);
   assert_eq!(size_of::<d2::v110::dtbl::NgLvlDef>(), 0x58);
