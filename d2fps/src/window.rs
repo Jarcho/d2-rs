@@ -50,7 +50,7 @@ impl WindowHook {
       if self.attached.load(Relaxed) {
         return false;
       }
-      let hwnd = (accessor.get_hwnd)();
+      let hwnd = accessor.get_hwnd();
       if hwnd == 0 {
         return false;
       }

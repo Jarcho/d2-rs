@@ -55,7 +55,7 @@ struct Hooks {
   addresses: d2::Addresses,
   base_addresses: d2::BaseAddresses,
   load_modules: fn() -> Option<d2::Modules>,
-  trampolines: Trampolines,
+  helper_fns: HelperFns,
 }
 impl Hooks {
   const UNKNOWN: &'static Hooks = &Hooks {
@@ -63,7 +63,7 @@ impl Hooks {
     addresses: d2::Addresses::ZERO,
     base_addresses: d2::BaseAddresses::ZERO,
     load_modules: d2::Modules::load_split_modules,
-    trampolines: Trampolines::INIT,
+    helper_fns: HelperFns::INIT,
   };
 
   fn from_game_file_version(version: FileVersion) -> (&'static str, &'static Hooks, bool) {
@@ -107,22 +107,56 @@ impl Hooks {
   }
 }
 
-pub struct Trampolines {
-  gen_weather_particle: unsafe extern "fastcall" fn(rng: *mut d2::Rng, target: usize),
-}
-impl Trampolines {
-  pub const INIT: Self = Self {
-    gen_weather_particle: {
-      extern "fastcall" fn f(_: *mut d2::Rng, _: usize) {
-        panic!()
+macro_rules! decl_fns {
+  (
+    $fname:ident: $sname:ident:
+    $(unsafe $(extern $abi:tt)? fn $name:ident(
+      $($arg:ident: $arg_ty:ty),*
+      $(, @$target:ident)?
+      $(,)?
+    ) $(-> $ret:ty)?),*$(,)?
+  ) => {
+    pub(crate) struct $sname {$(
+      $name: unsafe $(extern $abi)? fn($($arg: $arg_ty,)* $($target: usize)?) $(-> $ret)?
+    ),*}
+    impl $sname {
+      pub const INIT: Self = Self {$(
+        $name: {
+          #[allow(unused)]
+          $(extern $abi)? fn f($(_: $arg_ty,)* $($target: usize)?) $(-> $ret)? {
+            panic!()
+          }
+          f
+        }
+      ),*};
+    }
+    impl GameAccessor {$(
+      #[allow(unused)]
+      pub(crate) unsafe fn $name(&self, $($arg: $arg_ty),*) $(-> $ret)? {
+        (self.$fname.$name)($($arg,)* $(self.$target)?)
       }
-      f
-    },
+    )*}
   };
 }
 
+decl_fns! {
+  fns: GameFns:
+  unsafe extern "stdcall" fn in_per() -> d2::Bool32,
+  unsafe extern "stdcall" fn get_hwnd() -> HWND,
+  unsafe extern "stdcall" fn draw_menu(),
+  unsafe extern "stdcall" fn find_closest_color(r: u8, g: u8, b: u8) -> u8,
+  unsafe extern "stdcall" fn draw_line(x1: i32, y1: i32, x2: i32, y2: i32, color: u8, alpha: u8),
+  unsafe extern "fastcall" fn env_array_remove(array: *mut d2::EnvArray, id: u32),
+}
+
+decl_fns! {
+  helper_fns: HelperFns:
+  unsafe extern "fastcall" fn gen_weather_particle(rng: *mut d2::Rng, @gen_weather_particle),
+}
+
 pub struct GameAccessor {
-  trampolines: &'static Trampolines,
+  helper_fns: &'static HelperFns,
+  fns: GameFns,
   pub is_expansion: bool,
   pub player: *mut Option<NonNull<()>>,
   pub env_effects: *mut d2::ClientEnvEffects,
@@ -132,29 +166,24 @@ pub struct GameAccessor {
   pub client_loop_globals: *mut d2::ClientLoopGlobals,
   pub apply_pos_change: usize,
   pub server_update_time: *mut u32,
-  pub in_perspective: unsafe extern "stdcall" fn() -> d2::Bool32,
-  pub get_hwnd: unsafe extern "stdcall" fn() -> HWND,
-  pub draw_menu: unsafe extern "stdcall" fn(),
   pub cursor_table: *const [d2::Cursor; 7],
   pub summit_cloud_x_pos: *mut [d2::FixedI4; 10],
   pub viewport_width: *mut u32,
   pub viewport_height: *mut u32,
   pub viewport_shift: *mut i32,
-  pub find_closest_color: unsafe extern "stdcall" fn(u32, u32, u32) -> u8,
-  pub draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
   pub max_weather_particles: *mut u32,
   pub weather_angle: *mut d2::FixedU8,
   pub rain_speed: *mut f32,
   pub is_snowing: *mut d2::Bool32,
   pub sine_table: *const [f32; 0x200],
   pub gen_weather_particle: usize,
-  pub env_array_remove: unsafe extern "fastcall" fn(*mut d2::EnvArray, id: u32),
 }
 unsafe impl Send for GameAccessor {}
 impl GameAccessor {
   pub const fn new() -> Self {
     Self {
-      trampolines: &Hooks::UNKNOWN.trampolines,
+      helper_fns: &Hooks::UNKNOWN.helper_fns,
+      fns: GameFns::INIT,
       is_expansion: false,
       player: null_mut(),
       env_effects: null_mut(),
@@ -164,53 +193,17 @@ impl GameAccessor {
       client_loop_globals: null_mut(),
       apply_pos_change: 0,
       server_update_time: null_mut(),
-      in_perspective: {
-        extern "stdcall" fn f() -> d2::Bool32 {
-          panic!()
-        }
-        f
-      },
-      get_hwnd: {
-        extern "stdcall" fn f() -> HWND {
-          panic!()
-        }
-        f
-      },
-      draw_menu: {
-        extern "stdcall" fn f() {
-          panic!()
-        }
-        f
-      },
       cursor_table: null(),
       summit_cloud_x_pos: null_mut(),
       viewport_height: null_mut(),
       viewport_width: null_mut(),
       viewport_shift: null_mut(),
-      find_closest_color: {
-        extern "stdcall" fn f(_: u32, _: u32, _: u32) -> u8 {
-          panic!()
-        }
-        f
-      },
-      draw_line: {
-        extern "stdcall" fn f(_: i32, _: i32, _: i32, _: i32, _: u8, _: u8) {
-          panic!()
-        }
-        f
-      },
       max_weather_particles: null_mut(),
       weather_angle: null_mut(),
       rain_speed: null_mut(),
       is_snowing: null_mut(),
       sine_table: null(),
       gen_weather_particle: 0,
-      env_array_remove: {
-        extern "fastcall" fn f(_: *mut d2::EnvArray, _: u32) {
-          panic!()
-        }
-        f
-      },
     }
   }
 
@@ -219,10 +212,10 @@ impl GameAccessor {
     modules: &d2::Modules,
     addresses: &d2::Addresses,
     is_expansion: bool,
-    trampolines: &'static Trampolines,
+    stubs: &'static HelperFns,
   ) -> Result<(), ()> {
     self.is_expansion = is_expansion;
-    self.trampolines = trampolines;
+    self.helper_fns = stubs;
     self.player = addresses.player(modules.client()).as_ptr();
     self.env_effects = addresses.env_effects(modules.client()).as_ptr();
     self.game_type = addresses.game_type(modules.client()).as_ptr();
@@ -231,23 +224,23 @@ impl GameAccessor {
     self.client_loop_globals = addresses.client_loop_globals(modules.client()).as_ptr();
     self.apply_pos_change = addresses.apply_pos_change(modules.common());
     self.server_update_time = addresses.server_update_time(modules.game()).as_ptr();
-    self.in_perspective = addresses.in_perspective(modules.gfx()).ok_or(())?;
-    self.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
-    self.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
+    self.fns.in_per = addresses.in_perspective(modules.gfx()).ok_or(())?;
+    self.fns.get_hwnd = addresses.hwnd(modules.gfx()).ok_or(())?;
+    self.fns.draw_menu = addresses.draw_menu(modules.win()).ok_or(())?;
     self.cursor_table = addresses.cursor_table(modules.client());
     self.summit_cloud_x_pos = addresses.summit_cloud_x_pos(modules.client()).as_ptr();
     self.viewport_width = addresses.viewport_width(modules.client()).as_ptr();
     self.viewport_height = addresses.viewport_height(modules.client()).as_ptr();
     self.viewport_shift = addresses.viewport_shift(modules.client()).as_ptr();
-    self.find_closest_color = addresses.find_closest_color(modules.win()).ok_or(())?;
-    self.draw_line = addresses.draw_line(modules.gfx()).ok_or(())?;
+    self.fns.find_closest_color = addresses.find_closest_color(modules.win()).ok_or(())?;
+    self.fns.draw_line = addresses.draw_line(modules.gfx()).ok_or(())?;
     self.max_weather_particles = addresses.max_weather_particles(modules.client()).as_ptr();
     self.weather_angle = addresses.weather_angle(modules.client()).as_ptr();
     self.rain_speed = addresses.rain_speed(modules.client()).as_ptr();
     self.is_snowing = addresses.is_snowing(modules.client()).as_ptr();
     self.sine_table = addresses.sine_table(modules.fog()).as_ptr();
     self.gen_weather_particle = addresses.gen_weather_particle(modules.client());
-    self.env_array_remove = addresses.env_array_remove(modules.fog()).ok_or(())?;
+    self.fns.env_array_remove = addresses.env_array_remove(modules.fog()).ok_or(())?;
     Ok(())
   }
 
@@ -327,10 +320,6 @@ impl GameAccessor {
   pub unsafe fn cos(&self, x: d2::FixedU8) -> f32 {
     (*self.sine_table)[x.repr().wrapping_add(0x80) as usize & 0x1ff]
   }
-
-  pub unsafe fn gen_weather_particle(&self, rng: &mut d2::Rng) {
-    (self.trampolines.gen_weather_particle)(rng, self.gen_weather_particle)
-  }
 }
 
 impl InstanceSync {
@@ -353,7 +342,7 @@ impl InstanceSync {
     if unsafe {
       self
         .accessor
-        .load(&modules, &hooks.addresses, is_expansion, &hooks.trampolines)
+        .load(&modules, &hooks.addresses, is_expansion, &hooks.helper_fns)
         .is_err()
     } {
       log!("Disabling all features: failed to load game addresses");
@@ -498,7 +487,7 @@ trait Entity: d2::LinkedList {
 impl InstanceSync {
   unsafe fn hook_window(&self) {
     if INSTANCE.window_hook.attach(&self.accessor) && INSTANCE.config.fps.load_relaxed().num == 0 {
-      INSTANCE.frame_rate_from_window((self.accessor.get_hwnd)());
+      INSTANCE.frame_rate_from_window(self.accessor.get_hwnd());
     }
   }
 
@@ -625,7 +614,7 @@ impl InstanceSync {
   }
 
   unsafe fn update_env_images(&mut self, env_shift: d2::IsoPos<i32>) {
-    if !(self.accessor.in_perspective)().bool() {
+    if !self.accessor.in_per().bool() {
       for splash in (*(*self.accessor.env_effects).splashes).as_mut_slice() {
         splash.pos.x = splash.pos.x.wrapping_add(env_shift.x);
         splash.pos.y = splash.pos.y.wrapping_add(env_shift.y);
@@ -799,7 +788,7 @@ unsafe extern "fastcall" fn draw_menu(
       INSTANCE.update_menu_char_anim.store(false, Relaxed);
     }
 
-    let draw = sync_instance.accessor.draw_menu;
+    let draw = sync_instance.accessor.fns.draw_menu;
     drop(lock);
     draw();
 
@@ -926,7 +915,9 @@ unsafe fn update_weather(
       }
       if particle.at_end.bool() {
         if particle.frames_remaining == 0 {
-          (sync_instance.accessor.env_array_remove)(particles.cast(), (i << 16) as u32);
+          sync_instance
+            .accessor
+            .env_array_remove(particles.cast(), (i << 16) as u32);
           if (*particles).active_count < (*sync_instance.accessor.max_weather_particles) {
             sync_instance.accessor.gen_weather_particle(rng);
           }

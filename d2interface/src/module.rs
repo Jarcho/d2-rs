@@ -186,7 +186,7 @@ decl_addresses! {
   /// Draw a one pixel thick line
   #ordinal Gfx::draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
   /// Gets the closest available color in the current palette
-  #ordinal Win::find_closest_color: unsafe extern "stdcall" fn(u32, u32, u32) -> u8,
+  #ordinal Win::find_closest_color: unsafe extern "stdcall" fn(u8, u8, u8) -> u8,
   ///The width of the game's viewport.
   Client::viewport_width: NonNull<u32>,
   ///The height of the game's viewport.

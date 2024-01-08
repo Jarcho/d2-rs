@@ -1,7 +1,7 @@
 use crate::{
   features::{FeaturePatches, ModulePatches},
   hooks::{
-    draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, Hooks, Trampolines,
+    draw_game, draw_game_paused, game_loop_sleep_hook, update_menu_char_frame, HelperFns, Hooks,
   },
   INSTANCE,
 };
@@ -118,7 +118,7 @@ pub(super) const HOOKS: Hooks = Hooks {
       )
     ],
   ),
-  trampolines: Trampolines {
+  helper_fns: HelperFns {
     gen_weather_particle: gen_weather_particle_114_trampoline,
   },
 };

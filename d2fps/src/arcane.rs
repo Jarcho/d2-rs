@@ -40,15 +40,15 @@ impl ArcaneBg {
     let shift = *accessor.viewport_shift;
     if size != self.size {
       if self.size.width == 0 {
-        let white = (accessor.find_closest_color)(0xff, 0xff, 0xff);
+        let white = accessor.find_closest_color(0xff, 0xff, 0xff);
         self.colors = [
-          (accessor.find_closest_color)(0x70, 0x70, 0x70),
-          (accessor.find_closest_color)(0x90, 0x90, 0x90),
-          (accessor.find_closest_color)(0xa0, 0xa0, 0xa0),
-          (accessor.find_closest_color)(0xc8, 0xc8, 0xa0),
-          (accessor.find_closest_color)(0xff, 0xd0, 0x80),
-          (accessor.find_closest_color)(0xf0, 0xe4, 0xff),
-          (accessor.find_closest_color)(0xf8, 0xf8, 0xe0),
+          accessor.find_closest_color(0x70, 0x70, 0x70),
+          accessor.find_closest_color(0x90, 0x90, 0x90),
+          accessor.find_closest_color(0xa0, 0xa0, 0xa0),
+          accessor.find_closest_color(0xc8, 0xc8, 0xa0),
+          accessor.find_closest_color(0xff, 0xd0, 0x80),
+          accessor.find_closest_color(0xf0, 0xe4, 0xff),
+          accessor.find_closest_color(0xf8, 0xf8, 0xe0),
           white,
           white,
           white,
@@ -69,7 +69,7 @@ impl ArcaneBg {
     }
 
     for star in &mut self.stars {
-      (accessor.draw_line)(
+      accessor.draw_line(
         star.x as i32 + shift,
         star.y as i32,
         star.x as i32 + shift,
