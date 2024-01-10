@@ -1,5 +1,5 @@
 [workspace]
-members = ["d2fps", "d2interface", "bin_patch", "bin_patch_mac"]
+members = ["d2fps", "d2interface", "bin_patch", "bin_patch_mac", "num"]
 resolver = "2"
 
 [profile.dev]

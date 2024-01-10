@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, FixedU16, IsoPos, LinearPos, Rng,
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, IsoPos, LinearPos, Rng, FU16,
 };
 use core::ptr::NonNull;
 
@@ -64,7 +64,7 @@ pub struct Room {
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FixedU16>,
+  pub linear_pos: LinearPos<FU16>,
   pub iso_pos: IsoPos<i32>,
   pub target_pos: [LinearPos<u16>; 3],
   pub room: Option<NonNull<Room>>,
@@ -133,9 +133,9 @@ pub mod dtbl {
       AccByLvl3, ByComponent, ByEqComponent, ByLvl, ByNgLvl, ByNpcState, DropSet, Effect, I32Code,
       Item, ItemCode, ItemTy, ItemTyCode, Missile, Prop, Skill,
     },
-    ArmorTy, BodyLoc, Color, Component, CubeMod, CubeTy, ElTy, FixedI12, FixedI7, Id16, Id8,
-    ItemHitClass, NpcSpawnTy, NpcState, Pc, Range, RgbColor, ScreenPos, ScreenRectS, Size,
-    StorePage, StrId, TilePos,
+    ArmorTy, BodyLoc, Color, Component, CubeMod, CubeTy, ElTy, Id16, Id8, ItemHitClass, NpcSpawnTy,
+    NpcState, Pc, Range, RgbColor, ScreenPos, ScreenRectS, Size, StorePage, StrId, TilePos, FI12,
+    FI7,
   };
 
   #[repr(C)]
@@ -475,7 +475,7 @@ pub mod dtbl {
     pub special_setup: i32,
     pub skill: Skill,
     pub hit_shift: u8,
-    pub use_src_dmg: FixedI7,
+    pub use_src_dmg: FI7,
     pub dmg: Range<i32>,
     pub dmg_lvl: AccByLvl3<i32>,
     pub el_ty: ElTy,
@@ -574,7 +574,7 @@ pub mod dtbl {
     pub light_resist: ByNgLvl<u8>,
     pub cold_resist: ByNgLvl<u8>,
     pub poison_resist: ByNgLvl<u8>,
-    pub hp_regen: FixedI12,
+    pub hp_regen: FI12,
     pub is_low_undead: u8,
     pub is_high_undead: u8,
     pub is_demon: u8,

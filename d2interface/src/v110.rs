@@ -1,8 +1,8 @@
 use bitflags::bitflags;
 
 use crate::{
-  module::Ordinal::Ordinal, Addresses, EntityKind, FixedU16, FixedU8, Id16, InRoom, IsoPos,
-  LinearPos, LinkedList, Rng, Size,
+  module::Ordinal::Ordinal, Addresses, EntityKind, Id16, InRoom, IsoPos, LinearPos, LinkedList,
+  Rng, Size, FU16, FU8,
 };
 use core::ptr::NonNull;
 
@@ -66,7 +66,7 @@ pub struct StaticPos {
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FixedU16>,
+  pub linear_pos: LinearPos<FU16>,
   pub iso_pos: IsoPos<i32>,
   pub target_pos: [LinearPos<u16>; 3],
   pub room: Option<NonNull<Room>>,
@@ -94,12 +94,12 @@ pub struct Entity {
   pub seed: u32,
   pub pos: EntityPos,
   pub anim_frame_def: *mut (),
-  pub seq_frame_count: FixedU8,
-  pub seq_frame: FixedU8,
-  pub seq_anim_rate: FixedU8,
+  pub seq_frame_count: FU8,
+  pub seq_frame: FU8,
+  pub seq_anim_rate: FU8,
   pub anim_state: u32,
-  pub frame: FixedU8,
-  pub frame_count: FixedU8,
+  pub frame: FU8,
+  pub frame_count: FU8,
   pub anim_rate: u16,
   pub frame_event: u8,
   pub anim_data: *mut (),

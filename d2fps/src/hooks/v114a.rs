@@ -136,9 +136,9 @@ extern "C" {
   pub fn update_menu_char_frame_114a_asm_stub();
 }
 
-unsafe extern "fastcall" fn move_summit_cloud(i: usize, amount: d2::FixedU4) {
+unsafe extern "fastcall" fn move_summit_cloud(i: usize, amount: d2::FU4) {
   (*INSTANCE.sync.lock().accessor.summit_cloud_x_pos)[i / 4] +=
-    d2::FixedI4::from(f64::from(amount) * INSTANCE.update_time_fract.load(Relaxed));
+    d2::FI4::from(f64::from(amount) * INSTANCE.update_time_fract.load(Relaxed));
 }
 
 global_asm! {

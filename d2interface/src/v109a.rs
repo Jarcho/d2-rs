@@ -50,8 +50,8 @@ pub mod dtbl {
       AccByLvl3, ByEqComponent, ByLvl, ByNgLvl, DropSet, I32Code, ItemCode, ItemTy, ItemTyCode,
       Missile, Prop, Skill,
     },
-    ArmorTy, BodyLoc, Component, ElTy, FixedI7, Id16, Id8, ItemHitClass, Pc, Range, RgbColor, Size,
-    StorePage,
+    ArmorTy, BodyLoc, Component, ElTy, Id16, Id8, ItemHitClass, Pc, Range, RgbColor, Size,
+    StorePage, FI7,
   };
 
   #[repr(C)]
@@ -287,7 +287,7 @@ pub mod dtbl {
     pub special_setup: i32,
     pub skill: Skill,
     pub hit_shift: u8,
-    pub use_src_dmg: FixedI7,
+    pub use_src_dmg: FI7,
     pub dmg: Range<i32>,
     pub dmg_lvl: AccByLvl3<i32>,
     pub el_ty: ElTy,

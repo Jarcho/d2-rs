@@ -12,6 +12,7 @@ use core::{
 use d2::CursorId;
 use d2interface as d2;
 use fxhash::FxHashSet as HashSet;
+use num::{WrappingAdd, WrappingInto, WrappingSub};
 use std::collections::hash_map::Entry;
 use windows_sys::{
   w,
@@ -167,12 +168,12 @@ pub struct GameAccessor {
   pub apply_pos_change: usize,
   pub server_update_time: *mut u32,
   pub cursor_table: *const [d2::Cursor; 7],
-  pub summit_cloud_x_pos: *mut [d2::FixedI4; 10],
+  pub summit_cloud_x_pos: *mut [d2::FI4; 10],
   pub viewport_width: *mut u32,
   pub viewport_height: *mut u32,
   pub viewport_shift: *mut i32,
   pub max_weather_particles: *mut u32,
-  pub weather_angle: *mut d2::FixedU8,
+  pub weather_angle: *mut d2::FU8,
   pub rain_speed: *mut f32,
   pub is_snowing: *mut d2::Bool32,
   pub sine_table: *const [f32; 0x200],
@@ -313,11 +314,11 @@ impl GameAccessor {
     self.is_expansion && (*self.is_snowing).bool()
   }
 
-  pub unsafe fn sin(&self, x: d2::FixedU8) -> f32 {
+  pub unsafe fn sin(&self, x: d2::FU8) -> f32 {
     (*self.sine_table)[x.repr() as usize & 0x1ff]
   }
 
-  pub unsafe fn cos(&self, x: d2::FixedU8) -> f32 {
+  pub unsafe fn cos(&self, x: d2::FU8) -> f32 {
     (*self.sine_table)[x.repr().wrapping_add(0x80) as usize & 0x1ff]
   }
 }
@@ -436,35 +437,29 @@ impl UnitId {
 
 #[derive(Clone, Copy)]
 pub struct Position {
-  pub real: d2::LinearPos<d2::FixedU16>,
-  pub delta: d2::LinearPos<d2::FixedI16>,
+  pub real: d2::LinearPos<d2::FU16>,
+  pub delta: d2::LinearPos<d2::FI16>,
   pub teleport: bool,
   pub active: bool,
   pub from_first_table: bool,
 }
 impl Position {
-  pub fn for_time(&self, fract: d2::FixedI16) -> d2::LinearPos<d2::FixedU16> {
-    let x = ((self.delta.x.repr() as i64 * fract.repr() as i64) >> 16) as u32;
-    let y = ((self.delta.y.repr() as i64 * fract.repr() as i64) >> 16) as u32;
-    let x = self.real.x.repr().wrapping_add(x);
-    let y = self.real.y.repr().wrapping_add(y);
-    d2::LinearPos::new(d2::FixedU16::from_repr(x), d2::FixedU16::from_repr(y))
+  pub fn for_time(&self, fract: d2::FI16) -> d2::LinearPos<d2::FU16> {
+    self.real.wadd((self.delta * fract).winto())
   }
 
-  fn update_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>, from_first_table: bool) {
-    let dx = pos.x.repr().wrapping_sub(self.real.x.repr()) as i32;
-    let dy = pos.y.repr().wrapping_sub(self.real.y.repr()) as i32;
-    self.real = pos;
+  fn update_pos(&mut self, pos: d2::LinearPos<d2::FU16>, from_first_table: bool) {
     self.delta = if self.teleport || self.from_first_table != from_first_table {
       d2::LinearPos::default()
     } else {
-      d2::LinearPos::new(d2::FixedI16::from_repr(dx), d2::FixedI16::from_repr(dy))
+      pos.wsub(self.real).winto()
     };
+    self.real = pos;
     self.from_first_table = from_first_table;
     self.teleport = false;
   }
 
-  fn new(pos: d2::LinearPos<d2::FixedU16>, from_first_table: bool) -> Self {
+  fn new(pos: d2::LinearPos<d2::FU16>, from_first_table: bool) -> Self {
     Self {
       real: pos,
       delta: d2::LinearPos::default(),
@@ -478,9 +473,9 @@ impl Position {
 trait Entity: d2::LinkedList {
   fn unit_id(&self) -> UnitId;
   fn has_room(&self) -> bool;
-  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16>;
+  fn linear_pos(&self) -> d2::LinearPos<d2::FU16>;
   fn iso_pos(&self) -> d2::IsoPos<i32>;
-  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>);
+  fn set_pos(&mut self, pos: d2::LinearPos<d2::FU16>);
   fn rng(&mut self) -> &mut d2::Rng;
 }
 
@@ -491,7 +486,7 @@ impl InstanceSync {
     }
   }
 
-  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FixedU16>> {
+  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FU16>> {
     self
       .delayed
       .as_mut()
@@ -501,7 +496,7 @@ impl InstanceSync {
       .map(|pos| pos.for_time(self.unit_movement_fract))
   }
 
-  fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FixedU16> {
+  fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FU16> {
     match self.entity_adjusted_pos(e) {
       Some(pos) => pos,
       None => e.linear_pos(),
@@ -579,7 +574,7 @@ impl InstanceSync {
             pos.teleport = false;
             pos.from_first_table = first_table
           }
-          pos.real = e.linear_pos();
+          pos.real = epos;
         }
       });
   }
@@ -590,7 +585,7 @@ impl InstanceSync {
     let since_update = since_update.min(frame_len);
     let offset = since_update - frame_len;
     let fract = (offset << 16) / frame_len;
-    self.unit_movement_fract = d2::FixedI16::from_repr(fract as i32);
+    self.unit_movement_fract = d2::FI16::from_repr(fract as i32);
 
     let instance = &mut self.delayed.as_mut().unwrap();
     self
@@ -613,32 +608,31 @@ impl InstanceSync {
       });
   }
 
-  unsafe fn update_env_images(&mut self, env_shift: d2::IsoPos<i32>) {
+  unsafe fn update_env_images(&mut self, env_shift: d2::ScreenPos<i32>) {
+    let env_shift = env_shift.map(|x| x.0);
     if !self.accessor.in_per().bool() {
       for splash in (*(*self.accessor.env_effects).splashes).as_mut_slice() {
-        splash.pos.x = splash.pos.x.wrapping_add(env_shift.x);
-        splash.pos.y = splash.pos.y.wrapping_add(env_shift.y);
+        splash.pos = splash.pos.wadd(env_shift);
       }
       for bubble in (*(*self.accessor.env_effects).bubbles).as_mut_slice() {
-        bubble.pos.x = bubble.pos.x.wrapping_add(env_shift.x);
-        bubble.pos.y = bubble.pos.y.wrapping_add(env_shift.y);
+        bubble.pos = bubble.pos.wadd(env_shift);
       }
     }
   }
 }
 
 extern "stdcall" fn entity_iso_xpos<E: Entity>(e: &E) -> i32 {
-  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).x
+  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).x.0
 }
 extern "stdcall" fn entity_iso_ypos<E: Entity>(e: &E) -> i32 {
-  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).y
+  INSTANCE.sync.lock().entity_adjusted_iso_pos(e).y.0
 }
 
-extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> d2::FixedU16 {
-  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).x
+extern "stdcall" fn entity_linear_xpos<E: Entity>(e: &E) -> d2::FU16 {
+  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).x.0
 }
-extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FixedU16 {
-  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).y
+extern "stdcall" fn entity_linear_ypos<E: Entity>(e: &E) -> d2::FU16 {
+  INSTANCE.sync.lock().entity_adjusted_linear_pos(e).y.0
 }
 
 unsafe extern "C" fn draw_game<E: Entity>() {
@@ -694,10 +688,9 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       sync_instance.update_entity_positions::<E>();
       let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = sync_instance.entity_adjusted_iso_pos(player);
-      let env_shift = d2::IsoPos::new(
-        prev_player_pos.x.wrapping_sub(sync_instance.player_pos.x),
-        prev_player_pos.y.wrapping_sub(sync_instance.player_pos.y),
-      );
+      let env_shift = prev_player_pos
+        .wsub(sync_instance.player_pos)
+        .map(|x| x.with_sys::<d2::coord::ScreenSys>());
 
       if !client_updated {
         // Environment particles are positioned in screen space and updated only
@@ -707,13 +700,12 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       }
       env_shift
     } else {
-      sync_instance.unit_movement_fract = d2::FixedI16::default();
+      sync_instance.unit_movement_fract = d2::FI16::default();
       let prev_player_pos = sync_instance.player_pos;
       sync_instance.player_pos = player.iso_pos();
-      d2::IsoPos::new(
-        prev_player_pos.x.wrapping_sub(sync_instance.player_pos.x),
-        prev_player_pos.y.wrapping_sub(sync_instance.player_pos.y),
-      )
+      prev_player_pos
+        .wsub(sync_instance.player_pos)
+        .map(|x| x.with_sys::<d2::coord::ScreenSys>())
     };
 
     if INSTANCE.config.features.weather_smoothing() {
@@ -737,8 +729,15 @@ unsafe extern "C" fn draw_game<E: Entity>() {
     let sync_instance = &mut *lock;
 
     sync_instance.unit_movement_fract = unit_movement_fract;
-    (*sync_instance.accessor.client_loop_globals).frames_drawn += 1;
-    (*sync_instance.accessor.client_loop_globals).fps_timer.frames_drawn += 1;
+    (*sync_instance.accessor.client_loop_globals).frames_drawn =
+      (*sync_instance.accessor.client_loop_globals)
+        .frames_drawn
+        .wrapping_add(1);
+    (*sync_instance.accessor.client_loop_globals).fps_timer.frames_drawn =
+      (*sync_instance.accessor.client_loop_globals)
+        .fps_timer
+        .frames_drawn
+        .wrapping_add(1);
 
     if smooth_frame {
       sync_instance.reset_entity_positions::<E>();
@@ -786,7 +785,7 @@ unsafe extern "fastcall" fn draw_menu(
       INSTANCE.update_menu_char_anim.store(true, Relaxed);
       if let Some(callback) = callback {
         callback(*call_count);
-        *call_count += 1;
+        *call_count = (*call_count).wrapping_add(1);
       }
     } else {
       INSTANCE.update_menu_char_anim.store(false, Relaxed);
@@ -867,7 +866,7 @@ unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
     && INSTANCE.sync.lock().accessor.cursor_table()[cursor.0 as usize].is_anim != 0
 }
 
-extern "fastcall" fn summit_cloud_move_amount(x: d2::FixedU4) -> d2::FixedU4 {
+extern "fastcall" fn summit_cloud_move_amount(x: d2::FU4) -> d2::FU4 {
   (f64::from(x) * INSTANCE.update_time_fract.load(Relaxed)).into()
 }
 

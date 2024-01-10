@@ -1,4 +1,4 @@
-use crate::{FixedU8, ScreenPos, UnknownPos};
+use crate::{coord::ScreenSys, Measure, Pos, ScreenPos, FU8};
 use core::{iter, marker::PhantomData, ops, ptr::NonNull, slice};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -216,7 +216,7 @@ impl<T> EnvArray<T> {
 pub struct EnvImage {
   pub active: Bool16,
   /// Linear space when rendering in perspective. Camera space when not.
-  pub pos: UnknownPos<i32>,
+  pub pos: Pos<i32>,
   pub file_idx: u32,
   pub frame: u32,
   pub till_next_frame: u32,
@@ -227,10 +227,10 @@ pub type EnvImages = EnvArray<EnvImage>;
 pub struct EnvParticle {
   pub active: Bool16,
   pub pos: ScreenPos<i32>,
-  pub end_y_pos: i32,
+  pub end_y_pos: Measure<i32, ScreenSys>,
   pub orientation: u32,
   pub speed: i32,
-  pub angle: FixedU8,
+  pub angle: FU8,
   pub at_end: Bool32,
   pub frames_remaining: u32,
   pub color: u8,
@@ -325,7 +325,7 @@ pub struct Cursor {
   pub is_anim: u32,
   pub repeat_anim: u32,
   pub frame_count: u32,
-  pub anim_speed: FixedU8,
+  pub anim_speed: FU8,
   /// Should this cursor use the mouse down animation.
   pub use_mouse_down_anim: u32,
   pub draw_fn: extern "C" fn(),
@@ -357,7 +357,7 @@ pub struct GameCursor<E = ()> {
   pub item: Option<NonNull<E>>,
   pub dc6_files: [usize; 7],
   pub id: CursorId,
-  pub frame: FixedU8,
+  pub frame: FU8,
   pub _padding: u32,
   pub last_move_time: u32,
   pub state: CursorState,

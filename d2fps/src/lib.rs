@@ -85,7 +85,7 @@ struct InstanceSync {
   player_pos: d2::IsoPos<i32>,
   /// The amount of a unit's detected movement to apply. Used to adjust a unit's
   /// position for cursor detection outside the rendering code.
-  unit_movement_fract: d2::FixedI16,
+  unit_movement_fract: d2::FI16,
   weather_particles: Vec<weather::Particle>,
   /// Patches to reapply once the menu is loaded. Helps compatibility with other
   /// mods that patch code without validating the patch location's data.
@@ -146,8 +146,8 @@ static INSTANCE: Instance = Instance {
     game_update_time_ms: 0,
     game_update_time: 0,
     client_update_count: 0,
-    player_pos: d2::IsoPos::new(0, 0),
-    unit_movement_fract: d2::FixedI16::from_repr(0),
+    player_pos: d2::IsoPos::new(d2::Measure::new(0), d2::Measure::new(0)),
+    unit_movement_fract: d2::FI16::from_repr(0),
     weather_particles: Vec::new(),
     reapply_patches: None,
     delayed: None,

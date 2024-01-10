@@ -1,199 +1,186 @@
 use crate::Range;
-use core::{fmt, marker::PhantomData, ops};
+use core::{
+  cmp::Ordering,
+  fmt,
+  marker::PhantomData,
+  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
+};
+use num::{
+  Fixed, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul, WrappingSub,
+};
 
-/// A fixed-point number with `N` bits of precision.
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct FixedPoint<T, const N: u8>(T);
-impl<T, const N: u8> FixedPoint<T, N> {
-  /// Creates a fixed-point number from it's underlying representation.
-  #[inline]
-  pub const fn from_repr(value: T) -> Self {
-    Self(value)
-  }
-
-  /// Gets the fixed-point number's representation.
-  #[inline]
-  pub fn repr(self) -> T {
-    self.0
-  }
-}
-impl<T, const N: u8> FixedPoint<T, N>
-where
-  T: ops::Shl<u8, Output = T> + ops::Shr<u8, Output = T>,
-{
-  /// Creates a fixed-point number from an integer. Wraps on overflow
-  #[inline]
-  pub fn from_wrapping(value: T) -> Self {
-    Self(value << N)
-  }
-
-  /// Truncates a fixed-point number to an integer.
-  #[inline]
-  pub fn truncate(self) -> T {
-    self.0 >> N
-  }
-
-  /// Changes the number bits used for the fractional part. Wraps on overflow.
-  #[inline]
-  pub fn change_precision<const M: u8>(self) -> FixedPoint<T, M> {
-    if N < M {
-      FixedPoint(self.0 << (M - N))
-    } else {
-      FixedPoint(self.0 >> (N - M))
+macro_rules! impl_op {
+  ($op:ident $(<$trait:ident>)?, $ty:ident $(<$ty_arg:ident>)?, $other_ty:ty, $fn:ident, $(($field_lhs:tt, $($field_rhs:tt)?)),+) => {
+    impl<T: $op<U>, U $(: $trait)?, $($ty_arg)?> $op<$other_ty> for $ty<T, $($ty_arg)?> {
+      type Output = $ty<T::Output, $($ty_arg)?>;
+      fn $fn(self, rhs: $other_ty) -> Self::Output {
+        $ty::new($(
+          $op::$fn(self.$field_lhs, rhs$(.$field_rhs)?)
+        ),+)
+      }
     }
-  }
-}
-impl<const N: u8> From<FixedPoint<u32, N>> for f64 {
-  fn from(x: FixedPoint<u32, N>) -> Self {
-    x.0 as f64 / 2u32.pow(N as u32) as f64
-  }
-}
-impl<const N: u8> From<f64> for FixedPoint<u32, N> {
-  fn from(x: f64) -> Self {
-    Self((x * 2u32.pow(N as u32) as f64) as u32)
-  }
-}
-impl<const N: u8> From<FixedPoint<i32, N>> for f64 {
-  fn from(x: FixedPoint<i32, N>) -> Self {
-    x.0 as f64 / 2u32.pow(N as u32) as f64
-  }
-}
-impl<const N: u8> From<f64> for FixedPoint<i32, N> {
-  fn from(x: f64) -> Self {
-    Self((x * 2u32.pow(N as u32) as f64) as i32)
-  }
-}
-impl<T: ops::Add<Output = T>, const N: u8> ops::Add for FixedPoint<T, N> {
-  type Output = Self;
-  #[inline]
-  fn add(self, rhs: Self) -> Self::Output {
-    Self(self.0 + rhs.0)
-  }
-}
-impl<T: ops::AddAssign, const N: u8> ops::AddAssign for FixedPoint<T, N> {
-  #[inline]
-  fn add_assign(&mut self, rhs: Self) {
-    self.0 += rhs.0
-  }
-}
-impl<T: ops::Sub<Output = T>, const N: u8> ops::Sub for FixedPoint<T, N> {
-  type Output = Self;
-  #[inline]
-  fn sub(self, rhs: Self) -> Self::Output {
-    Self(self.0 - rhs.0)
-  }
-}
-impl<T: ops::Mul<Output = T>, const N: u8> ops::Mul<T> for FixedPoint<T, N> {
-  type Output = Self;
-  #[inline]
-  fn mul(self, rhs: T) -> Self::Output {
-    Self(self.0 * rhs)
-  }
-}
-impl<T: ops::Div<Output = T>, const N: u8> ops::Div<T> for FixedPoint<T, N> {
-  type Output = Self;
-  #[inline]
-  fn div(self, rhs: T) -> Self::Output {
-    Self(self.0 / rhs)
-  }
-}
-impl<T: Copy, const N: u8> fmt::Display for FixedPoint<T, N>
-where
-  f64: From<T>,
-{
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    (f64::from(self.repr()) / <f64 as From<u32>>::from(1u32 << N)).fmt(f)
-  }
-}
-impl<T, const N: u8> fmt::Debug for FixedPoint<T, N>
-where
-  FixedPoint<T, N>: fmt::Display,
-{
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    <Self as fmt::Display>::fmt(self, f)
-  }
+  };
 }
 
-pub type FixedU16 = FixedPoint<u32, 16>;
-pub type FixedU8 = FixedPoint<u32, 8>;
-pub type FixedU4 = FixedPoint<u32, 4>;
-pub type FixedU3 = FixedPoint<u32, 3>;
-
-pub type FixedI16 = FixedPoint<i32, 16>;
-pub type FixedI12 = FixedPoint<i32, 12>;
-pub type FixedI7 = FixedPoint<i32, 7>;
-pub type FixedI4 = FixedPoint<i32, 4>;
+macro_rules! impl_op_assign {
+  ($op:ident $(<$trait:ident>)?, $ty:ident $(<$ty_arg:ident>)?, $other_ty:ty, $fn:ident, $(($field_lhs:tt, $($field_rhs:tt)?)),+) => {
+    impl<T: $op<U>, U $(: $trait)?, $($ty_arg)?> $op<$other_ty> for $ty<T, $($ty_arg)?> {
+      fn $fn(&mut self, rhs: $other_ty) {$(
+        $op::$fn(&mut self.$field_lhs, rhs$(.$field_rhs)?);
+      )+}
+    }
+  };
+}
 
 /// The main coordinate system used to position entities.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct LinearSystem;
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LinearSys;
 
 /// The isometric coordinate system used to position the camera.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct IsometricSystem;
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IsoSys;
 
 /// The coordinate system is unknown at compile time.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct UnknownSystem;
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnknownSys;
 
 /// The coordinate system used to position things on the screen. Origin is the upper-left.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct ScreenSystem;
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ScreenSys;
 
 /// The coordinate system used to position entities on tiles.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub struct TileSystem;
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TileSys;
 
-/// A two dimensional position in a specific coordinate system.
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub struct Pos<T, System> {
-  pub x: T,
-  pub y: T,
-  system: PhantomData<System>,
-}
-impl<T, System> Pos<T, System> {
-  #[inline]
-  pub const fn new(x: T, y: T) -> Self {
-    Self { x, y, system: PhantomData }
+#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct Measure<T, S>(pub T, PhantomData<S>);
+impl<T, S> Measure<T, S> {
+  pub const fn new(x: T) -> Self {
+    Self(x, PhantomData)
   }
 
+  pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Measure<U, S> {
+    Measure::new(f(self.0))
+  }
+
+  pub fn with_sys<S2>(self) -> Measure<T, S2> {
+    Measure::new(self.0)
+  }
+}
+
+impl<T: fmt::Debug, S> fmt::Debug for Measure<T, S> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.0.fmt(f)
+  }
+}
+impl<T: fmt::Display, S> fmt::Display for Measure<T, S> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    self.0.fmt(f)
+  }
+}
+
+impl<T: WrappingFrom<U>, U, S> WrappingFrom<Measure<U, S>> for Measure<T, S> {
+  fn wfrom(x: Measure<U, S>) -> Self {
+    Self::new(x.0.winto())
+  }
+}
+
+impl<T: PartialEq, S> PartialEq<T> for Measure<T, S> {
+  fn eq(&self, other: &T) -> bool {
+    self.0 == *other
+  }
+}
+impl<T: PartialOrd, S> PartialOrd<T> for Measure<T, S> {
+  fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+    self.0.partial_cmp(other)
+  }
+}
+
+impl_op!(Add, Measure<S>, Measure<U, S>, add, (0, 0));
+impl_op!(Sub, Measure<S>, Measure<U, S>, sub, (0, 0));
+impl_op!(Mul, Measure<S>, U, mul, (0,));
+impl_op!(MulTrunc, Measure<S>, U, mul_trunc, (0,));
+impl_op!(Div, Measure<S>, U, div, (0,));
+impl_op!(WrappingAdd, Measure<S>, Measure<U, S>, wadd, (0, 0));
+impl_op!(WrappingSub, Measure<S>, Measure<U, S>, wsub, (0, 0));
+impl_op!(WrappingMul, Measure<S>, U, wmul, (0,));
+impl_op!(WrappingDiv, Measure<S>, U, wdiv, (0,));
+
+impl_op_assign!(AddAssign, Measure<S>, Measure<U, S>, add_assign, (0, 0));
+impl_op_assign!(SubAssign, Measure<S>, Measure<U, S>, sub_assign, (0, 0));
+impl_op_assign!(MulAssign, Measure<S>, U, mul_assign, (0,));
+impl_op_assign!(DivAssign, Measure<S>, U, div_assign, (0,));
+
+/// A two dimensional position in a specific coordinate system.
+#[derive(Default, Clone, Copy, Eq)]
+#[repr(C)]
+pub struct Pos<T> {
+  pub x: T,
+  pub y: T,
+}
+impl<T> Pos<T> {
   #[inline]
-  pub fn cast<U>(self, mut f: impl FnMut(T) -> U) -> Pos<U, System> {
+  pub const fn new(x: T, y: T) -> Self {
+    Self { x, y }
+  }
+
+  pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Pos<U> {
     Pos::new(f(self.x), f(self.y))
   }
 }
-impl<T: fmt::Display, System> fmt::Display for Pos<T, System> {
+
+impl<T: fmt::Display> fmt::Display for Pos<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "({}, {})", self.x, self.y)
   }
 }
-impl<T: fmt::Debug, System> fmt::Debug for Pos<T, System> {
+impl<T: fmt::Debug> fmt::Debug for Pos<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.debug_tuple("").field(&self.x).field(&self.y).finish()
   }
 }
 
-pub type LinearPos<T> = Pos<T, LinearSystem>;
-pub type IsoPos<T> = Pos<T, IsometricSystem>;
-pub type UnknownPos<T> = Pos<T, UnknownSystem>;
-pub type TilePos<T> = Pos<T, TileSystem>;
-pub type ScreenPos<T> = Pos<T, ScreenSystem>;
-
-impl From<Pos<FixedU16, LinearSystem>> for Pos<i32, IsometricSystem> {
-  fn from(value: Pos<FixedU16, LinearSystem>) -> Self {
-    let x = value.x.change_precision::<5>().repr() as i32;
-    let y = value.y.change_precision::<5>().repr() as i32;
-    Pos::new((x.wrapping_sub(y)) >> 1, (x.wrapping_add(y)) >> 2)
+impl<T: PartialEq<U>, U> PartialEq<Pos<U>> for Pos<T> {
+  fn eq(&self, other: &Pos<U>) -> bool {
+    self.x == other.x && self.y == other.y
   }
 }
 
-impl From<Pos<FixedI16, LinearSystem>> for Pos<i32, IsometricSystem> {
-  fn from(value: Pos<FixedI16, LinearSystem>) -> Self {
-    let x = value.x.change_precision::<5>().repr();
-    let y = value.y.change_precision::<5>().repr();
-    Pos::new((x.wrapping_sub(y)) / 2, (x.wrapping_add(y)) / 4)
+impl<T: WrappingFrom<U>, U> WrappingFrom<Pos<U>> for Pos<T> {
+  fn wfrom(x: Pos<U>) -> Self {
+    Pos::new(x.x.winto(), x.y.winto())
+  }
+}
+
+impl_op!(Add, Pos, Pos<U>, add, (x, x), (y, y));
+impl_op!(Sub, Pos, Pos<U>, sub, (x, x), (y, y));
+impl_op!(Mul<Copy>, Pos, U, mul, (x,), (y,));
+impl_op!(MulTrunc<Copy>, Pos, U, mul_trunc, (x,), (y,));
+impl_op!(Div<Copy>, Pos, U, div, (x,), (y,));
+impl_op!(WrappingAdd, Pos, Pos<U>, wadd, (x, x), (y, y));
+impl_op!(WrappingSub, Pos, Pos<U>, wsub, (x, x), (y, y));
+impl_op!(WrappingMul<Copy>, Pos, U, wmul, (x,), (y,));
+impl_op!(WrappingDiv<Copy>, Pos, U, wdiv, (x,), (y,));
+
+impl_op_assign!(AddAssign, Pos, Pos<U>, add_assign, (x, x), (y, y));
+impl_op_assign!(SubAssign, Pos, Pos<U>, sub_assign, (x, x), (y, y));
+impl_op_assign!(MulAssign<Copy>, Pos, U, mul_assign, (x,), (y,));
+impl_op_assign!(DivAssign<Copy>, Pos, U, div_assign, (x,), (y,));
+
+pub type LinearPos<T> = Pos<Measure<T, LinearSys>>;
+pub type IsoPos<T> = Pos<Measure<T, IsoSys>>;
+pub type TilePos<T> = Pos<Measure<T, TileSys>>;
+pub type ScreenPos<T> = Pos<Measure<T, ScreenSys>>;
+
+impl<const N: u8> From<LinearPos<Fixed<u32, N>>> for IsoPos<i32> {
+  fn from(p: LinearPos<Fixed<u32, N>>) -> Self {
+    let x = p.x.0.with_prec::<5>().repr() as i32;
+    let y = p.y.0.with_prec::<5>().repr() as i32;
+    IsoPos::new(
+      Measure::new((x.wrapping_sub(y)) >> 1),
+      Measure::new((x.wrapping_add(y)) >> 2),
+    )
   }
 }
 
@@ -213,28 +200,27 @@ impl<T> Size<T> {
 /// A rectangle defined by two points.
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct Rect<T, System> {
-  pub upper_left: Pos<T, System>,
-  pub lower_right: Pos<T, System>,
+pub struct Rect<T> {
+  pub upper_left: Pos<T>,
+  pub lower_right: Pos<T>,
 }
 
 /// A rectangle defined by the x-bounds and y-bounds.
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct RectLr<T, System> {
+pub struct RectLr<T> {
   pub x: Range<T>,
   pub y: Range<T>,
-  system: PhantomData<System>,
 }
 
-pub type ScreenRectLr<T> = RectLr<T, ScreenSystem>;
+pub type ScreenRectLr<T> = RectLr<Measure<T, ScreenSys>>;
 
 /// A rectangle defined by a position and size.
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct RectS<T, U, System> {
-  pub pos: Pos<T, System>,
+pub struct RectS<T, U> {
+  pub pos: Pos<T>,
   pub size: Size<U>,
 }
 
-pub type ScreenRectS<T, U> = RectS<T, U, ScreenSystem>;
+pub type ScreenRectS<T, U> = RectS<Measure<T, ScreenSys>, Measure<U, ScreenSys>>;

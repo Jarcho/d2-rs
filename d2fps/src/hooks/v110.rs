@@ -12,6 +12,7 @@ use d2interface::{
   self as d2,
   v110::{Entity, ADDRESSES, BASE_ADDRESSES},
 };
+use num::WrappingInto;
 
 #[rustfmt::skip]
 pub(super) const HOOKS: Hooks = Hooks {
@@ -416,25 +417,15 @@ impl super::Entity for Entity {
     self.has_room()
   }
 
-  fn linear_pos(&self) -> d2::LinearPos<d2::FixedU16> {
-    self
-      .pos(
-        |pos| {
-          d2::LinearPos::new(
-            d2::FixedU16::from_wrapping(pos.linear_pos.x),
-            d2::FixedU16::from_wrapping(pos.linear_pos.y),
-          )
-        },
-        |pos| pos.linear_pos,
-      )
-      .unwrap()
+  fn linear_pos(&self) -> d2::LinearPos<d2::FU16> {
+    self.pos(|pos| pos.linear_pos.winto(), |pos| pos.linear_pos).unwrap()
   }
 
   fn iso_pos(&self) -> d2::IsoPos<i32> {
     self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
   }
 
-  fn set_pos(&mut self, pos: d2::LinearPos<d2::FixedU16>) {
+  fn set_pos(&mut self, pos: d2::LinearPos<d2::FU16>) {
     unsafe {
       if let Some(mut epos) = self.pos.d {
         epos.as_mut().linear_pos = pos;

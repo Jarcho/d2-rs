@@ -31,6 +31,10 @@ features = ["std", "parking_lot"]
 [dependencies.d2interface]
 path = "../d2interface"
 
+[dependencies.num]
+path = "../num"
+default-features = false
+
 [dependencies.rand]
 version = "0.8.5"
 default-features = false

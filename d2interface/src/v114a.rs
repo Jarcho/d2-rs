@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 
-use crate::{module::Ordinal::Address, Addresses, BaseAddresses, CursorId, CursorState, FixedU8};
+use crate::{module::Ordinal::Address, Addresses, BaseAddresses, CursorId, CursorState, FU8};
 
 pub use crate::v113d::{dtbl, DyPos, Entity, EntityTable, EntityTables, Room, StaticPos};
 
@@ -48,7 +48,7 @@ pub struct GameCursor {
   pub item: Option<NonNull<Entity>>,
   pub dc6_files: [usize; 7],
   pub id: CursorId,
-  pub frame: FixedU8,
+  pub frame: FU8,
   pub _padding: u32,
   pub last_move_time: u32,
   pub last_update_time: u32,

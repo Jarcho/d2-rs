@@ -1,6 +1,4 @@
-use crate::{
-  Bool32, ClientEnvEffects, ClientLoopGlobals, Cursor, EnvArray, FixedI4, FixedU8, GameType,
-};
+use crate::{Bool32, ClientEnvEffects, ClientLoopGlobals, Cursor, EnvArray, GameType, FI4, FU8};
 use core::{fmt, mem::transmute, ops::Index, ptr::NonNull};
 use windows_sys::{
   w,
@@ -182,7 +180,7 @@ decl_addresses! {
   /// The in-game cursor's state
   Client::game_cursor: NonNull<()>,
   /// The x-positions of the clouds in the Arreat Summit.
-  Client::summit_cloud_x_pos: NonNull<[FixedI4; 10]>,
+  Client::summit_cloud_x_pos: NonNull<[FI4; 10]>,
   /// Draw a one pixel thick line
   #ordinal Gfx::draw_line: unsafe extern "stdcall" fn(i32, i32, i32, i32, u8, u8),
   /// Gets the closest available color in the current palette
@@ -196,7 +194,7 @@ decl_addresses! {
   /// The maximum number of weather particles for the current frame.
   Client::max_weather_particles: NonNull<u32>,
   /// The angle the weather is currently moving
-  Client::weather_angle: NonNull<FixedU8>,
+  Client::weather_angle: NonNull<FU8>,
   // The speed the rain is currently moving at.
   Client::rain_speed: NonNull<f32>,
   /// Whether the current weather is snow

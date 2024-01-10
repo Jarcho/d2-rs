@@ -29,7 +29,7 @@ macro_rules! decl_id {
 }
 
 mod common;
-mod coord;
+pub mod coord;
 mod module;
 
 pub mod v100;
@@ -63,16 +63,23 @@ pub use crate::{
     GameCursor, GameType, Id16, Id8, InRoom, ItemHitClass, LinkedList, NgLvl, NpcSpawnTy, NpcState,
     ObjState, Pc, PcState, RgbColor, Rng, SkRange, StorePage, StrId,
   },
-  coord::{
-    FixedI12, FixedI16, FixedI4, FixedI7, FixedPoint, FixedU16, FixedU3, FixedU4, FixedU8, IsoPos,
-    LinearPos, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos, UnknownPos,
-  },
+  coord::{IsoPos, LinearPos, Measure, Pos, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos},
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };
 
+use common::dtbl::{AccByLvl3, AccByLvl5, ByNgLvl};
+use num::Fixed;
+
 pub type EnvArray = common::EnvArray<()>;
 
-use common::dtbl::{AccByLvl3, AccByLvl5, ByNgLvl};
+pub type FI16 = Fixed<i32, 16>;
+pub type FI12 = Fixed<i32, 12>;
+pub type FI7 = Fixed<i32, 7>;
+pub type FI4 = Fixed<i32, 4>;
+
+pub type FU16 = Fixed<u32, 16>;
+pub type FU8 = Fixed<u32, 8>;
+pub type FU4 = Fixed<u32, 4>;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
