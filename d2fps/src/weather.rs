@@ -57,6 +57,10 @@ pub(crate) unsafe fn update_weather(
       }
 
       particle.pos = particle.pos.wadd(env_shift);
+      particle.pos.x = particle
+        .pos
+        .x
+        .map(|x| (x.wrapping_add(view_size.width as i32) % view_size.width as i32).wrapping_abs());
 
       if particle.pos.y >= particle.end_y_pos || particle.pos.y < -20 {
         particle.at_end = true.into();
@@ -87,7 +91,7 @@ pub(crate) unsafe fn update_weather(
         let mut pos = particle.pos.wadd(delta);
 
         if is_snowing {
-          particle.pos.x = particle.pos.x.wadd(d2::Measure::new(
+          pos.x = pos.x.wadd(d2::Measure::new(
             (sync_instance
               .accessor
               .sin(d2::FU8::from_repr(SNOW_SIN_ANGLE.load(Relaxed)) + particle.angle)
@@ -95,12 +99,12 @@ pub(crate) unsafe fn update_weather(
           ));
         }
 
-        pos.x = pos.x.map(|x| {
+        ex.delta = particle.pos - pos;
+        ex.target_pos = pos;
+        particle.pos = pos + ex.delta.mul_trunc(fract);
+        particle.pos.x = particle.pos.x.map(|x| {
           (x.wrapping_add(view_size.width as i32) % view_size.width as i32).wrapping_abs()
         });
-        ex.target_pos = pos;
-        ex.delta = particle.pos - pos;
-        particle.pos = pos + ex.delta.mul_trunc(fract);
       }
     }
     i += 1;
@@ -116,6 +120,7 @@ pub(crate) unsafe fn apply_weather_delta(
 ) {
   let particles = (*sync_instance.accessor.env_effects).particles;
   let fract = d2::FI16::wfrom(1) - sync_instance.unit_movement_fract;
+  let view_size = sync_instance.accessor.viewport_size();
 
   let mut ptr = (*particles).data.as_ptr();
   let mut i = 0;
@@ -132,6 +137,9 @@ pub(crate) unsafe fn apply_weather_delta(
       if ex.delta.x != 0 || ex.delta.y != 0 {
         ex.target_pos = ex.target_pos.wadd(env_shift);
         particle.pos = ex.target_pos + ex.delta.mul_trunc(fract);
+        particle.pos.x = particle.pos.x.map(|x| {
+          (x.wrapping_add(view_size.width as i32) % view_size.width as i32).wrapping_abs()
+        });
       }
     }
 
