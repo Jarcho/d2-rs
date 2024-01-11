@@ -7,6 +7,8 @@ use num::{MulTrunc, WrappingAdd, WrappingFrom};
 pub(crate) struct Particle {
   target_pos: d2::ScreenPos<i32>,
   delta: d2::ScreenPos<i32>,
+  target_alpha: u8,
+  delta_alpha: i32,
 }
 
 pub(crate) unsafe fn update_weather(
@@ -54,9 +56,15 @@ pub(crate) unsafe fn update_weather(
 
       if ex.delta.x != 0 || ex.delta.y != 0 {
         particle.pos = ex.target_pos;
+        ex.delta_alpha = 0;
+      } else {
+        ex.target_alpha = particle.alpha;
+        ex.delta_alpha = -(particle.alpha as i32);
+        particle.alpha = 0;
       }
 
       particle.pos = particle.pos.wadd(env_shift);
+      particle.end_y_pos = particle.end_y_pos.wadd(env_shift.y);
       particle.pos.x = particle
         .pos
         .x
@@ -64,8 +72,11 @@ pub(crate) unsafe fn update_weather(
 
       if particle.pos.y >= particle.end_y_pos || particle.pos.y < -20 {
         particle.at_end = true.into();
-        particle.speed = 0;
-        ex.delta = d2::Pos::default();
+        if !is_snowing {
+          particle.speed = 0;
+        }
+        ex.target_alpha = 0;
+        ex.delta_alpha = particle.alpha as i32 / 2;
       }
 
       if particle.at_end.bool() {
@@ -77,21 +88,22 @@ pub(crate) unsafe fn update_weather(
             .env_array_remove(particles.cast(), (i << 16) as u32);
           if (*particles).active_count < (*sync_instance.accessor.max_weather_particles) {
             sync_instance.accessor.gen_weather_particle(rng);
+            ex.delta_alpha = -(particle.alpha as i32);
+            ex.target_alpha = particle.alpha;
           }
         }
       }
 
       let particle = &mut *ptr;
-      if !particle.at_end.bool() {
+      if particle.active.bool() {
         let speed = particle.speed as f64 * speed_mod;
-        let delta = d2::ScreenPos::new(
+        let mut delta = d2::ScreenPos::new(
           d2::Measure::new((angle_cos * speed) as i32),
           d2::Measure::new((angle_sin * speed) as i32),
         );
-        let mut pos = particle.pos.wadd(delta);
 
         if is_snowing {
-          pos.x = pos.x.wadd(d2::Measure::new(
+          delta.x = delta.x.wadd(d2::Measure::new(
             (sync_instance
               .accessor
               .sin(d2::FU8::from_repr(SNOW_SIN_ANGLE.load(Relaxed)) + particle.angle)
@@ -99,12 +111,16 @@ pub(crate) unsafe fn update_weather(
           ));
         }
 
-        ex.delta = particle.pos - pos;
-        ex.target_pos = pos;
-        particle.pos = pos + ex.delta.mul_trunc(fract);
+        ex.target_pos = particle.pos.wadd(delta);
+        ex.delta = -delta;
+        particle.pos = ex.target_pos + ex.delta.mul_trunc(fract);
         particle.pos.x = particle.pos.x.map(|x| {
           (x.wrapping_add(view_size.width as i32) % view_size.width as i32).wrapping_abs()
         });
+
+        if is_snowing {
+          particle.alpha = (ex.target_alpha as i32 + ex.delta_alpha.mul_trunc(fract)) as u8;
+        }
       }
     }
     i += 1;
@@ -121,12 +137,13 @@ pub(crate) unsafe fn apply_weather_delta(
   let particles = (*sync_instance.accessor.env_effects).particles;
   let fract = d2::FI16::wfrom(1) - sync_instance.unit_movement_fract;
   let view_size = sync_instance.accessor.viewport_size();
+  let is_snowing = sync_instance.accessor.is_snowing();
 
   let mut ptr = (*particles).data.as_ptr();
   let mut i = 0;
   while i <= (*particles).last_active_idx {
     let particle = &mut *ptr;
-    if particle.active.bool() && !particle.at_end.bool() {
+    if particle.active.bool() {
       particle.pos += env_shift;
 
       let Some(ex) = sync_instance.weather_particles.get_mut(i as usize) else {
@@ -140,6 +157,9 @@ pub(crate) unsafe fn apply_weather_delta(
         particle.pos.x = particle.pos.x.map(|x| {
           (x.wrapping_add(view_size.width as i32) % view_size.width as i32).wrapping_abs()
         });
+      }
+      if is_snowing {
+        particle.alpha = (ex.target_alpha as i32 + ex.delta_alpha.mul_trunc(fract)) as u8;
       }
     }
 

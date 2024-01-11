@@ -3,7 +3,7 @@ use core::{
   cmp::Ordering,
   fmt,
   marker::PhantomData,
-  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
+  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 use num::{
   Fixed, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul, WrappingSub,
@@ -97,6 +97,13 @@ impl<T: PartialOrd, S> PartialOrd<T> for Measure<T, S> {
   }
 }
 
+impl<T: Neg, S> Neg for Measure<T, S> {
+  type Output = Measure<T::Output, S>;
+  fn neg(self) -> Self::Output {
+    Measure::new(-self.0)
+  }
+}
+
 impl_op!(Add, Measure<S>, Measure<U, S>, add, (0, 0));
 impl_op!(Sub, Measure<S>, Measure<U, S>, sub, (0, 0));
 impl_op!(Mul, Measure<S>, U, mul, (0,));
@@ -150,6 +157,13 @@ impl<T: PartialEq<U>, U> PartialEq<Pos<U>> for Pos<T> {
 impl<T: WrappingFrom<U>, U> WrappingFrom<Pos<U>> for Pos<T> {
   fn wfrom(x: Pos<U>) -> Self {
     Pos::new(x.x.winto(), x.y.winto())
+  }
+}
+
+impl<T: Neg> Neg for Pos<T> {
+  type Output = Pos<T::Output>;
+  fn neg(self) -> Self::Output {
+    Pos::new(-self.x, -self.y)
   }
 }
 
