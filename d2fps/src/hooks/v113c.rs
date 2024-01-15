@@ -73,7 +73,7 @@ pub(super) const HOOKS: Hooks = Hooks {
       d2::Module::Client,
       &[
         // Game loop sleep patch
-        Patch::call_c(0x3cb7c, patch_source!("
+        Patch::call_c_at(0x3cb7c, patch_source!("
           a1 $604aba6f
           85c0
           7517
@@ -84,11 +84,11 @@ pub(super) const HOOKS: Hooks = Hooks {
           xx08
           6a0a
           ff15 $a0efb76f
-        "), game_loop_sleep_hook),
+        "), game_loop_sleep_hook, 9),
         // Draw paused game framerate
         Patch::call_c(0x44bc5, patch_source!("ff15 $e497bc6f"), draw_game_paused),
         // Draw game framerate & entity sync
-        Patch::call_c(0x44e51, patch_source!("
+        Patch::call_c_at(0x44e51, patch_source!("
           xxxxxxxxxxxx
           xxxx
           a1 $fcbbbc6f
@@ -110,7 +110,7 @@ pub(super) const HOOKS: Hooks = Hooks {
           395c2410
           7406
           ff05 $1498bc6f
-        "), draw_game::<Entity>),
+        "), draw_game::<Entity>, 8),
       ],
     )],
     &[

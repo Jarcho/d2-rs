@@ -55,7 +55,10 @@ impl Drop for MemUnlock {
 }
 
 enum PatchData {
-  Target(unsafe extern "C" fn()),
+  Target {
+    target: unsafe extern "C" fn(),
+    offset: u16,
+  },
   Raw(&'static [u8]),
 }
 
@@ -80,7 +83,28 @@ impl Patch {
       len,
       hash,
       control_stream,
-      data: PatchData::Target(unsafe { transmute(target) }),
+      data: PatchData::Target { target: unsafe { transmute(target) }, offset: 0 },
+    }
+  }
+
+  /// Create a patch which replaces the referenced code with a call to a `cdecl`
+  /// function taking zero arguments. Places the call at the end of the patched
+  /// location.
+  pub const fn call_c_at<R>(
+    offset: usize,
+    (len, hash, control_stream): (u16, u32, &'static [u8]),
+    target: unsafe extern "C" fn() -> R,
+    call_offset: u16,
+  ) -> Self {
+    Self {
+      offset,
+      len,
+      hash,
+      control_stream,
+      data: PatchData::Target {
+        target: unsafe { transmute(target) },
+        offset: call_offset,
+      },
     }
   }
 
@@ -96,7 +120,7 @@ impl Patch {
       len,
       hash,
       control_stream,
-      data: PatchData::Target(unsafe { transmute(target) }),
+      data: PatchData::Target { target: unsafe { transmute(target) }, offset: 0 },
     }
   }
 
@@ -188,7 +212,7 @@ impl Patch {
 
     // Write the patch data.
     match self.data {
-      PatchData::Target(target) => {
+      PatchData::Target { target, offset: 0 } => {
         let (head, tail) = slice.split_at_mut(5);
         head[0] = 0xe8;
         head
@@ -196,6 +220,16 @@ impl Patch {
           .offset(1)
           .cast::<i32>()
           .write_unaligned(((target as usize).wrapping_sub(address as usize + 5)) as i32);
+        slice = tail;
+      }
+      PatchData::Target { target, offset } => {
+        let (head, rest) = slice.split_at_mut(offset as usize);
+        let (call, tail) = rest.split_at_mut(5);
+        head.fill(0x90);
+        call[0] = 0xe8;
+        call.as_mut_ptr().offset(1).cast::<i32>().write_unaligned(
+          ((target as usize).wrapping_sub(address as usize + offset as usize + 5)) as i32,
+        );
         slice = tail;
       }
       PatchData::Raw(data) => {
@@ -213,7 +247,7 @@ impl Patch {
         .cast::<u32>()
         .write_unaligned(slice.len() as u32 - 5);
       slice[5..].fill(0x90);
-    } else if slice.len() > 32 {
+    } else if slice.len() > 16 {
       slice[0] = 0xeb;
       slice[1] = (slice.len() - 2) as u8;
       slice[2..].fill(0x90);
