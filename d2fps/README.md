@@ -14,24 +14,6 @@ D2fps is a multi-version framerate unlocker for Diablo II.
 
 Supports almost all Diablo II versions and all video modes. The following versions are currently *not* supported: `1.04`, `1.09c`, `1.10b`, `1.10s`, `1.13a`, `1.13b`, `1.14a`, `1.14b`
 
-### BaseMod
-
-Disable `BypassFPS` in `BaseMod.ini`:
-
-```ini
-[BypassFPS]
-Enabled=0
-```
-
-### MapHack (BH.dll)
-
-Disable `Apply CPU Patch` and `Apply FPS Patch` in `BH.cfg`:
-
-```none
-Apply CPU Patch: False
-Apply FPS Patch: False
-```
-
 ### Others
 
 There is some compatibility for patching over other framerate and CPU-use patches as well as re-patching after the game has loaded. There is no guarantee this will work so it's best to disable them if possible.

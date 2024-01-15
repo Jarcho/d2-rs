@@ -1,3 +1,21 @@
+# Version 1.0.1 (2024-01-14)
+
+## Compatibility
+
+* Make compatible with BaseMod without disabling it's FPS patch.
+* Make compatible with BH (maphack) without disabling it's FPS and CPU-use patches.
+* Various others when applied over top of d2fps's patches.
+
+## Improvements
+
+* Don't let weather particles fall forever when running downwards.
+* Fade snow particles in and out.
+
+## Bug fixes
+
+* Don't hang the game on exit on Win7.
+* Smoothen the waving motion of falling snow.
+
 # Version 1.0 (2024-01-08)
 
 First release.
