@@ -7,6 +7,8 @@ use std::{
   time::Duration,
 };
 
+use crate::util::message_box_error;
+
 pub struct Logger {
   send: Sender<String>,
   recv: Receiver<String>,
@@ -48,6 +50,7 @@ impl Logger {
                 match recv.recv_timeout(Duration::from_secs(1)) {
                   Ok(msg) => {
                     if msg.is_empty() {
+                      message_box_error("log");
                       return;
                     } else {
                       let _ = writeln!(file, "{msg}");
@@ -96,12 +99,4 @@ fn logger() -> &'static Logger {
 
 pub fn log(f: impl FnOnce(&mut String)) {
   logger().log(f);
-}
-
-pub fn shutdown() {
-  if let Some(log) = LOGGER.get() {
-    log.send.send(String::new()).unwrap();
-    // Just hope this is long enough...
-    thread::sleep(Duration::from_millis(100));
-  }
 }

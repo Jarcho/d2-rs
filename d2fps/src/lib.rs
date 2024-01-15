@@ -29,7 +29,7 @@ use windows_sys::Win32::{
       GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
     },
     Performance::QueryPerformanceCounter,
-    SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
+    SystemServices::DLL_PROCESS_ATTACH,
   },
 };
 
@@ -169,48 +169,42 @@ static INSTANCE: Instance = Instance {
 
 #[no_mangle]
 pub extern "system" fn DllMain(module: HMODULE, reason: u32, _: *mut c_void) -> BOOL {
-  match reason {
-    DLL_PROCESS_ATTACH => {
-      // Should never fail starting with Windows XP
-      if !INSTANCE.perf_freq.init() {
-        return FALSE;
+  if reason == DLL_PROCESS_ATTACH {
+    // Should never fail starting with Windows XP
+    if !INSTANCE.perf_freq.init() {
+      return FALSE;
+    };
+
+    // Prevent the library from unloading. Patched game code and the logging
+    // thread would error otherwise.
+    unsafe {
+      GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        module as *const u16,
+        &mut 0,
+      );
+    }
+
+    set_hook(Box::new(|info| {
+      let msg: &str = if let Some(s) = info.payload().downcast_ref::<&str>() {
+        s
+      } else if let Some(s) = info.payload().downcast_ref::<String>() {
+        s
+      } else {
+        "Unknown D2fps error"
       };
-
-      // Prevent the library from unloading. Patched game code and the logging
-      // thread would error otherwise.
-      unsafe {
-        GetModuleHandleExW(
-          GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-          module as *const u16,
-          &mut 0,
-        );
-      }
-
-      set_hook(Box::new(|info| {
-        let msg: &str = if let Some(s) = info.payload().downcast_ref::<&str>() {
-          s
-        } else if let Some(s) = info.payload().downcast_ref::<String>() {
-          s
-        } else {
-          "Unknown D2fps error"
-        };
-        let msg = if let Some(l) = info.location() {
-          let mut msg = format!("Error at {}\n{}", l, msg);
-          if let Some(p) = msg.find('\0') {
-            msg.truncate(p)
-          }
-          msg
-        } else {
-          msg.into()
-        };
-        log!("D2fps Error: {msg}");
-        message_box_error(&msg);
-      }));
-    }
-    DLL_PROCESS_DETACH => {
-      crate::logger::shutdown();
-    }
-    _ => {}
+      let msg = if let Some(l) = info.location() {
+        let mut msg = format!("Error at {}\n{}", l, msg);
+        if let Some(p) = msg.find('\0') {
+          msg.truncate(p)
+        }
+        msg
+      } else {
+        msg.into()
+      };
+      log!("D2fps Error: {msg}");
+      message_box_error(&msg);
+    }));
   }
 
   TRUE
