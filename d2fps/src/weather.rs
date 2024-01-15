@@ -95,7 +95,7 @@ pub(crate) unsafe fn update_weather(
       }
 
       let particle = &mut *ptr;
-      if particle.active.bool() {
+      if particle.active.bool() && (is_snowing || !particle.at_end.bool()) {
         let speed = particle.speed as f64 * speed_mod;
         let mut delta = d2::ScreenPos::new(
           d2::Measure::new((angle_cos * speed) as i32),
