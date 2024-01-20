@@ -1,12 +1,11 @@
 use crate::Range;
 use core::{
-  cmp::Ordering,
   fmt,
-  marker::PhantomData,
   ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 use num::{
-  Fixed, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul, WrappingSub,
+  Fixed, Measure, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
+  WrappingSub,
 };
 
 macro_rules! impl_op {
@@ -51,73 +50,6 @@ pub struct ScreenSys;
 /// The coordinate system used to position entities on tiles.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TileSys;
-
-#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct Measure<T, S>(pub T, PhantomData<S>);
-impl<T, S> Measure<T, S> {
-  pub const fn new(x: T) -> Self {
-    Self(x, PhantomData)
-  }
-
-  pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Measure<U, S> {
-    Measure::new(f(self.0))
-  }
-
-  pub fn with_sys<S2>(self) -> Measure<T, S2> {
-    Measure::new(self.0)
-  }
-}
-
-impl<T: fmt::Debug, S> fmt::Debug for Measure<T, S> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    self.0.fmt(f)
-  }
-}
-impl<T: fmt::Display, S> fmt::Display for Measure<T, S> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    self.0.fmt(f)
-  }
-}
-
-impl<T: WrappingFrom<U>, U, S> WrappingFrom<Measure<U, S>> for Measure<T, S> {
-  fn wfrom(x: Measure<U, S>) -> Self {
-    Self::new(x.0.winto())
-  }
-}
-
-impl<T: PartialEq, S> PartialEq<T> for Measure<T, S> {
-  fn eq(&self, other: &T) -> bool {
-    self.0 == *other
-  }
-}
-impl<T: PartialOrd, S> PartialOrd<T> for Measure<T, S> {
-  fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-    self.0.partial_cmp(other)
-  }
-}
-
-impl<T: Neg, S> Neg for Measure<T, S> {
-  type Output = Measure<T::Output, S>;
-  fn neg(self) -> Self::Output {
-    Measure::new(-self.0)
-  }
-}
-
-impl_op!(Add, Measure<S>, Measure<U, S>, add, (0, 0));
-impl_op!(Sub, Measure<S>, Measure<U, S>, sub, (0, 0));
-impl_op!(Mul, Measure<S>, U, mul, (0,));
-impl_op!(MulTrunc, Measure<S>, U, mul_trunc, (0,));
-impl_op!(Div, Measure<S>, U, div, (0,));
-impl_op!(WrappingAdd, Measure<S>, Measure<U, S>, wadd, (0, 0));
-impl_op!(WrappingSub, Measure<S>, Measure<U, S>, wsub, (0, 0));
-impl_op!(WrappingMul, Measure<S>, U, wmul, (0,));
-impl_op!(WrappingDiv, Measure<S>, U, wdiv, (0,));
-
-impl_op_assign!(AddAssign, Measure<S>, Measure<U, S>, add_assign, (0, 0));
-impl_op_assign!(SubAssign, Measure<S>, Measure<U, S>, sub_assign, (0, 0));
-impl_op_assign!(MulAssign, Measure<S>, U, mul_assign, (0,));
-impl_op_assign!(DivAssign, Measure<S>, U, div_assign, (0,));
 
 /// A two dimensional position in a specific coordinate system.
 #[derive(Default, Clone, Copy, Eq)]

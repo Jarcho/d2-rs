@@ -1,5 +1,6 @@
-use crate::{coord::ScreenSys, Measure, Pos, ScreenPos, FU8};
+use crate::{coord::ScreenSys, Pos, ScreenPos, FU8};
 use core::{iter, marker::PhantomData, ops, ptr::NonNull, slice};
+use num::Measure;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

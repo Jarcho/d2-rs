@@ -18,6 +18,7 @@ use core::{
 };
 use d2interface as d2;
 use fxhash::{FxBuildHasher, FxHashMap as HashMap, FxHashSet as HashSet};
+use num::Measure;
 use parking_lot::Mutex;
 use rand::SeedableRng;
 use std::{panic::set_hook, sync::atomic::AtomicU64};
@@ -146,7 +147,7 @@ static INSTANCE: Instance = Instance {
     game_update_time_ms: 0,
     game_update_time: 0,
     client_update_count: 0,
-    player_pos: d2::IsoPos::new(d2::Measure::new(0), d2::Measure::new(0)),
+    player_pos: d2::IsoPos::new(Measure::new(0), Measure::new(0)),
     unit_movement_fract: d2::FI16::from_repr(0),
     weather_particles: Vec::new(),
     reapply_patches: None,

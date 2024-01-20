@@ -63,7 +63,7 @@ pub use crate::{
     GameCursor, GameType, Id16, Id8, InRoom, ItemHitClass, LinkedList, NgLvl, NpcSpawnTy, NpcState,
     ObjState, Pc, PcState, RgbColor, Rng, SkRange, StorePage, StrId,
   },
-  coord::{IsoPos, LinearPos, Measure, Pos, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos},
+  coord::{IsoPos, LinearPos, Pos, ScreenPos, ScreenRectLr, ScreenRectS, Size, TilePos},
   module::{Addresses, BaseAddresses, Client, Common, Game, Gfx, Module, Modules, Win},
 };
 

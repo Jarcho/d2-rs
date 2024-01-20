@@ -1,7 +1,7 @@
 use crate::InstanceSync;
 use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
 use d2interface as d2;
-use num::{MulTrunc, WrappingAdd, WrappingFrom};
+use num::{Measure, MulTrunc, WrappingAdd, WrappingFrom};
 
 #[derive(Default, Clone, Copy)]
 pub(crate) struct Particle {
@@ -98,12 +98,12 @@ pub(crate) unsafe fn update_weather(
       if particle.active.bool() && (is_snowing || !particle.at_end.bool()) {
         let speed = particle.speed as f64 * speed_mod;
         let mut delta = d2::ScreenPos::new(
-          d2::Measure::new((angle_cos * speed) as i32),
-          d2::Measure::new((angle_sin * speed) as i32),
+          Measure::new((angle_cos * speed) as i32),
+          Measure::new((angle_sin * speed) as i32),
         );
 
         if is_snowing {
-          delta.x = delta.x.wadd(d2::Measure::new(
+          delta.x = delta.x.wadd(Measure::new(
             (sync_instance
               .accessor
               .sin(d2::FU8::from_repr(SNOW_SIN_ANGLE.load(Relaxed)) + particle.angle)

@@ -1,8 +1,10 @@
 #![no_std]
 
 mod fixed;
+mod measure;
 
 pub use fixed::Fixed;
+pub use measure::Measure;
 
 /// The addition operator, but wrapping on overflow.
 pub trait WrappingAdd<T = Self> {
