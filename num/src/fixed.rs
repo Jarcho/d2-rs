@@ -172,7 +172,7 @@ where
   type Output = Self;
   fn div(self, rhs: Self) -> Self::Output {
     Self(T::wfrom(
-      ((T::ExTy::wfrom(self.0) << (2 * N)) / T::ExTy::wfrom(rhs.0)) >> N,
+      (T::ExTy::wfrom(self.0) << N) / T::ExTy::wfrom(rhs.0),
     ))
   }
 }
