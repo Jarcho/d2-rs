@@ -4,46 +4,63 @@ mod fixed;
 
 pub use fixed::Fixed;
 
+/// The addition operator, but wrapping on overflow.
 pub trait WrappingAdd<T = Self> {
   type Output;
   fn wadd(self, rhs: T) -> Self::Output;
 }
 
+/// The subtraction operator, but wrapping on overflow.
 pub trait WrappingSub<T = Self> {
   type Output;
   fn wsub(self, rhs: T) -> Self::Output;
 }
 
+/// The multiplication operator, but wrapping on overflow.
 pub trait WrappingMul<T = Self> {
   type Output;
   fn wmul(self, rhs: T) -> Self::Output;
 }
 
+/// The division operator, but wrapping on overflow.
 pub trait WrappingDiv<T = Self> {
   type Output;
   fn wdiv(self, rhs: T) -> Self::Output;
 }
 
+/// The multiplication operator, but wrapping on overflow and truncating the
+/// result to the nearest whole number.
 pub trait MulTrunc<T = Self> {
   type Output;
   fn mul_trunc(self, rhs: T) -> Self::Output;
 }
 
+/// Infallible numeric value conversion. Oversized values are wrapped into the
+/// target domain.
 pub trait WrappingFrom<T> {
   fn wfrom(_: T) -> Self;
 }
 
+/// The inverse of `WrappingFrom`.
 pub trait WrappingInto<T> {
   fn winto(self) -> T;
 }
 impl<T: WrappingFrom<U>, U> WrappingInto<T> for U {
+  #[inline]
   fn winto(self) -> T {
     T::wfrom(self)
   }
 }
 
-pub trait ExPrecision {
-  type ExTy;
+/// The integer type one step larger than the current type.
+pub trait ExInt {
+  type ExInt;
+}
+
+/// The integer type with the largest size of two integer types, but the
+/// signedness of `Self`
+pub trait WithLargestBitSize<T> {
+  type Sized;
 }
 
 macro_rules! impl_core_op {
@@ -83,6 +100,7 @@ impl_core_ops!(usize);
 macro_rules! impl_wrapping_from {
   ($ty:ty, $($from_ty:ty),+) => {$(
     impl WrappingFrom<$from_ty> for $ty {
+      #[inline]
       fn wfrom(x: $from_ty) -> Self {
         x as $ty
       }
@@ -103,28 +121,122 @@ impl_wrapping_from!(u64, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128
 impl_wrapping_from!(u128, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_wrapping_from!(usize, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 
-macro_rules! impl_ex_prec {
+macro_rules! impl_ex_int {
   ($t:ty, $et:ty) => {
-    impl ExPrecision for $t {
-      type ExTy = $et;
+    impl ExInt for $t {
+      type ExInt = $et;
     }
   };
 }
 
-impl_ex_prec!(i8, i16);
-impl_ex_prec!(i16, i32);
-impl_ex_prec!(i32, i64);
-impl_ex_prec!(i64, i128);
+impl_ex_int!(i8, i16);
+impl_ex_int!(i16, i32);
+impl_ex_int!(i32, i64);
+impl_ex_int!(i64, i128);
 #[cfg(target_pointer_width = "32")]
-impl_ex_prec!(isize, i64);
+impl_ex_int!(isize, i64);
 #[cfg(target_pointer_width = "64")]
-impl_ex_prec!(isize, i128);
+impl_ex_int!(isize, i128);
 
-impl_ex_prec!(u8, u16);
-impl_ex_prec!(u16, u32);
-impl_ex_prec!(u32, u64);
-impl_ex_prec!(u64, u128);
+impl_ex_int!(u8, u16);
+impl_ex_int!(u16, u32);
+impl_ex_int!(u32, u64);
+impl_ex_int!(u64, u128);
 #[cfg(target_pointer_width = "32")]
-impl_ex_prec!(usize, u64);
+impl_ex_int!(usize, u64);
 #[cfg(target_pointer_width = "64")]
-impl_ex_prec!(usize, u128);
+impl_ex_int!(usize, u128);
+
+macro_rules! impl_with_largest_bit_size {
+  ($ty:ty) => {
+    impl WithLargestBitSize<$ty> for $ty {
+      type Sized = $ty;
+    }
+  };
+}
+macro_rules! impl_with_largest_bit_size2 {
+  ($ty:ty, $($ty2:ty),*) => {$(
+    impl WithLargestBitSize<$ty> for $ty2 {
+      type Sized = $ty2;
+    }
+    impl WithLargestBitSize<$ty2> for $ty {
+      type Sized = $ty2;
+    }
+  )*};
+}
+macro_rules! impl_with_largest_bit_size3 {
+  ($ty:ty, $(($ty2:ty, $res:ty)),*) => {$(
+    impl WithLargestBitSize<$ty> for $ty2 {
+      type Sized = $res;
+    }
+  )*};
+}
+
+impl_with_largest_bit_size!(i8);
+impl_with_largest_bit_size!(i16);
+impl_with_largest_bit_size!(i32);
+impl_with_largest_bit_size!(i64);
+impl_with_largest_bit_size!(i128);
+impl_with_largest_bit_size!(isize);
+impl_with_largest_bit_size!(u8);
+impl_with_largest_bit_size!(u16);
+impl_with_largest_bit_size!(u32);
+impl_with_largest_bit_size!(u64);
+impl_with_largest_bit_size!(u128);
+impl_with_largest_bit_size!(usize);
+
+impl_with_largest_bit_size2!(i8, i16, i32, isize, i64, i128);
+impl_with_largest_bit_size2!(i16, i32, isize, i64, i128);
+impl_with_largest_bit_size2!(i32, isize, i64, i128);
+impl_with_largest_bit_size2!(isize, i64, i128);
+impl_with_largest_bit_size2!(i64, i128);
+
+impl_with_largest_bit_size2!(u8, u16, u32, usize, u64, u128);
+impl_with_largest_bit_size2!(u16, u32, usize, u64, u128);
+impl_with_largest_bit_size2!(u32, usize, u64, u128);
+impl_with_largest_bit_size2!(usize, u64, u128);
+impl_with_largest_bit_size2!(u64, u128);
+
+impl_with_largest_bit_size3!(
+  i8,
+  (u8, i8),
+  (u16, i16),
+  (u32, i32),
+  (usize, isize),
+  (u64, i64),
+  (u128, i128)
+);
+impl_with_largest_bit_size3!(
+  i16,
+  (u16, i16),
+  (u32, i32),
+  (usize, isize),
+  (u64, i64),
+  (u128, i128)
+);
+impl_with_largest_bit_size3!(i32, (u32, i32), (usize, isize), (u64, i64), (u128, i128));
+impl_with_largest_bit_size3!(isize, (usize, isize), (u64, i64), (u128, i128));
+impl_with_largest_bit_size3!(i64, (u64, i64), (u128, i128));
+impl_with_largest_bit_size3!(i128, (u128, i128));
+
+impl_with_largest_bit_size3!(
+  u8,
+  (i8, u8),
+  (i16, u16),
+  (i32, u32),
+  (isize, usize),
+  (i64, u64),
+  (i128, u128)
+);
+impl_with_largest_bit_size3!(
+  u16,
+  (i16, u16),
+  (i32, u32),
+  (isize, usize),
+  (i64, u64),
+  (i128, u128)
+);
+impl_with_largest_bit_size3!(u32, (i32, u32), (isize, usize), (i64, u64), (i128, u128));
+impl_with_largest_bit_size3!(usize, (isize, usize), (i64, u64), (i128, u128));
+impl_with_largest_bit_size3!(u64, (i64, u64), (i128, u128));
+impl_with_largest_bit_size3!(u128, (i128, u128));

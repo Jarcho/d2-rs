@@ -1,6 +1,6 @@
 use crate::{
-  ExPrecision, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
-  WrappingSub,
+  ExInt, MulTrunc, WithLargestBitSize, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto,
+  WrappingMul, WrappingSub,
 };
 use core::{
   fmt,
@@ -52,24 +52,28 @@ impl<T: Into<f64>, const N: u8> From<Fixed<T, N>> for f64 {
 }
 impl<const N: u8> From<f64> for Fixed<u32, N> {
   fn from(x: f64) -> Self {
-    Self((x * 2u32.pow(N as u32) as f64) as u32)
+    Self((x * f64::from(1u32 << N as u32)) as u32)
   }
 }
 impl<const N: u8> From<f64> for Fixed<i32, N> {
   fn from(x: f64) -> Self {
-    Self((x * 2u32.pow(N as u32) as f64) as i32)
+    Self((x * f64::from(1u32 << N as u32)) as i32)
   }
 }
 
-impl<T: WrappingFrom<U>, U: Shl<u8, Output = U> + Shr<u8, Output = U>, const N: u8, const M: u8>
-  WrappingFrom<Fixed<U, M>> for Fixed<T, N>
+impl<T, U, const N: u8, const M: u8> WrappingFrom<Fixed<U, M>> for Fixed<T, N>
+where
+  T: WithLargestBitSize<U> + WrappingFrom<T::Sized>,
+  T::Sized: Shl<u8, Output = T::Sized> + Shr<u8, Output = T::Sized> + WrappingFrom<U>,
 {
+  #[inline]
   fn wfrom(x: Fixed<U, M>) -> Self {
-    Self(x.with_prec::<N>().0.winto())
+    Self(Fixed::<_, M>(T::Sized::wfrom(x.0)).with_prec::<N>().0.winto())
   }
 }
 
 impl<T: Shl<u8, Output = T>, const N: u8> WrappingFrom<T> for Fixed<T, N> {
+  #[inline]
   fn wfrom(x: T) -> Self {
     Self(x << N)
   }
@@ -152,49 +156,51 @@ impl<T: Neg<Output = T>, const N: u8> Neg for Fixed<T, N> {
   }
 }
 
-impl<T: ExPrecision + WrappingFrom<T::ExTy>, const N: u8> Mul for Fixed<T, N>
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> Mul for Fixed<T, N>
 where
-  T::ExTy: Mul<Output = T::ExTy> + Shr<u8, Output = T::ExTy> + WrappingFrom<T>,
+  T::ExInt: Mul<Output = T::ExInt> + Shr<u8, Output = T::ExInt> + WrappingFrom<T>,
 {
   type Output = Self;
   fn mul(self, rhs: Self) -> Self::Output {
     Self(T::wfrom(
-      (T::ExTy::wfrom(self.0) * T::ExTy::wfrom(rhs.0)) >> N,
+      (T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs.0)) >> N,
     ))
   }
 }
 
-impl<T: ExPrecision + WrappingFrom<T::ExTy>, const N: u8> Div for Fixed<T, N>
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> Div for Fixed<T, N>
 where
-  T::ExTy:
-    Div<Output = T::ExTy> + Shl<u8, Output = T::ExTy> + Shr<u8, Output = T::ExTy> + WrappingFrom<T>,
+  T::ExInt: Div<Output = T::ExInt>
+    + Shl<u8, Output = T::ExInt>
+    + Shr<u8, Output = T::ExInt>
+    + WrappingFrom<T>,
 {
   type Output = Self;
   fn div(self, rhs: Self) -> Self::Output {
     Self(T::wfrom(
-      (T::ExTy::wfrom(self.0) << N) / T::ExTy::wfrom(rhs.0),
+      (T::ExInt::wfrom(self.0) << N) / T::ExInt::wfrom(rhs.0),
     ))
   }
 }
 
-impl<T: ExPrecision + WrappingFrom<T::ExTy>, const N: u8, const M: u8> MulTrunc<Fixed<T, M>>
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8, const M: u8> MulTrunc<Fixed<T, M>>
   for Fixed<T, N>
 where
-  T::ExTy: Mul<Output = T::ExTy> + Shr<u8, Output = T::ExTy> + WrappingFrom<T>,
+  T::ExInt: Mul<Output = T::ExInt> + Shr<u8, Output = T::ExInt> + WrappingFrom<T>,
 {
   type Output = T;
   fn mul_trunc(self, rhs: Fixed<T, M>) -> Self::Output {
-    T::wfrom((T::ExTy::wfrom(self.0) * T::ExTy::wfrom(rhs.0)) >> (N + M))
+    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs.0)) >> (N + M))
   }
 }
 
-impl<T: ExPrecision + WrappingFrom<T::ExTy>, const N: u8> MulTrunc<T> for Fixed<T, N>
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> MulTrunc<T> for Fixed<T, N>
 where
-  T::ExTy: Mul<Output = T::ExTy> + Shr<u8, Output = T::ExTy> + WrappingFrom<T>,
+  T::ExInt: Mul<Output = T::ExInt> + Shr<u8, Output = T::ExInt> + WrappingFrom<T>,
 {
   type Output = T;
   fn mul_trunc(self, rhs: T) -> Self::Output {
-    T::wfrom((T::ExTy::wfrom(self.0) * T::ExTy::wfrom(rhs)) >> N)
+    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs)) >> N)
   }
 }
 
