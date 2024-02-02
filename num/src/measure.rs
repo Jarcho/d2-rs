@@ -2,6 +2,7 @@ use crate::{
   CheckedAdd, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
   WrappingSub,
 };
+use bytemuck::TransparentWrapper;
 use core::{
   cmp::Ordering,
   fmt,
@@ -156,3 +157,5 @@ impl_op_assign!(AddAssign<Measure<U, S>>, add_assign, .0);
 impl_op_assign!(SubAssign<Measure<U, S>>, sub_assign, .0);
 impl_op_assign!(MulAssign<U>, mul_assign);
 impl_op_assign!(DivAssign<U>, div_assign);
+
+unsafe impl<T, S> TransparentWrapper<T> for Measure<T, S> {}

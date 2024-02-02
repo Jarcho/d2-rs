@@ -2,6 +2,7 @@ use crate::{
   CheckedAdd, ExInt, MulTrunc, WithLargestBitSize, WrappingAdd, WrappingDiv, WrappingFrom,
   WrappingInto, WrappingMul, WrappingSub,
 };
+use bytemuck::TransparentWrapper;
 use core::{
   fmt,
   ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Shl, Shr, Sub, SubAssign},
@@ -246,3 +247,5 @@ where
     <Self as fmt::Display>::fmt(self, f)
   }
 }
+
+unsafe impl<T, const N: u8> TransparentWrapper<T> for Fixed<T, N> {}
