@@ -247,7 +247,7 @@ where
   type Output = T;
   #[inline]
   fn mul_trunc(self, rhs: Fixed<T, M>) -> Self::Output {
-    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs.0)) >> ((N + M) * 2))
+    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs.0)) >> (N + M))
   }
 }
 
@@ -258,7 +258,7 @@ where
   type Output = T;
   #[inline]
   fn mul_trunc(self, rhs: T) -> Self::Output {
-    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs)) >> (N * 2))
+    T::wfrom((T::ExInt::wfrom(self.0) * T::ExInt::wfrom(rhs)) >> N)
   }
 }
 
