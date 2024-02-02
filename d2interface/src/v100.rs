@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, IsoPos, LinearPos, LinkedList,
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, IsoP2d, LinearM2d, LinkedList,
   Rng, FU16,
 };
 use core::ptr::NonNull;
@@ -52,9 +52,9 @@ pub struct Room {}
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FU16>,
-  pub iso_pos: IsoPos<i32>,
-  pub target_pos: [LinearPos<u16>; 3],
+  pub linear_pos: LinearM2d<FU16>,
+  pub iso_pos: IsoP2d<i32>,
+  pub target_pos: [LinearM2d<u16>; 3],
   pub room: Option<NonNull<Room>>,
   pub _padding1: [u32; 4],
   pub entity: NonNull<Entity>,
@@ -62,8 +62,8 @@ pub struct DyPos {
 
 #[repr(C)]
 pub struct StaticPos {
-  pub iso_pos: IsoPos<i32>,
-  pub linear_pos: LinearPos<u32>,
+  pub iso_pos: IsoP2d<i32>,
+  pub linear_pos: LinearM2d<u32>,
   pub _padding1: [u32; 3],
   pub room: Option<NonNull<Room>>,
 }
@@ -124,9 +124,10 @@ pub mod dtbl {
       ByComponent, ByEqComponent, ByNgLvl, ByNpcState, ByObjState, I32Code, ItemCode, ItemTyCode,
       Lvl, Missile, Npc, NpcTy, Skill, StartItem,
     },
-    ArmorTy, BodyLoc, Component, ElTy, Id16, Id8, NpcSpawnTy, NpcState, Range, RgbColor, ScreenPos,
-    ScreenRectLr, ScreenRectS, Size, StrId, TilePos, FI12, FI7,
+    ArmorTy, BodyLoc, Component, ElTy, Id16, Id8, NpcSpawnTy, NpcState, Range, RgbColor, ScreenM2d,
+    ScreenRectLr, ScreenRectS, StrId, TileM2d, FI12, FI7,
   };
+  use num::M2d;
 
   #[repr(C)]
   pub struct BeltLayoutDef {
@@ -241,29 +242,29 @@ pub mod dtbl {
   #[repr(C)]
   pub struct InvLayoutDef {
     pub pos: ScreenRectLr<u32>,
-    pub grid_size: Size<u8>,
+    pub grid_size: M2d<u8>,
     pub grid_pos: ScreenRectLr<u32>,
-    pub grid_box_size: Size<u8>,
+    pub grid_box_size: M2d<u8>,
     pub rarm_pos: ScreenRectLr<u32>,
-    pub rarm_size: Size<u8>,
+    pub rarm_size: M2d<u8>,
     pub torso_pos: ScreenRectLr<u32>,
-    pub torso_size: Size<u8>,
+    pub torso_size: M2d<u8>,
     pub larm_pos: ScreenRectLr<u32>,
-    pub larm_width: Size<u8>,
+    pub larm_width: M2d<u8>,
     pub head_pos: ScreenRectLr<u32>,
-    pub head_size: Size<u8>,
+    pub head_size: M2d<u8>,
     pub neck_pos: ScreenRectLr<u32>,
-    pub neck_size: Size<u8>,
+    pub neck_size: M2d<u8>,
     pub rhand_pos: ScreenRectLr<u32>,
-    pub rhand_size: Size<u8>,
+    pub rhand_size: M2d<u8>,
     pub lhand_pos: ScreenRectLr<u32>,
-    pub lhand_size: Size<u8>,
+    pub lhand_size: M2d<u8>,
     pub belt_pos: ScreenRectLr<u32>,
-    pub belt_size: Size<u8>,
+    pub belt_size: M2d<u8>,
     pub feet_pos: ScreenRectLr<u32>,
-    pub feet_size: Size<u8>,
+    pub feet_size: M2d<u8>,
     pub gloves_pos: ScreenRectLr<u32>,
-    pub gloves_size: Size<u8>,
+    pub gloves_size: M2d<u8>,
   }
 
   #[repr(C)]
@@ -299,7 +300,7 @@ pub mod dtbl {
     pub req_str: u8,
     pub req_dex: u8,
     pub absorbs: u8,
-    pub inv_size: Size<u8>,
+    pub inv_size: M2d<u8>,
     pub block: u8,
     pub durability: u8,
     pub indestructible: u8,
@@ -444,8 +445,8 @@ pub mod dtbl {
   #[repr(C)]
   pub struct LvlWarpDef {
     pub select: ScreenRectS<i32, i32>,
-    pub exit_walk: TilePos<i32>,
-    pub offset: TilePos<i32>,
+    pub exit_walk: TileM2d<i32>,
+    pub offset: TileM2d<i32>,
     pub lit_version: i32,
   }
 
@@ -490,7 +491,7 @@ pub mod dtbl {
   pub struct MazeLvlDef {
     pub lvl: Lvl,
     pub rooms: i32,
-    pub room_size: Size<u32>,
+    pub room_size: M2d<u32>,
     pub merge: i32,
   }
 
@@ -564,7 +565,7 @@ pub mod dtbl {
     pub code: [u8; 5],
     pub hp: Range<ByNgLvl<i32>>,
     pub no_map: u8,
-    pub size: Size<i32>,
+    pub size: M2d<i32>,
     pub height: u8,
     pub overlay_height: u8,
     pub walk_speed: i32,
@@ -667,8 +668,7 @@ pub mod dtbl {
     pub blood_local: u8,
     pub does_dmg_on_death: u8,
     pub no_gfx_hit_test: u8,
-    pub hit_test_ul_pos: ScreenPos<i32>,
-    pub hit_test_size: Size<u8>,
+    pub hit_test_rect: ScreenRectS<i32, u8>,
   }
 
   #[repr(C)]
@@ -694,7 +694,7 @@ pub mod dtbl {
     pub spawn_max: u8,
     pub selectable: ByObjState<u8>,
     pub trap_prob: u8,
-    pub size: Size<i32>,
+    pub size: M2d<i32>,
     pub frame_count: ByObjState<i32>,
     pub frame_rate: ByObjState<i32>,
     pub loop_anim: ByObjState<u8>,
@@ -711,7 +711,7 @@ pub mod dtbl {
     pub pre_operate: u8,
     pub trans: u8,
     pub has_states: ByObjState<u8>,
-    pub offset: ScreenPos<i32>,
+    pub offset: ScreenM2d<i32>,
     pub draw: u8,
     pub has_components: ByComponent<u8>,
     pub component_count: u8,
@@ -772,7 +772,7 @@ pub mod dtbl {
     pub dir: u8,
     pub open: u8,
     pub beta: u8,
-    pub offset: ScreenPos<i32>,
+    pub offset: ScreenM2d<i32>,
     pub height: [i32; 4],
     pub anim_rate: i32,
     pub init_radius: i32,
@@ -825,7 +825,7 @@ pub mod dtbl {
     pub kill_edge: i32,
     pub fill_blanks: i32,
     pub _pad0: [u8; 4],
-    pub size: Size<u32>,
+    pub size: M2d<u32>,
     pub revealed_map: i32,
     pub scan: i32,
     pub pops: i32,

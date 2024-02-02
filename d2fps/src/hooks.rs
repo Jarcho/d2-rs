@@ -9,10 +9,9 @@ use core::{
   ptr::{null, null_mut, NonNull},
   sync::atomic::Ordering::Relaxed,
 };
-use d2::CursorId;
-use d2interface as d2;
+use d2interface::{self as d2, IntoSys};
 use fxhash::FxHashSet as HashSet;
-use num::{WrappingAdd, WrappingInto, WrappingSub};
+use num::{M2d, WrappingAdd, WrappingFrom, WrappingInto, WrappingSub};
 use std::collections::hash_map::Entry;
 use windows_sys::{
   w,
@@ -299,14 +298,11 @@ impl GameAccessor {
     &*self.cursor_table
   }
 
-  pub unsafe fn viewport_size(&self) -> d2::Size<u32> {
+  pub unsafe fn viewport_size(&self) -> M2d<u32> {
     if self.is_expansion {
-      d2::Size {
-        width: *self.viewport_width,
-        height: *self.viewport_width,
-      }
+      M2d::new(*self.viewport_width, *self.viewport_width)
     } else {
-      d2::Size { width: 640, height: 440 }
+      M2d::new(640, 440)
     }
   }
 
@@ -437,20 +433,20 @@ impl UnitId {
 
 #[derive(Clone, Copy)]
 pub struct Position {
-  pub real: d2::LinearPos<d2::FU16>,
-  pub delta: d2::LinearPos<d2::FI16>,
+  pub real: d2::LinearM2d<d2::FU16>,
+  pub delta: d2::LinearM2d<d2::FI16>,
   pub teleport: bool,
   pub active: bool,
   pub from_first_table: bool,
 }
 impl Position {
-  pub fn for_time(&self, fract: d2::FI16) -> d2::LinearPos<d2::FU16> {
-    self.real.wadd((self.delta * fract).winto())
+  pub fn for_time(&self, fract: d2::FI16) -> d2::LinearM2d<d2::FU16> {
+    self.real.wadd(d2::LinearM2d::wfrom(self.delta * fract))
   }
 
-  fn update_pos(&mut self, pos: d2::LinearPos<d2::FU16>, from_first_table: bool) {
+  fn update_pos(&mut self, pos: d2::LinearM2d<d2::FU16>, from_first_table: bool) {
     self.delta = if self.teleport || self.from_first_table != from_first_table {
-      d2::LinearPos::default()
+      d2::LinearM2d::default()
     } else {
       pos.wsub(self.real).winto()
     };
@@ -459,10 +455,10 @@ impl Position {
     self.teleport = false;
   }
 
-  fn new(pos: d2::LinearPos<d2::FU16>, from_first_table: bool) -> Self {
+  fn new(pos: d2::LinearM2d<d2::FU16>, from_first_table: bool) -> Self {
     Self {
       real: pos,
-      delta: d2::LinearPos::default(),
+      delta: d2::LinearM2d::default(),
       teleport: false,
       active: true,
       from_first_table,
@@ -473,9 +469,9 @@ impl Position {
 trait Entity: d2::LinkedList {
   fn unit_id(&self) -> UnitId;
   fn has_room(&self) -> bool;
-  fn linear_pos(&self) -> d2::LinearPos<d2::FU16>;
-  fn iso_pos(&self) -> d2::IsoPos<i32>;
-  fn set_pos(&mut self, pos: d2::LinearPos<d2::FU16>);
+  fn linear_pos(&self) -> d2::LinearM2d<d2::FU16>;
+  fn iso_pos(&self) -> d2::IsoP2d<i32>;
+  fn set_pos(&mut self, pos: d2::LinearM2d<d2::FU16>);
   fn rng(&mut self) -> &mut d2::Rng;
 }
 
@@ -486,7 +482,7 @@ impl InstanceSync {
     }
   }
 
-  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearPos<d2::FU16>> {
+  fn entity_adjusted_pos(&mut self, e: &impl Entity) -> Option<d2::LinearM2d<d2::FU16>> {
     self
       .delayed
       .as_mut()
@@ -496,16 +492,16 @@ impl InstanceSync {
       .map(|pos| pos.for_time(self.unit_movement_fract))
   }
 
-  fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearPos<d2::FU16> {
+  fn entity_adjusted_linear_pos(&mut self, e: &impl Entity) -> d2::LinearM2d<d2::FU16> {
     match self.entity_adjusted_pos(e) {
       Some(pos) => pos,
       None => e.linear_pos(),
     }
   }
 
-  fn entity_adjusted_iso_pos(&mut self, e: &impl Entity) -> d2::IsoPos<i32> {
+  fn entity_adjusted_iso_pos(&mut self, e: &impl Entity) -> d2::IsoP2d<i32> {
     match self.entity_adjusted_pos(e) {
-      Some(pos) => d2::IsoPos::from(pos),
+      Some(pos) => pos.into_sys(),
       None => e.iso_pos(),
     }
   }
@@ -570,7 +566,7 @@ impl InstanceSync {
         if let Some(pos) = instance.entity_tracker.get_mut(&e.unit_id()) {
           let epos = e.linear_pos();
           if pos.real != epos && (pos.teleport || pos.from_first_table != first_table) {
-            pos.delta = d2::LinearPos::default();
+            pos.delta = d2::LinearM2d::default();
             pos.teleport = false;
             pos.from_first_table = first_table
           }
@@ -608,7 +604,7 @@ impl InstanceSync {
       });
   }
 
-  unsafe fn update_env_images(&mut self, env_shift: d2::ScreenPos<i32>) {
+  unsafe fn update_env_images(&mut self, env_shift: d2::ScreenM2d<i32>) {
     let env_shift = env_shift.map(|x| x.0);
     if !self.accessor.in_per().bool() {
       for splash in (*(*self.accessor.env_effects).splashes).as_mut_slice() {
@@ -690,7 +686,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       sync_instance.player_pos = sync_instance.entity_adjusted_iso_pos(player);
       let env_shift = prev_player_pos
         .wsub(sync_instance.player_pos)
-        .map(|x| x.with_sys::<d2::coord::ScreenSys>());
+        .map(|x| x.with_sys::<d2::ScreenSys>());
 
       if !client_updated {
         // Environment particles are positioned in screen space and updated only
@@ -705,7 +701,7 @@ unsafe extern "C" fn draw_game<E: Entity>() {
       sync_instance.player_pos = player.iso_pos();
       prev_player_pos
         .wsub(sync_instance.player_pos)
-        .map(|x| x.with_sys::<d2::coord::ScreenSys>())
+        .map(|x| x.with_sys::<d2::ScreenSys>())
     };
 
     if INSTANCE.config.features.weather_smoothing() {
@@ -861,7 +857,7 @@ unsafe extern "fastcall" fn intercept_teleport(kind: d2::EntityKind, id: u32) ->
   sync_instance.accessor.apply_pos_change
 }
 
-unsafe extern "fastcall" fn should_update_cursor(cursor: CursorId) -> bool {
+unsafe extern "fastcall" fn should_update_cursor(cursor: d2::CursorId) -> bool {
   INSTANCE.client_updated.load(Relaxed)
     && INSTANCE.sync.lock().accessor.cursor_table()[cursor.0 as usize].is_anim != 0
 }

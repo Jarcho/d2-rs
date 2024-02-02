@@ -1,10 +1,11 @@
 use bitflags::bitflags;
 
 use crate::{
-  module::Ordinal::Ordinal, Addresses, EntityKind, Id16, InRoom, IsoPos, LinearPos, LinkedList,
-  Rng, Size, FU16, FU8,
+  module::Ordinal::Ordinal, Addresses, EntityKind, Id16, InRoom, IsoP2d, LinearM2d, LinkedList,
+  Rng, FU16, FU8,
 };
 use core::ptr::NonNull;
+use num::M2d;
 
 pub use crate::v109d::BASE_ADDRESSES;
 
@@ -51,24 +52,24 @@ pub struct Room {
   pub _padding2: [u32; 4],
   pub connected_count: u32,
   pub _padding3: [u32; 9],
-  pub pos: LinearPos<u32>,
-  pub size: Size<u32>,
+  pub pos: LinearM2d<u32>,
+  pub size: M2d<u32>,
   pub _padding4: [u32; 9],
 }
 
 #[repr(C)]
 pub struct StaticPos {
   pub room: Option<NonNull<Room>>,
-  pub iso_pos: IsoPos<i32>,
-  pub linear_pos: LinearPos<u32>,
+  pub iso_pos: IsoP2d<i32>,
+  pub linear_pos: LinearM2d<u32>,
   pub _padding1: [u32; 3],
 }
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FU16>,
-  pub iso_pos: IsoPos<i32>,
-  pub target_pos: [LinearPos<u16>; 3],
+  pub linear_pos: LinearM2d<FU16>,
+  pub iso_pos: IsoP2d<i32>,
+  pub target_pos: [LinearM2d<u16>; 3],
   pub room: Option<NonNull<Room>>,
   pub _padding1: [u32; 4],
   pub entity: NonNull<Entity>,
@@ -220,8 +221,9 @@ pub mod dtbl {
       StartItem, UItem, UMon,
     },
     ArmorTy, BodyLoc, Color, Component, ElTy, Id16, Id8, ItemHitClass, NpcState, Pc, PcState,
-    Range, RgbColor, ScreenRectS, Size, SkRange, StorePage, StrId,
+    Range, RgbColor, ScreenRectS, SkRange, StorePage, StrId,
   };
+  use num::M2d;
 
   use bitflags::bitflags;
 
@@ -766,7 +768,7 @@ pub mod dtbl {
     pub req_str: i16,
     pub req_dex: i16,
     pub absorbs: u8,
-    pub inv_size: Size<u8>,
+    pub inv_size: M2d<u8>,
     pub block: u8,
     pub durability: u8,
     pub indestructible: u8,
@@ -917,7 +919,7 @@ pub mod dtbl {
   pub struct MazeLvlDef {
     pub lvl: Lvl,
     pub rooms: ByNgLvl<i32>,
-    pub size: Size<i32>,
+    pub size: M2d<i32>,
     pub merge: i32,
   }
 
@@ -1166,7 +1168,7 @@ pub mod dtbl {
   pub struct NpcExDef {
     pub id: NpcEx,
     pub flags: NpcExDefFlags,
-    pub size: Size<i8>,
+    pub size: M2d<i8>,
     pub spawn_col: i8,
     pub height: i8,
     pub overlay_height: i8,
@@ -1308,7 +1310,7 @@ pub mod dtbl {
     pub spawn_max: u8,
     pub is_selectable: ByObjState<u8>,
     pub trap_prob: u8,
-    pub size: Size<i32>,
+    pub size: M2d<i32>,
     pub frame_count: ByObjState<i32>,
     pub frame_rate: ByObjState<i16>,
     pub loop_anim: ByObjState<i8>,

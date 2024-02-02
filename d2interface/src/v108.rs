@@ -39,8 +39,9 @@ pub mod dtbl {
   pub use crate::v107::dtbl::*;
   use crate::{
     dtbl::{Item, ItemTy},
-    Id8, Size,
+    Id8,
   };
+  use num::M2d;
 
   #[repr(C)]
   pub struct NgLvlDef {
@@ -82,7 +83,7 @@ pub mod dtbl {
     pub fill_blanks: i32,
     pub expansion: i32,
     pub _pad0: [u8; 4],
-    pub size: Size<u32>,
+    pub size: M2d<u32>,
     pub revealed_map: i32,
     pub scan: i32,
     pub pops: i32,

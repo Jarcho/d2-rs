@@ -194,6 +194,19 @@ where
   }
 }
 
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> WrappingMul for Fixed<T, N>
+where
+  T::ExInt: WrappingMul<Output = T::ExInt> + Shr<u8, Output = T::ExInt> + WrappingFrom<T>,
+{
+  type Output = Self;
+  #[inline]
+  fn wmul(self, rhs: Self) -> Self::Output {
+    Self(T::wfrom(
+      T::ExInt::wfrom(self.0).wmul(T::ExInt::wfrom(rhs.0)) >> N,
+    ))
+  }
+}
+
 impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> Div for Fixed<T, N>
 where
   T::ExInt: Div<Output = T::ExInt>
@@ -206,6 +219,22 @@ where
   fn div(self, rhs: Self) -> Self::Output {
     Self(T::wfrom(
       (T::ExInt::wfrom(self.0) << N) / T::ExInt::wfrom(rhs.0),
+    ))
+  }
+}
+
+impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> WrappingDiv for Fixed<T, N>
+where
+  T::ExInt: WrappingDiv<Output = T::ExInt>
+    + Shl<u8, Output = T::ExInt>
+    + Shr<u8, Output = T::ExInt>
+    + WrappingFrom<T>,
+{
+  type Output = Self;
+  #[inline]
+  fn wdiv(self, rhs: Self) -> Self::Output {
+    Self(T::wfrom(
+      (T::ExInt::wfrom(self.0) << N).wdiv(T::ExInt::wfrom(rhs.0)),
     ))
   }
 }

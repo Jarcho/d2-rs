@@ -1,6 +1,6 @@
 use crate::Rng;
 use crate::{hooks::GameAccessor, INSTANCE};
-use d2interface as d2;
+use num::M2d;
 use rand::distributions::{Distribution, Uniform};
 
 struct Star {
@@ -12,7 +12,7 @@ struct Star {
 
 pub(crate) struct ArcaneBg {
   stars: Vec<Star>,
-  size: d2::Size<u32>,
+  size: M2d<u32>,
   x_sampler: Uniform<f32>,
   y_sampler: Uniform<u32>,
   speed_sampler: Uniform<f32>,
@@ -23,7 +23,7 @@ impl ArcaneBg {
   pub unsafe fn new() -> Self {
     Self {
       stars: Vec::new(),
-      size: d2::Size::new(0, 0),
+      size: M2d::new(0, 0),
       x_sampler: Uniform::new(0.0, 1.0),
       y_sampler: Uniform::new(0, 1),
       speed_sampler: Uniform::new(
@@ -39,7 +39,7 @@ impl ArcaneBg {
     let size = accessor.viewport_size();
     let shift = *accessor.viewport_shift;
     if size != self.size {
-      if self.size.width == 0 {
+      if self.size.x == 0 {
         let white = accessor.find_closest_color(0xff, 0xff, 0xff);
         self.colors = [
           accessor.find_closest_color(0x70, 0x70, 0x70),
@@ -57,9 +57,9 @@ impl ArcaneBg {
       }
 
       self.size = size;
-      self.x_sampler = Uniform::new(0.0, size.width as f32);
-      self.y_sampler = Uniform::new(0, size.height);
-      let count = (size.width * size.height / 2048) + ((size.width + size.height) / 32) + 0x40;
+      self.x_sampler = Uniform::new(0.0, size.x as f32);
+      self.y_sampler = Uniform::new(0, size.y);
+      let count = (size.x * size.y / 2048) + ((size.x + size.y) / 32) + 0x40;
       self.stars.resize_with(count as usize, || Star {
         x: self.x_sampler.sample(rng),
         y: self.y_sampler.sample(rng),
@@ -80,7 +80,7 @@ impl ArcaneBg {
       star.x -= star.speed * ticks as f32;
       if star.x < 0.0 {
         *star = Star {
-          x: size.width as f32,
+          x: size.x as f32,
           y: self.y_sampler.sample(rng),
           speed: self.speed_sampler.sample(rng),
           color: self.colors[self.color_sampler.sample(rng) as usize],

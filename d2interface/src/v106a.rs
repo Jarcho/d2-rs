@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, EntityKind, IsoPos, LinearPos, LinkedList, Rng, FU16,
+  module::Ordinal::Ordinal, Addresses, EntityKind, IsoP2d, LinearM2d, LinkedList, Rng, FU16,
 };
 use core::ptr::NonNull;
 
@@ -42,9 +42,9 @@ pub const ADDRESSES: Addresses = Addresses {
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FU16>,
-  pub iso_pos: IsoPos<i32>,
-  pub target_pos: [LinearPos<u16>; 3],
+  pub linear_pos: LinearM2d<FU16>,
+  pub iso_pos: IsoP2d<i32>,
+  pub target_pos: [LinearM2d<u16>; 3],
   pub room: Option<NonNull<Room>>,
   pub _padding1: [u32; 4],
   pub entity: NonNull<Entity>,

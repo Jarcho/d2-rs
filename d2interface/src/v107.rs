@@ -1,5 +1,5 @@
 use crate::{
-  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, IsoPos, LinearPos, Rng, FU16,
+  module::Ordinal::Ordinal, Addresses, BaseAddresses, EntityKind, IsoP2d, LinearM2d, Rng, FU16,
 };
 use core::ptr::NonNull;
 
@@ -64,9 +64,9 @@ pub struct Room {
 
 #[repr(C)]
 pub struct DyPos {
-  pub linear_pos: LinearPos<FU16>,
-  pub iso_pos: IsoPos<i32>,
-  pub target_pos: [LinearPos<u16>; 3],
+  pub linear_pos: LinearM2d<FU16>,
+  pub iso_pos: IsoP2d<i32>,
+  pub target_pos: [LinearM2d<u16>; 3],
   pub room: Option<NonNull<Room>>,
   pub _padding1: [u32; 4],
   pub entity: NonNull<Entity>,
@@ -134,9 +134,9 @@ pub mod dtbl {
       Item, ItemCode, ItemTy, ItemTyCode, Missile, Prop, Skill,
     },
     ArmorTy, BodyLoc, Color, Component, CubeMod, CubeTy, ElTy, Id16, Id8, ItemHitClass, NpcSpawnTy,
-    NpcState, Pc, Range, RgbColor, ScreenPos, ScreenRectS, Size, StorePage, StrId, TilePos, FI12,
-    FI7,
+    NpcState, Pc, Range, RgbColor, ScreenRectS, StorePage, StrId, TileM2d, FI12, FI7,
   };
+  use num::M2d;
 
   #[repr(C)]
   pub struct NgLvlDef {
@@ -280,7 +280,7 @@ pub mod dtbl {
     pub req_str: u8,
     pub req_dex: u8,
     pub absorbs: u8,
-    pub inv_size: Size<u8>,
+    pub inv_size: M2d<u8>,
     pub block: u8,
     pub durability: u8,
     pub indestructible: u8,
@@ -397,8 +397,8 @@ pub mod dtbl {
   pub struct LvlWarpDef {
     pub id: i32,
     pub select: ScreenRectS<i32, i32>,
-    pub exit_walk: TilePos<i32>,
-    pub offset: TilePos<i32>,
+    pub exit_walk: TileM2d<i32>,
+    pub offset: TileM2d<i32>,
     pub lit_version: i32,
     pub tiles: i32,
     pub direction: [u8; 2],
@@ -501,7 +501,7 @@ pub mod dtbl {
     pub code: [u8; 5],
     pub min: Range<ByNgLvl<i32>>,
     pub no_map: u8,
-    pub size: Size<i32>,
+    pub size: M2d<i32>,
     pub height: u8,
     pub no_overlays: u8,
     pub overlay_height: u8,
@@ -607,8 +607,7 @@ pub mod dtbl {
     pub blood_local: u8,
     pub does_dmg_on_death: u8,
     pub no_gfx_hit_test: u8,
-    pub hit_test_ul_pos: ScreenPos<i32>,
-    pub hit_test_size: Size<u8>,
+    pub hit_test_rect: ScreenRectS<i32, u8>,
     pub automap_cel: i32,
     pub generic_spawn: u8,
     pub sparse_populate: u8,

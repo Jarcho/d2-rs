@@ -50,9 +50,10 @@ pub mod dtbl {
       AccByLvl3, ByEqComponent, ByLvl, ByNgLvl, DropSet, I32Code, ItemCode, ItemTy, ItemTyCode,
       Missile, Prop, Skill,
     },
-    ArmorTy, BodyLoc, Component, ElTy, Id16, Id8, ItemHitClass, Pc, Range, RgbColor, Size,
-    StorePage, FI7,
+    ArmorTy, BodyLoc, Component, ElTy, Id16, Id8, ItemHitClass, Pc, Range, RgbColor, StorePage,
+    FI7,
   };
+  use num::M2d;
 
   #[repr(C)]
   pub struct GambleItemDef {
@@ -154,7 +155,7 @@ pub mod dtbl {
     pub req_str: u8,
     pub req_dex: u8,
     pub absorbs: u8,
-    pub inv_size: Size<u8>,
+    pub inv_size: M2d<u8>,
     pub block: u8,
     pub durability: u8,
     pub indestructible: u8,

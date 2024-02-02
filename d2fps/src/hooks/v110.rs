@@ -11,6 +11,7 @@ use core::arch::global_asm;
 use d2interface::{
   self as d2,
   v110::{Entity, ADDRESSES, BASE_ADDRESSES},
+  IntoSys,
 };
 use num::WrappingInto;
 
@@ -417,19 +418,19 @@ impl super::Entity for Entity {
     self.has_room()
   }
 
-  fn linear_pos(&self) -> d2::LinearPos<d2::FU16> {
+  fn linear_pos(&self) -> d2::LinearM2d<d2::FU16> {
     self.pos(|pos| pos.linear_pos.winto(), |pos| pos.linear_pos).unwrap()
   }
 
-  fn iso_pos(&self) -> d2::IsoPos<i32> {
+  fn iso_pos(&self) -> d2::IsoP2d<i32> {
     self.pos(|pos| pos.iso_pos, |pos| pos.iso_pos).unwrap()
   }
 
-  fn set_pos(&mut self, pos: d2::LinearPos<d2::FU16>) {
+  fn set_pos(&mut self, pos: d2::LinearM2d<d2::FU16>) {
     unsafe {
       if let Some(mut epos) = self.pos.d {
         epos.as_mut().linear_pos = pos;
-        epos.as_mut().iso_pos = pos.into();
+        epos.as_mut().iso_pos = pos.into_sys();
       }
     }
   }

@@ -45,8 +45,9 @@ pub mod dtbl {
   pub use crate::v103::dtbl::*;
   use crate::{
     dtbl::{ByEqComponent, I32Code, ItemCode, Missile},
-    ArmorTy, BodyLoc, Component, Id16, ItemHitClass, Range, Size, StrId,
+    ArmorTy, BodyLoc, Component, Id16, ItemHitClass, Range, StrId,
   };
+  use num::M2d;
 
   #[repr(C)]
   pub struct GambleItemDef {
@@ -92,7 +93,7 @@ pub mod dtbl {
     pub req_str: u8,
     pub req_dex: u8,
     pub absorbs: u8,
-    pub inv_size: Size<u8>,
+    pub inv_size: M2d<u8>,
     pub block: u8,
     pub durability: u8,
     pub indestructible: u8,

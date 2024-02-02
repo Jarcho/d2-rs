@@ -1,9 +1,11 @@
 #![no_std]
 
 mod fixed;
+mod m2d;
 mod measure;
 
 pub use fixed::Fixed;
+pub use m2d::M2d;
 pub use measure::Measure;
 
 /// The addition operator, but returning `None` on overflow.

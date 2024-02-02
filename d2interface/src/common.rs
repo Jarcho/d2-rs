@@ -1,6 +1,6 @@
-use crate::{coord::ScreenSys, Pos, ScreenPos, FU8};
+use crate::{ScreenM, ScreenM2d, FU8};
 use core::{iter, marker::PhantomData, ops, ptr::NonNull, slice};
-use num::Measure;
+use num::M2d;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -217,7 +217,7 @@ impl<T> EnvArray<T> {
 pub struct EnvImage {
   pub active: Bool16,
   /// Linear space when rendering in perspective. Camera space when not.
-  pub pos: Pos<i32>,
+  pub pos: M2d<i32>,
   pub file_idx: u32,
   pub frame: u32,
   pub till_next_frame: u32,
@@ -227,8 +227,8 @@ pub type EnvImages = EnvArray<EnvImage>;
 #[repr(C)]
 pub struct EnvParticle {
   pub active: Bool16,
-  pub pos: ScreenPos<i32>,
-  pub end_y_pos: Measure<i32, ScreenSys>,
+  pub pos: ScreenM2d<i32>,
+  pub end_y_pos: ScreenM<i32>,
   pub orientation: u32,
   pub speed: i32,
   pub angle: FU8,
