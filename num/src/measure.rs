@@ -1,5 +1,6 @@
 use crate::{
-  MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul, WrappingSub,
+  CheckedAdd, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
+  WrappingSub,
 };
 use core::{
   cmp::Ordering,
@@ -76,11 +77,13 @@ impl<T: Ord, S> Ord for Measure<T, S> {
 }
 
 impl<T: fmt::Debug, S> fmt::Debug for Measure<T, S> {
+  #[inline]
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.0.fmt(f)
   }
 }
 impl<T: fmt::Display, S> fmt::Display for Measure<T, S> {
+  #[inline]
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.0.fmt(f)
   }
@@ -102,23 +105,36 @@ impl<T: Neg, S> Neg for Measure<T, S> {
 }
 
 macro_rules! impl_op {
-  ($op:ident<$other_ty:ty>, $fn:ident $(, .$field_rhs:tt)?) => {
+  ($op:ident<$other_ty:ty>, $fn:ident $(, .$field:tt)?) => {
     impl<T: $op<U>, U, S> $op<$other_ty> for Measure<T,S> {
       type Output = Measure<T::Output, S>;
+      #[inline]
       fn $fn(self, rhs: $other_ty) -> Self::Output {
         Measure::new(
-          $op::$fn(self.0, rhs$(.$field_rhs)?)
+          $op::$fn(self.0, rhs$(.$field)?)
         )
+      }
+    }
+  };
+}
+macro_rules! impl_cop {
+  ($op:ident<$other_ty:ty>, $fn:ident $(, .$field:tt)?) => {
+    impl<T: $op<U>, U, S> $op<$other_ty> for Measure<T,S> {
+      type Output = Measure<T::Output, S>;
+      #[inline]
+      fn $fn(self, rhs: $other_ty) -> Option<Self::Output> {
+        $op::$fn(self.0, rhs$(.$field)?).map(Measure::new)
       }
     }
   };
 }
 
 macro_rules! impl_op_assign {
-  ($op:ident<$other_ty:ty>, $fn:ident $(, .$field_rhs:tt)?) => {
+  ($op:ident<$other_ty:ty>, $fn:ident $(, .$field:tt)?) => {
     impl<T: $op<U>, U, S> $op<$other_ty> for Measure<T, S> {
+      #[inline]
       fn $fn(&mut self, rhs: $other_ty) {
-        $op::$fn(&mut self.0, rhs$(.$field_rhs)?);
+        $op::$fn(&mut self.0, rhs$(.$field)?);
       }
     }
   };
@@ -133,6 +149,8 @@ impl_op!(WrappingAdd<Measure<U, S>>, wadd, .0);
 impl_op!(WrappingSub<Measure<U, S>>, wsub, .0);
 impl_op!(WrappingMul<U>, wmul);
 impl_op!(WrappingDiv<U>, wdiv);
+
+impl_cop!(CheckedAdd<Measure<U, S>>, cadd, .0);
 
 impl_op_assign!(AddAssign<Measure<U, S>>, add_assign, .0);
 impl_op_assign!(SubAssign<Measure<U, S>>, sub_assign, .0);

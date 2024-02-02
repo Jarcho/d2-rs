@@ -6,6 +6,12 @@ mod measure;
 pub use fixed::Fixed;
 pub use measure::Measure;
 
+/// The addition operator, but returning `None` on overflow.
+pub trait CheckedAdd<T = Self> {
+  type Output;
+  fn cadd(self, rhs: T) -> Option<Self::Output>;
+}
+
 /// The addition operator, but wrapping on overflow.
 pub trait WrappingAdd<T = Self> {
   type Output;
@@ -76,6 +82,17 @@ macro_rules! impl_core_op {
     }
   };
 }
+macro_rules! impl_core_cop {
+  ($ty:ty, $t:ident, $trf:ident, $tyf:ident) => {
+    impl $t for $ty {
+      type Output = Self;
+      #[inline]
+      fn $trf(self, rhs: Self) -> Option<Self> {
+        self.$tyf(rhs)
+      }
+    }
+  };
+}
 
 macro_rules! impl_core_ops {
   ($ty:ty) => {
@@ -83,6 +100,7 @@ macro_rules! impl_core_ops {
     impl_core_op!($ty, WrappingSub, wsub, wrapping_sub);
     impl_core_op!($ty, WrappingMul, wmul, wrapping_mul);
     impl_core_op!($ty, WrappingDiv, wdiv, wrapping_div);
+    impl_core_cop!($ty, CheckedAdd, cadd, checked_add);
   };
 }
 
