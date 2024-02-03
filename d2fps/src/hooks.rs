@@ -578,10 +578,8 @@ impl InstanceSync {
   unsafe fn update_entity_positions<T: Entity>(&mut self) {
     let frame_len = INSTANCE.perf_freq.game_frame_time() as i64;
     let since_update = self.render_timer.last_update().wrapping_sub(self.game_update_time) as i64;
-    let since_update = since_update.min(frame_len);
-    let offset = since_update - frame_len;
-    let fract = (offset << 16) / frame_len;
-    self.unit_movement_fract = d2::FI16::from_repr(fract as i32);
+    let offset = since_update.clamp(0, frame_len) - frame_len;
+    self.unit_movement_fract = d2::FI16::from_repr(((offset << 16) / frame_len) as i32);
 
     let instance = &mut self.delayed.as_mut().unwrap();
     self

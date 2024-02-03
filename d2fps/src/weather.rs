@@ -56,6 +56,9 @@ pub(crate) unsafe fn update_weather(
 
       if ex.delta.x != 0 || ex.delta.y != 0 {
         particle.pos = ex.target_pos;
+        if !is_snowing {
+          particle.pos.y = particle.pos.y.min(particle.end_y_pos);
+        }
         ex.delta_alpha = 0;
       } else {
         ex.target_alpha = particle.alpha;
@@ -139,7 +142,8 @@ pub(crate) unsafe fn apply_weather_delta(
   while i <= (*particles).last_active_idx {
     let particle = &mut *ptr;
     if particle.active.bool() {
-      particle.pos += env_shift;
+      particle.pos = particle.pos.wadd(env_shift);
+      particle.end_y_pos = particle.end_y_pos.wadd(env_shift.y);
 
       let Some(ex) = sync_instance.weather_particles.get_mut(i as usize) else {
         i += 1;
@@ -150,9 +154,12 @@ pub(crate) unsafe fn apply_weather_delta(
         ex.target_pos = ex.target_pos.wadd(env_shift);
         particle.pos = ex.target_pos + ex.delta.mul_trunc(fract);
         particle.pos.x = (particle.pos.x.wadd(Measure::new(width)) % width).wabs();
-      }
-      if is_snowing {
-        particle.alpha = (ex.target_alpha as i32 + ex.delta_alpha.mul_trunc(fract)) as u8;
+
+        if is_snowing {
+          particle.alpha = (ex.target_alpha as i32 + ex.delta_alpha.mul_trunc(fract)) as u8;
+        } else {
+          particle.pos.y = particle.pos.y.min(particle.end_y_pos);
+        }
       }
     }
 
