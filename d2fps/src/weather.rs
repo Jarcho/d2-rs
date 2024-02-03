@@ -29,7 +29,7 @@ pub(crate) unsafe fn update_weather(
   let angle = *sync_instance.accessor.weather_angle;
   let is_snowing = sync_instance.accessor.is_snowing();
   let width = sync_instance.accessor.viewport_size().x as i32;
-  let fract = d2::FI16::wfrom(1) - sync_instance.unit_movement_fract;
+  let fract = sync_instance.unit_movement_fract;
 
   let angle_sin = sync_instance.accessor.sin(angle) as f64;
   let angle_cos = sync_instance.accessor.cos(angle) as f64;
@@ -109,7 +109,7 @@ pub(crate) unsafe fn update_weather(
         }
 
         ex.target_pos = particle.pos.wadd(delta);
-        ex.delta = -delta;
+        ex.delta = delta;
         particle.pos = ex.target_pos + ex.delta.mul_trunc(fract);
         particle.pos.x = (particle.pos.x.wadd(Measure::new(width)) % width).wabs();
 
@@ -130,7 +130,7 @@ pub(crate) unsafe fn apply_weather_delta(
   sync_instance: &mut InstanceSync,
 ) {
   let particles = (*sync_instance.accessor.env_effects).particles;
-  let fract = d2::FI16::wfrom(1) - sync_instance.unit_movement_fract;
+  let fract = sync_instance.unit_movement_fract;
   let width = sync_instance.accessor.viewport_size().x as i32;
   let is_snowing = sync_instance.accessor.is_snowing();
 
