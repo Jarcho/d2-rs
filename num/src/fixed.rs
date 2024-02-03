@@ -1,6 +1,6 @@
 use crate::{
-  CheckedAdd, ExInt, MulTrunc, WithLargestBitSize, WrappingAdd, WrappingDiv, WrappingFrom,
-  WrappingInto, WrappingMul, WrappingSub,
+  CheckedAdd, ExInt, MulTrunc, WithLargestBitSize, WrappingAbs, WrappingAdd, WrappingDiv,
+  WrappingFrom, WrappingInto, WrappingMul, WrappingSub,
 };
 use bytemuck::TransparentWrapper;
 use core::{
@@ -55,24 +55,25 @@ impl<T: Into<f64>, const N: u8> From<Fixed<T, N>> for f64 {
 impl<const N: u8> From<f64> for Fixed<u32, N> {
   #[inline]
   fn from(x: f64) -> Self {
-    Self((x * f64::from(1u32 << N as u32)) as u32)
+    Self((x * f64::from(1u32 << N)) as u32)
   }
 }
 impl<const N: u8> From<f64> for Fixed<i32, N> {
   #[inline]
   fn from(x: f64) -> Self {
-    Self((x * f64::from(1u32 << N as u32)) as i32)
+    Self((x * f64::from(1u32 << N)) as i32)
   }
 }
 
 impl<T, U, const N: u8, const M: u8> WrappingFrom<Fixed<U, M>> for Fixed<T, N>
 where
-  T: WithLargestBitSize<U> + WrappingFrom<T::Sized>,
-  T::Sized: Shl<u8, Output = T::Sized> + Shr<u8, Output = T::Sized> + WrappingFrom<U>,
+  U: WithLargestBitSize<T>,
+  U::Sized: Shl<u8, Output = U::Sized> + Shr<u8, Output = U::Sized> + WrappingFrom<U>,
+  T: WrappingFrom<U::Sized>,
 {
   #[inline]
   fn wfrom(x: Fixed<U, M>) -> Self {
-    Self(Fixed::<_, M>(T::Sized::wfrom(x.0)).with_prec::<N>().0.winto())
+    Self(Fixed::<_, M>(U::Sized::wfrom(x.0)).with_prec::<N>().0.winto())
   }
 }
 
@@ -101,6 +102,18 @@ where
   fn div_assign(&mut self, rhs: U) {
     *self = *self / rhs
   }
+}
+
+macro_rules! impl_uop {
+  ($op:ident, $f:ident) => {
+    impl<T: $op, const N: u8> $op for Fixed<T, N> {
+      type Output = Fixed<T::Output, N>;
+      #[inline]
+      fn $f(self) -> Self::Output {
+        Fixed($op::$f(self.0))
+      }
+    }
+  };
 }
 
 macro_rules! impl_op {
@@ -150,6 +163,9 @@ macro_rules! impl_op_assign {
   };
 }
 
+impl_uop!(Neg, neg);
+impl_uop!(WrappingAbs, wabs);
+
 impl_op!(Add, add, Self, 0);
 impl_op!(Sub, sub, Self, 0);
 impl_op!(Mul, mul, T);
@@ -172,14 +188,6 @@ impl_cop!(CheckedAdd, cadd, Self, 0);
 
 impl_op_assign!(AddAssign, add_assign, Self, 0);
 impl_op_assign!(SubAssign, sub_assign, Self, 0);
-
-impl<T: Neg<Output = T>, const N: u8> Neg for Fixed<T, N> {
-  type Output = Self;
-  #[inline]
-  fn neg(self) -> Self::Output {
-    Self(-self.0)
-  }
-}
 
 impl<T: ExInt + WrappingFrom<T::ExInt>, const N: u8> Mul for Fixed<T, N>
 where

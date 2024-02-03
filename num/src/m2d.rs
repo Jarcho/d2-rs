@@ -1,11 +1,11 @@
 use crate::{
-  CheckedAdd, Fixed, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
-  WrappingSub,
+  CheckedAdd, Fixed, MulTrunc, WrappingAbs, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto,
+  WrappingMul, WrappingSub,
 };
 use bytemuck::{Pod, Zeroable};
 use core::{
   fmt,
-  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign},
 };
 
 #[repr(C)]
@@ -50,14 +50,17 @@ impl<T: WrappingFrom<U>, U> WrappingFrom<M2d<U>> for M2d<T> {
   }
 }
 
-impl<T: Neg> Neg for M2d<T> {
-  type Output = M2d<T::Output>;
-  #[inline]
-  fn neg(self) -> Self::Output {
-    M2d::new(-self.x, -self.y)
-  }
+macro_rules! impl_uop {
+  ($op:ident, $fn:ident) => {
+    impl<T: $op> $op for M2d<T> {
+      type Output = M2d<T::Output>;
+      #[inline]
+      fn $fn(self) -> Self::Output {
+        M2d::new($op::$fn(self.x), $op::$fn(self.y))
+      }
+    }
+  };
 }
-
 macro_rules! impl_op {
   ($op:ident, $fn:ident) => {
     impl<T: $op<U>, U> $op<M2d<U>> for M2d<T> {
@@ -149,10 +152,14 @@ macro_rules! impl_op_assign_fixed {
   };
 }
 
+impl_uop!(Neg, neg);
+impl_uop!(WrappingAbs, wabs);
+
 impl_op!(Add, add);
 impl_op!(Sub, sub);
 impl_op!(Mul, mul);
 impl_op!(Div, div);
+impl_op!(Rem, rem);
 impl_op!(WrappingAdd, wadd);
 impl_op!(WrappingSub, wsub);
 impl_op!(WrappingMul, wmul);
@@ -165,11 +172,13 @@ impl_op_assign!(AddAssign, add_assign);
 impl_op_assign!(SubAssign, sub_assign);
 impl_op_assign!(MulAssign, mul_assign);
 impl_op_assign!(DivAssign, div_assign);
+impl_op_assign!(RemAssign, rem_assign);
 
 impl_op_scalar!(Add, add, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_op_scalar!(Sub, sub, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_op_scalar!(Mul, mul, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_op_scalar!(Div, div, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
+impl_op_scalar!(Rem, rem, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_op_scalar!(
   MulTrunc, mul_trunc, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
 );
@@ -216,6 +225,9 @@ impl_op_assign_scalar!(
 );
 impl_op_assign_scalar!(
   DivAssign, div_assign, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
+);
+impl_op_assign_scalar!(
+  RemAssign, rem_assign, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
 );
 
 impl_op_fixed!(Add, add);

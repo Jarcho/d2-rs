@@ -1,13 +1,13 @@
 use crate::{
-  CheckedAdd, MulTrunc, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto, WrappingMul,
-  WrappingSub,
+  CheckedAdd, MulTrunc, WrappingAbs, WrappingAdd, WrappingDiv, WrappingFrom, WrappingInto,
+  WrappingMul, WrappingSub,
 };
 use bytemuck::TransparentWrapper;
 use core::{
   cmp::Ordering,
   fmt,
   marker::PhantomData,
-  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+  ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign},
 };
 
 #[repr(transparent)]
@@ -97,14 +97,17 @@ impl<T: WrappingFrom<U>, U, S> WrappingFrom<Measure<U, S>> for Measure<T, S> {
   }
 }
 
-impl<T: Neg, S> Neg for Measure<T, S> {
-  type Output = Measure<T::Output, S>;
-  #[inline]
-  fn neg(self) -> Self::Output {
-    Measure::new(-self.0)
-  }
+macro_rules! impl_uop {
+  ($op:ident, $fn:ident) => {
+    impl<T: $op, S> $op for Measure<T, S> {
+      type Output = Measure<T::Output, S>;
+      #[inline]
+      fn $fn(self) -> Self::Output {
+        Measure::new($op::$fn(self.0))
+      }
+    }
+  };
 }
-
 macro_rules! impl_op {
   ($op:ident<$other_ty:ty>, $fn:ident $(, .$field:tt)?) => {
     impl<T: $op<U>, U, S> $op<$other_ty> for Measure<T,S> {
@@ -141,11 +144,15 @@ macro_rules! impl_op_assign {
   };
 }
 
+impl_uop!(Neg, neg);
+impl_uop!(WrappingAbs, wabs);
+
 impl_op!(Add<Measure<U, S>>, add, .0);
 impl_op!(Sub<Measure<U, S>>, sub, .0);
 impl_op!(Mul<U>, mul);
 impl_op!(MulTrunc<U>, mul_trunc);
 impl_op!(Div<U>, div);
+impl_op!(Rem<U>, rem);
 impl_op!(WrappingAdd<Measure<U, S>>, wadd, .0);
 impl_op!(WrappingSub<Measure<U, S>>, wsub, .0);
 impl_op!(WrappingMul<U>, wmul);
@@ -157,5 +164,6 @@ impl_op_assign!(AddAssign<Measure<U, S>>, add_assign, .0);
 impl_op_assign!(SubAssign<Measure<U, S>>, sub_assign, .0);
 impl_op_assign!(MulAssign<U>, mul_assign);
 impl_op_assign!(DivAssign<U>, div_assign);
+impl_op_assign!(RemAssign<U>, rem_assign);
 
 unsafe impl<T, S> TransparentWrapper<T> for Measure<T, S> {}

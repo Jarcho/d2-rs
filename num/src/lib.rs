@@ -14,6 +14,12 @@ pub trait CheckedAdd<T = Self> {
   fn cadd(self, rhs: T) -> Option<Self::Output>;
 }
 
+/// Calculates the absolute value, wrapping on overflow.
+pub trait WrappingAbs<T = Self> {
+  type Output;
+  fn wabs(self) -> Self::Output;
+}
+
 /// The addition operator, but wrapping on overflow.
 pub trait WrappingAdd<T = Self> {
   type Output;
@@ -73,6 +79,17 @@ pub trait WithLargestBitSize<T> {
   type Sized;
 }
 
+macro_rules! impl_core_uop {
+  ($ty:ty, $t:ident, $trf:ident, $tyf:ident) => {
+    impl $t for $ty {
+      type Output = Self;
+      #[inline]
+      fn $trf(self) -> Self {
+        self.$tyf()
+      }
+    }
+  };
+}
 macro_rules! impl_core_op {
   ($ty:ty, $t:ident, $trf:ident, $tyf:ident) => {
     impl $t for $ty {
@@ -118,6 +135,19 @@ impl_core_ops!(u32);
 impl_core_ops!(u64);
 impl_core_ops!(u128);
 impl_core_ops!(usize);
+
+macro_rules! impl_core_signed_ops {
+  ($ty:ty) => {
+    impl_core_uop!($ty, WrappingAbs, wabs, wrapping_abs);
+  };
+}
+
+impl_core_signed_ops!(i8);
+impl_core_signed_ops!(i16);
+impl_core_signed_ops!(i32);
+impl_core_signed_ops!(i64);
+impl_core_signed_ops!(i128);
+impl_core_signed_ops!(isize);
 
 macro_rules! impl_wrapping_from {
   ($ty:ty, $($from_ty:ty),+) => {$(
